@@ -1,0 +1,59 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <h3 class="fw-bold text-dark">Panel de Control Geolab</h3>
+        <p class="text-muted">Resumen de actividad global del laboratorio.</p>
+    </div>
+</div>
+
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <div class="card-custom p-4 bg-primary text-white">
+            <h2 class="fw-bold">{{ total_informes }}</h2>
+            <span>Informes Totales</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <div class="card-custom p-4 bg-white border-start border-5 border-success">
+            <h2 class="fw-bold text-success">{{ obras_activas }}</h2>
+            <span class="text-muted">Obras Registradas</span>
+        </div>
+    </div>
+    <div class="col-md-4">
+        <button class="btn btn-warning w-100 h-100 fw-bold shadow-sm d-flex flex-column justify-content-center align-items-center gap-2">
+            <i class="bi bi-cloud-upload fs-1"></i>
+            CARGAR NUEVO INFORME
+        </button>
+    </div>
+</div>
+
+<div class="card card-custom">
+    <div class="card-header bg-white py-3">
+        <h6 class="mb-0 fw-bold">Últimos Informes Cargados (Global)</h6>
+    </div>
+    <div class="table-responsive">
+        <table class="table align-middle mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Empresa</th>
+                    <th>Obra</th>
+                    <th>Informe</th>
+                    <th>Fecha</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for informe in ultimos_informes %}
+                <tr>
+                    <td><span class="badge bg-dark">{{ informe.obra.constructora.codigo }}</span> {{ informe.obra.constructora.nombre }}</td>
+                    <td>{{ informe.obra.nombre }}</td>
+                    <td>{{ informe.titulo }}</td>
+                    <td>{{ informe.fecha_creacion|date:"d/m/Y H:i" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

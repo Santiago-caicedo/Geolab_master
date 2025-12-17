@@ -1,0 +1,104 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="card card-custom">
+    <div class="card-header bg-white border-bottom-0 py-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
+        <h5 class="mb-0 fw-bold text-primary">📑 Gestión de Informes</h5>
+        
+        <form method="get" class="d-flex gap-2">
+            <div class="input-group">
+                <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                <input type="text" name="q" class="form-control border-start-0 bg-light ps-0" 
+                       placeholder="Buscar obra, código..." value="{{ query }}" style="max-width: 250px;">
+            </div>
+            <button type="submit" class="btn btn-primary px-4">Buscar</button>
+            {% if query %}
+                <a href="{% url 'lista_informes' %}" class="btn btn-outline-secondary" title="Limpiar"><i class="bi bi-x-lg"></i></a>
+            {% endif %}
+        </form>
+    </div>
+
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead>
+                <tr>
+                    <th class="ps-4">Informe / Fecha</th>
+                    <th>Obra (Código)</th>
+                    <th>Empresa Cliente</th>
+                    <th class="text-end pe-4">Archivo</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for informe in page_obj %}
+                <tr>
+                    <td class="ps-4">
+                        <div class="d-flex align-items-center">
+                            <div class="bg-light rounded p-2 me-3 text-primary">
+                                <i class="bi bi-file-text-fill fs-5"></i>
+                            </div>
+                            <div>
+                                <div class="fw-bold text-dark">{{ informe.titulo }}</div>
+                                <small class="text-muted">{{ informe.fecha_creacion|date:"d M, Y" }}</small>
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <span class="fw-bold text-dark">{{ informe.obra.nombre }}</span>
+                        <br>
+                        <span class="badge bg-soft-blue text-primary">{{ informe.obra.codigo_obra }}</span>
+                    </td>
+                    <td>
+                        <div class="d-flex flex-column">
+                            <span class="fw-medium">{{ informe.obra.constructora.nombre }}</span>
+                            <small class="text-muted">NIT: {{ informe.obra.constructora.nit|default:"--" }}</small>
+                        </div>
+                    </td>
+                    <td class="text-end pe-4">
+                        {% if informe.archivo %}
+                            <a href="{{ informe.archivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                <i class="bi bi-download me-1"></i> Ver PDF
+                            </a>
+                        {% else %}
+                            <span class="badge bg-light text-muted border">Sin Archivo</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% empty %}
+                <tr>
+                    <td colspan="4" class="text-center py-5">
+                        <div class="text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-3"></i>
+                            {% if query %}
+                                No se encontraron resultados para "{{ query }}"
+                            {% else %}
+                                No hay informes disponibles para tu usuario.
+                            {% endif %}
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+
+    <div class="card-footer bg-white py-3 border-top-0 d-flex justify-content-between align-items-center">
+        <small class="text-muted">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</small>
+        
+        <nav>
+            <ul class="pagination pagination-sm mb-0">
+                {% if page_obj.has_previous %}
+                    <li class="page-item"><a class="page-link border-0 text-dark" href="?page=1&q={{ query }}">Inicio</a></li>
+                    <li class="page-item"><a class="page-link border-0 text-dark" href="?page={{ page_obj.previous_page_number }}&q={{ query }}"><i class="bi bi-chevron-left"></i></a></li>
+                {% endif %}
+                
+                <li class="page-item active"><span class="page-link bg-primary border-primary">{{ page_obj.number }}</span></li>
+                
+                {% if page_obj.has_next %}
+                    <li class="page-item"><a class="page-link border-0 text-dark" href="?page={{ page_obj.next_page_number }}&q={{ query }}"><i class="bi bi-chevron-right"></i></a></li>
+                    <li class="page-item"><a class="page-link border-0 text-dark" href="?page={{ page_obj.paginator.num_pages }}&q={{ query }}">Fin</a></li>
+                {% endif %}
+            </ul>
+        </nav>
+    </div>
+</div>
+{% endblock %}

@@ -1,0 +1,46 @@
+{% load static %}
+<nav class="sidebar">
+    <a href="{% url 'home' %}" class="sidebar-brand">
+        <img src="{% static 'img/geolab-logo.png' %}" alt="Geolab Sistema" style="width: 160px; height: auto;">
+    </a>
+    
+    <div class="d-flex flex-column py-2 h-100 text-nowrap overflow-auto" style="scrollbar-width: none;">
+        
+        <div class="nav-section">GESTIÓN TÉCNICA</div>
+        
+        <a href="{% url 'home' %}" class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> Panel Principal
+        </a>
+        
+        <a href="{% url 'lista_constructoras' %}" class="nav-link {% if 'empresas' in request.path or 'obras' in request.path %}active{% endif %}">
+            <i class="bi bi-briefcase"></i> Directorio Empresas
+        </a>
+
+        <a href="#" class="nav-link">
+            <i class="bi bi-cloud-arrow-up-fill"></i> Cargar Informe
+        </a>
+
+        
+        <div class="nav-section">ADMINISTRACIÓN</div>
+        
+        <a href="/admin/users/clienteexterno/" class="nav-link" target="_blank">
+            <i class="bi bi-people"></i> Usuarios y Accesos
+        </a>
+        
+        <a href="/admin/" class="nav-link" target="_blank">
+            <i class="bi bi-gear-wide-connected"></i> Configuración Avanzada
+        </a>
+
+        <div class="flex-grow-1"></div>
+
+        <div class="p-3">
+            <form action="{% url 'admin:logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn w-100 btn-sm d-flex align-items-center justify-content-center gap-2 shadow-sm text-white" 
+                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
+                    <i class="bi bi-box-arrow-left"></i> Cerrar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>

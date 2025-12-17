@@ -1,0 +1,80 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<nav aria-label="breadcrumb" class="mb-4">
+    <ol class="breadcrumb small">
+        <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none text-muted">Empresas</a></li>
+        <li class="breadcrumb-item active" aria-current="page">{{ empresa.nombre }}</li>
+    </ol>
+</nav>
+
+<div class="card card-custom mb-4 border-start border-5 border-primary">
+    <div class="card-body p-4">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+            <div class="d-flex gap-3">
+                <div class="bg-primary text-white rounded p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
+                    <span class="h4 mb-0 fw-bold">{{ empresa.nombre|slice:":1" }}</span>
+                </div>
+                <div>
+                    <h3 class="fw-bold text-dark mb-0">{{ empresa.nombre }}</h3>
+                    <div class="d-flex gap-3 text-muted mt-1 small">
+                        <span><i class="bi bi-qr-code me-1"></i> Cod: {{ empresa.codigo }}</span>
+                        <span><i class="bi bi-card-text me-1"></i> NIT: {{ empresa.nit|default:"--" }}</span>
+                    </div>
+                </div>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary btn-sm"><a href="{% url 'editar_constructora' empresa.pk %}" class="btn btn-outline-secondary btn-sm">
+    <i class="bi bi-pencil me-1"></i> Editar Datos
+</a></button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h5 class="fw-bold text-dark mb-0">🏗️ Obras y Proyectos</h5>
+    <span class="badge bg-light text-dark border">{{ obras.count }} Activos</span>
+</div>
+
+<div class="card card-custom">
+    <div class="table-responsive">
+        <table class="table table-hover align-middle mb-0">
+            <thead class="bg-light">
+                <tr>
+                    <th class="ps-4">Código Obra</th>
+                    <th>Nombre del Proyecto</th>
+                    <th>Fecha Registro</th>
+                    <th>Informes</th>
+                    <th class="text-end pe-4">Acción</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in obras %}
+                <tr>
+                    <td class="ps-4">
+                        <span class="badge bg-soft-orange text-dark font-monospace">{{ obra.codigo_obra }}</span>
+                    </td>
+                    <td>
+                        <div class="fw-bold text-dark">{{ obra.nombre }}</div>
+                    </td>
+                    <td class="text-muted small">
+                        {{ obra.fecha_creacion|date:"d M, Y" }}
+                    </td>
+                    <td>
+                        <span class="badge bg-light text-secondary border">
+                            {{ obra.num_informes }} docs
+                        </span>
+                    </td>
+                    <td class="text-end pe-4">
+                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-outline-primary px-3 rounded-pill">
+                            Ver Detalle <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}
