@@ -27,8 +27,17 @@ SECRET_KEY = config('SECRET_KEY')
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = config('DEBUG', default=False, cast=bool)
 
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default=[], cast=lambda v: [s.strip() for s in v.split(',')])
+ALLOWED_HOSTS = [
+    'portalgeolab.com',
+    'www.portalgeolab.com',	
+    'localhost',   
+    '127.0.0.1',
+]
 
+CSRF_TRUSTED_ORIGINS = [
+    'https://portalgeolab.com',
+    'https://www.portalgeolab.com',
+]
 
 # Application definition
 
@@ -122,7 +131,6 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/6.0/howto/static-files/
 
-STATIC_URL = 'static/'
 
 STATICFILES_DIRS = [
     BASE_DIR / "static",
@@ -148,3 +156,36 @@ LOGIN_URL = 'login'
 
 # Usar el modelo de usuario personalizado (Ya lo tenías, solo confirmo)
 AUTH_USER_MODEL = 'users.UsuarioBase'
+
+
+
+# --- CONFIGURACIÓN AWS S3 (IAM ROLE) ---
+AWS_STORAGE_BUCKET_NAME = 'vadomdata'
+AWS_S3_REGION_NAME = 'us-east-1'
+AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+AWS_DEFAULT_ACL = None # Tu bucket no permite ACLs
+
+# --- DEFINICIÓN DE URLs PÚBLICAS ---
+# Esto es para que Django sepa generar los links (src="...") correctamente
+STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/geolab/static/'
+MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/geolab/media/'
+
+# --- CONFIGURACIÓN DE STORAGES (Sin archivo extra) ---
+# Requiere Django 4.2+
+STORAGES = {
+    # 1. Almacenamiento para archivos subidos por usuarios (Media)
+    "default": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "location": "geolab/media",   # <--- AQUÍ defines la carpeta
+            "file_overwrite": False,      # Para no borrar archivos con mismo nombre
+        },
+    },
+    # 2. Almacenamiento para archivos del sistema (CSS, JS, Admin)
+    "staticfiles": {
+        "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+        "OPTIONS": {
+            "location": "geolab/static",  # <--- AQUÍ defines la carpeta
+        },
+    },
+}
