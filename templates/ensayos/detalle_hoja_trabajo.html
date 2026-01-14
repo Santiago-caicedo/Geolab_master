@@ -1,0 +1,323 @@
+{% extends 'base.html' %}
+
+{% block title %}Hoja de Trabajo - {{ hoja.obra.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Encabezado tipo documento -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-1">
+                        <i class="bi bi-clipboard2-data me-2"></i>
+                        RELACIÓN DE MUESTRAS ENSAYADAS DE CILINDROS, GROUTING, MORTEROS Y VIGAS
+                    </h4>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <div><strong>Código:</strong> {{ hoja.codigo_formato }}</div>
+                    <div><strong>Versión:</strong> {{ hoja.version_formato }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- Datos de la obra (solo lectura) -->
+            <div class="row mb-4">
+                <div class="col-md-6">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <th style="width: 150px;">CLIENTE C.C:</th>
+                            <td>{{ hoja.constructora.codigo }}</td>
+                        </tr>
+                        <tr>
+                            <th>NOMBRE OBRA:</th>
+                            <td>{{ hoja.obra.nombre }}</td>
+                        </tr>
+                        <tr>
+                            <th>C.O:</th>
+                            <td>{{ hoja.obra.codigo_obra }}</td>
+                        </tr>
+                        <tr>
+                            <th>REMISIÓN:</th>
+                            <td>
+                                <a href="{% url 'detalle_remision' hoja.remision.pk %}">
+                                    #{{ hoja.remision.orden_trabajo }}
+                                </a>
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+                <div class="col-md-6">
+                    <!-- Progreso -->
+                    <div class="card bg-light">
+                        <div class="card-body py-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <span class="fw-bold">Progreso de Ensayos</span>
+                                <span class="badge
+                                    {% if hoja.estado == 'pendiente' %}bg-secondary
+                                    {% elif hoja.estado == 'en_proceso' %}bg-warning text-dark
+                                    {% elif hoja.estado == 'completada' %}bg-success
+                                    {% else %}bg-primary{% endif %}">
+                                    {{ hoja.get_estado_display }}
+                                </span>
+                            </div>
+                            <div class="progress" style="height: 25px;">
+                                <div class="progress-bar
+                                    {% if hoja.progreso == 100 %}bg-success
+                                    {% elif hoja.progreso > 0 %}bg-warning
+                                    {% else %}bg-secondary{% endif %}"
+                                     style="width: {{ hoja.progreso }}%">
+                                    <strong>{{ hoja.muestras_completadas }} / {{ hoja.total_muestras }}</strong>
+                                </div>
+                            </div>
+                            <small class="text-muted mt-1 d-block">
+                                {{ hoja.muestras_completadas }} completadas,
+                                {{ hoja.muestras_pendientes }} pendientes
+                            </small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tabla de resultados -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-table me-2"></i>
+                Resultados de Ensayos
+            </h5>
+            <span class="text-muted">Fecha: {{ fecha_hoy|date:"d/m/Y" }}</span>
+        </div>
+
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered mb-0" id="tabla-resultados">
+                <thead class="table-dark">
+                    <tr>
+                        <th rowspan="2" class="align-middle text-center" style="width: 60px;">Muestra</th>
+                        <th rowspan="2" class="align-middle">Localización</th>
+                        <th rowspan="2" class="align-middle text-center">F. Toma</th>
+                        <th rowspan="2" class="align-middle text-center">F. Falla</th>
+                        <th rowspan="2" class="align-middle text-center">Edad</th>
+                        <th rowspan="2" class="align-middle text-center">Ø"</th>
+                        <th rowspan="2" class="align-middle text-center">F'c</th>
+                        <th colspan="4" class="text-center">DIÁMETRO (mm)</th>
+                        <th colspan="4" class="text-center">LONGITUD (mm)</th>
+                        <th rowspan="2" class="align-middle text-center">Peso<br>(g)</th>
+                        <th rowspan="2" class="align-middle text-center">Carga<br>(KN)</th>
+                        <th rowspan="2" class="align-middle text-center">Esfuerzo<br>(MPa)</th>
+                        <th rowspan="2" class="align-middle text-center">%</th>
+                        <th rowspan="2" class="align-middle text-center">Falla</th>
+                        <th rowspan="2" class="align-middle text-center">Estado</th>
+                    </tr>
+                    <tr>
+                        <th class="text-center">D1</th>
+                        <th class="text-center">D2</th>
+                        <th class="text-center">D3</th>
+                        <th class="text-center">Prom</th>
+                        <th class="text-center">L1</th>
+                        <th class="text-center">L2</th>
+                        <th class="text-center">L3</th>
+                        <th class="text-center">Prom</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for resultado in resultados %}
+                    <tr id="resultado-{{ resultado.pk }}"
+                        class="{% if resultado.debe_fallarse_hoy %}table-warning{% elif resultado.estado == 'completado' %}table-success{% endif %}">
+                        <!-- Datos de remisión (solo lectura) -->
+                        <td class="text-center fw-bold">{{ resultado.muestra.numero_muestra }}</td>
+                        <td>
+                            <small>{{ resultado.muestra.localizacion|truncatechars:30 }}</small>
+                        </td>
+                        <td class="text-center">
+                            <small>{{ resultado.muestra.fecha_toma|date:"d/m" }}</small>
+                        </td>
+                        <td class="text-center">
+                            {% if resultado.fecha_falla_programada %}
+                                {% if resultado.debe_fallarse_hoy %}
+                                    <span class="badge bg-danger">HOY</span>
+                                {% elif resultado.dias_para_falla < 0 %}
+                                    <span class="text-danger" title="Vencida">
+                                        {{ resultado.fecha_falla_programada|date:"d/m" }}
+                                    </span>
+                                {% else %}
+                                    <small>{{ resultado.fecha_falla_programada|date:"d/m" }}</small>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ resultado.muestra.edad_ensayo_dias }}d</td>
+                        <td class="text-center">{{ resultado.muestra.diametro_longitud|default:"-" }}</td>
+                        <td class="text-center">{{ resultado.muestra.fc_resistencia|default:"-" }}</td>
+
+                        <!-- Datos editables (laboratorio) -->
+                        <form hx-post="{% url 'editar_resultado' resultado.pk %}"
+                              hx-target="#resultado-{{ resultado.pk }}"
+                              hx-swap="outerHTML"
+                              class="resultado-form">
+                            {% csrf_token %}
+                            <td>
+                                <input type="number" name="diametro_d1" step="0.01"
+                                       value="{{ resultado.diametro_d1|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td>
+                                <input type="number" name="diametro_d2" step="0.01"
+                                       value="{{ resultado.diametro_d2|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td>
+                                <input type="number" name="diametro_d3" step="0.01"
+                                       value="{{ resultado.diametro_d3|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td class="text-center bg-light">
+                                <strong>{{ resultado.diametro_real|default:"-" }}</strong>
+                            </td>
+                            <td>
+                                <input type="number" name="longitud_l1" step="0.01"
+                                       value="{{ resultado.longitud_l1|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td>
+                                <input type="number" name="longitud_l2" step="0.01"
+                                       value="{{ resultado.longitud_l2|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td>
+                                <input type="number" name="longitud_l3" step="0.01"
+                                       value="{{ resultado.longitud_l3|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 60px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td class="text-center bg-light">
+                                <strong>{{ resultado.longitud_real|default:"-" }}</strong>
+                            </td>
+                            <td>
+                                <input type="number" name="peso_gramos" step="0.01"
+                                       value="{{ resultado.peso_gramos|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 70px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td>
+                                <input type="number" name="carga_maxima_kn" step="0.01"
+                                       value="{{ resultado.carga_maxima_kn|default:'' }}"
+                                       class="form-control form-control-sm text-center p-1"
+                                       style="width: 70px;"
+                                       {% if resultado.estado == 'completado' %}readonly{% endif %}>
+                            </td>
+                            <td class="text-center bg-light">
+                                <strong>{{ resultado.esfuerzo_mpa|default:"-" }}</strong>
+                            </td>
+                            <td class="text-center bg-light">
+                                {% if resultado.porcentaje_desarrollo %}
+                                    <strong class="{% if resultado.cumple_resistencia %}text-success{% else %}text-warning{% endif %}">
+                                        {{ resultado.porcentaje_desarrollo }}%
+                                    </strong>
+                                {% else %}
+                                    -
+                                {% endif %}
+                            </td>
+                            <td>
+                                <select name="forma_falla"
+                                        class="form-select form-select-sm p-1"
+                                        style="width: 80px; font-size: 0.7rem;"
+                                        {% if resultado.estado == 'completado' %}disabled{% endif %}>
+                                    <option value="">--</option>
+                                    {% for value, label in resultado.TIPOS_FALLA %}
+                                        {% if value %}
+                                        <option value="{{ value }}"
+                                                {% if resultado.forma_falla == value %}selected{% endif %}>
+                                            {{ value|upper }}
+                                        </option>
+                                        {% endif %}
+                                    {% endfor %}
+                                </select>
+                            </td>
+                            <td class="text-center">
+                                {% if resultado.estado == 'completado' %}
+                                    <span class="badge bg-success">
+                                        <i class="bi bi-check-lg"></i>
+                                    </span>
+                                {% elif resultado.estado == 'fallido' %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-x-lg"></i>
+                                    </span>
+                                {% else %}
+                                    <button type="submit" class="btn btn-sm btn-primary p-1">
+                                        <i class="bi bi-save"></i>
+                                    </button>
+                                {% endif %}
+                            </td>
+                        </form>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Leyenda y acciones -->
+    <div class="row mt-4">
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-body py-2">
+                    <small class="text-muted">
+                        <strong>Leyenda:</strong>
+                        <span class="badge bg-warning text-dark ms-2">Falla HOY</span>
+                        <span class="badge bg-success ms-2">Completado</span>
+                        <span class="text-success ms-2">100%+ = Cumple</span>
+                        <span class="text-warning ms-2">&lt;100% = No cumple</span>
+                    </small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-6 text-end">
+            <a href="{% url 'lista_hojas_trabajo' %}" class="btn btn-outline-secondary">
+                <i class="bi bi-arrow-left me-2"></i>
+                Volver a Lista
+            </a>
+            {% if hoja.estado == 'completada' %}
+            <button class="btn btn-primary" disabled title="Próximamente">
+                <i class="bi bi-file-pdf me-2"></i>
+                Generar PDF
+            </button>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+<style>
+    #tabla-resultados input[type="number"],
+    #tabla-resultados select {
+        min-width: 50px;
+    }
+    #tabla-resultados input:focus,
+    #tabla-resultados select:focus {
+        box-shadow: 0 0 0 2px rgba(0, 142, 214, 0.25);
+    }
+    #tabla-resultados td {
+        vertical-align: middle;
+        padding: 0.25rem;
+    }
+    .resultado-form {
+        display: contents;
+    }
+</style>
+{% endblock %}

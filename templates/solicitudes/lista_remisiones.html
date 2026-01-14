@@ -1,0 +1,103 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h4 class="fw-bold mb-1">Remisiones de Muestras</h4>
+        <p class="text-muted mb-0">Gestión de formatos F-GC-05</p>
+    </div>
+</div>
+
+<!-- Filtros -->
+<div class="card card-custom mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-4">
+                <label class="form-label small">Buscar</label>
+                <input type="text" name="q" class="form-control"
+                       placeholder="Orden de trabajo, obra, empresa..."
+                       value="{{ busqueda|default:'' }}">
+            </div>
+            <div class="col-md-3">
+                <label class="form-label small">Estado</label>
+                <select name="estado" class="form-select">
+                    <option value="">Todos</option>
+                    <option value="enviada" {% if estado_actual == 'enviada' %}selected{% endif %}>Pendientes</option>
+                    <option value="completada" {% if estado_actual == 'completada' %}selected{% endif %}>Completadas</option>
+                    <option value="vencida" {% if estado_actual == 'vencida' %}selected{% endif %}>Vencidas</option>
+                </select>
+            </div>
+            <div class="col-md-2">
+                <button type="submit" class="btn btn-primary w-100">
+                    <i class="bi bi-search me-1"></i> Filtrar
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabla de remisiones -->
+<div class="card card-custom">
+    <div class="card-body p-0">
+        {% if remisiones %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th>Orden de Trabajo</th>
+                        <th>Obra</th>
+                        <th>Empresa</th>
+                        <th>Estado</th>
+                        <th>Muestras</th>
+                        <th>Fecha</th>
+                        <th></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in remisiones %}
+                    <tr>
+                        <td>
+                            <strong class="text-danger">{{ r.orden_trabajo }}</strong>
+                        </td>
+                        <td>
+                            <a href="{% url 'detalle_obra' r.obra.pk %}" class="text-decoration-none">
+                                {{ r.obra.nombre|truncatewords:4 }}
+                            </a>
+                        </td>
+                        <td>{{ r.obra.constructora.nombre|truncatewords:3 }}</td>
+                        <td>
+                            {% if r.estado == 'completada' %}
+                                <span class="badge bg-success">Completada</span>
+                            {% elif r.estado == 'enviada' %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                            {% elif r.estado == 'vencida' %}
+                                <span class="badge bg-danger">Vencida</span>
+                            {% else %}
+                                <span class="badge bg-secondary">{{ r.get_estado_display }}</span>
+                            {% endif %}
+                        </td>
+                        <td>
+                            <span class="badge bg-light text-dark">{{ r.total_muestras }}</span>
+                        </td>
+                        <td>
+                            <small class="text-muted">{{ r.fecha_creacion|date:"d/m/Y" }}</small>
+                        </td>
+                        <td>
+                            <a href="{% url 'detalle_remision' r.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye"></i> Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No se encontraron remisiones</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

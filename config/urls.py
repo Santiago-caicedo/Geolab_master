@@ -21,6 +21,12 @@ urlpatterns = [
     # Por lo tanto, si no estás logueado, Django leerá el LOGIN_URL de settings
     # y te mandará al login automáticamente.
     path('', include('core.urls')),
+
+    # Módulo de Remisiones de Muestras
+    path('', include('solicitudes.urls')),
+
+    # Módulo de Ensayos de Laboratorio (F-GT-05)
+    path('', include('ensayos.urls')),
 ]
 
 if settings.DEBUG:

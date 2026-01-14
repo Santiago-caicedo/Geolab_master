@@ -1,0 +1,78 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none">Empresas</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="text-decoration-none">{{ obra.constructora.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_obra' obra.pk %}" class="text-decoration-none">{{ obra.nombre }}</a></li>
+            <li class="breadcrumb-item active">Nueva Remisión</li>
+        </ol>
+    </nav>
+</div>
+
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card card-custom">
+            <div class="card-header bg-white border-bottom py-3">
+                <div class="d-flex align-items-center gap-3">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3">
+                        <i class="bi bi-file-earmark-plus text-primary fs-4"></i>
+                    </div>
+                    <div>
+                        <h5 class="mb-0 fw-bold">Nueva Remisión de Muestras</h5>
+                        <small class="text-muted">Formato F-GC-05</small>
+                    </div>
+                </div>
+            </div>
+
+            <div class="card-body p-4">
+                <!-- Info de la obra (pre-llenado) -->
+                <div class="alert alert-light border mb-4">
+                    <div class="row">
+                        <div class="col-sm-4 mb-2 mb-sm-0">
+                            <small class="text-muted d-block">Obra</small>
+                            <strong>{{ obra.nombre }}</strong>
+                        </div>
+                        <div class="col-sm-4 mb-2 mb-sm-0">
+                            <small class="text-muted d-block">Empresa</small>
+                            <strong>{{ obra.constructora.nombre }}</strong>
+                        </div>
+                        <div class="col-sm-4">
+                            <small class="text-muted d-block">Remision No.</small>
+                            <span class="badge bg-danger fs-5">{{ siguiente_numero }}</span>
+                        </div>
+                    </div>
+                </div>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    <div class="mb-4">
+                        <label class="form-label fw-semibold">
+                            <i class="bi bi-envelope me-1"></i> {{ form.email_destinatario.label }}
+                        </label>
+                        {{ form.email_destinatario }}
+                        {% if form.email_destinatario.errors %}
+                            <div class="text-danger small mt-1">{{ form.email_destinatario.errors.0 }}</div>
+                        {% endif %}
+                        <small class="text-muted">Se enviará un correo con el enlace del formulario</small>
+                    </div>
+
+                    <hr class="my-4">
+
+                    <div class="d-flex gap-2">
+                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-light">
+                            <i class="bi bi-arrow-left me-1"></i> Cancelar
+                        </a>
+                        <button type="submit" class="btn btn-primary flex-grow-1">
+                            <i class="bi bi-send me-1"></i> Crear y Enviar Remisión
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

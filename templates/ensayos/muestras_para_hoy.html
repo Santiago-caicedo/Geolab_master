@@ -1,0 +1,186 @@
+{% extends 'base.html' %}
+
+{% block title %}Muestras para Hoy{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-calendar-check me-2"></i>
+                Dashboard de Ensayos
+            </h2>
+            <p class="text-muted mb-0">{{ fecha_hoy|date:"l, d F Y" }}</p>
+        </div>
+        <a href="{% url 'lista_hojas_trabajo' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-list-ul me-2"></i>
+            Ver Todas las Hojas
+        </a>
+    </div>
+
+    <div class="row">
+        <!-- Muestras para HOY -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-danger h-100">
+                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-exclamation-triangle me-2"></i>
+                        Fallar HOY
+                    </h5>
+                    <span class="badge bg-white text-danger fs-6">{{ muestras_hoy|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if muestras_hoy %}
+                    <div class="list-group list-group-flush">
+                        {% for resultado in muestras_hoy %}
+                        <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
+                           class="list-group-item list-group-item-action">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>Muestra #{{ resultado.muestra.numero_muestra }}</strong>
+                                    - {{ resultado.muestra.edad_ensayo_dias }} días
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ resultado.muestra.localizacion|truncatechars:40 }}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-secondary">
+                                        F'c: {{ resultado.muestra.fc_resistencia }}
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ resultado.hoja_trabajo.obra.codigo_obra }}
+                                    </small>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+                        No hay muestras para fallar hoy
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Muestras VENCIDAS -->
+        <div class="col-lg-6 mb-4">
+            <div class="card border-warning h-100">
+                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0">
+                        <i class="bi bi-clock-history me-2"></i>
+                        Vencidas (Pendientes)
+                    </h5>
+                    <span class="badge bg-dark">{{ muestras_vencidas|length }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if muestras_vencidas %}
+                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
+                        {% for resultado in muestras_vencidas %}
+                        <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
+                           class="list-group-item list-group-item-action list-group-item-warning">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <strong>Muestra #{{ resultado.muestra.numero_muestra }}</strong>
+                                    - {{ resultado.muestra.edad_ensayo_dias }} días
+                                    <br>
+                                    <small>
+                                        {{ resultado.muestra.localizacion|truncatechars:40 }}
+                                    </small>
+                                </div>
+                                <div class="text-end">
+                                    <span class="badge bg-danger">
+                                        Hace {{ resultado.dias_para_falla|slice:"1:" }} días
+                                    </span>
+                                    <br>
+                                    <small class="text-muted">
+                                        {{ resultado.hoja_trabajo.obra.codigo_obra }}
+                                    </small>
+                                </div>
+                            </div>
+                        </a>
+                        {% endfor %}
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
+                        No hay muestras vencidas
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Muestras próximas (3 días) -->
+    <div class="card">
+        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">
+                <i class="bi bi-calendar-week me-2"></i>
+                Próximos 3 Días
+            </h5>
+            <span class="badge bg-white text-info">{{ muestras_proximas|length }}</span>
+        </div>
+        <div class="card-body p-0">
+            {% if muestras_proximas %}
+            <div class="table-responsive">
+                <table class="table table-hover mb-0">
+                    <thead class="table-light">
+                        <tr>
+                            <th>Muestra</th>
+                            <th>Localización</th>
+                            <th>Obra</th>
+                            <th class="text-center">Edad</th>
+                            <th class="text-center">F'c</th>
+                            <th class="text-center">Fecha Falla</th>
+                            <th class="text-center">Días</th>
+                            <th></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for resultado in muestras_proximas %}
+                        <tr>
+                            <td><strong>#{{ resultado.muestra.numero_muestra }}</strong></td>
+                            <td>{{ resultado.muestra.localizacion|truncatechars:30 }}</td>
+                            <td>
+                                <small>{{ resultado.hoja_trabajo.obra.nombre }}</small>
+                                <br>
+                                <span class="badge bg-light text-dark">
+                                    {{ resultado.hoja_trabajo.obra.codigo_obra }}
+                                </span>
+                            </td>
+                            <td class="text-center">{{ resultado.muestra.edad_ensayo_dias }}d</td>
+                            <td class="text-center">{{ resultado.muestra.fc_resistencia }}</td>
+                            <td class="text-center">
+                                {{ resultado.fecha_falla_programada|date:"d/m/Y" }}
+                            </td>
+                            <td class="text-center">
+                                <span class="badge bg-info">
+                                    En {{ resultado.dias_para_falla }} días
+                                </span>
+                            </td>
+                            <td>
+                                <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
+                                   class="btn btn-sm btn-outline-primary">
+                                    Ver
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-4 text-muted">
+                No hay muestras programadas para los próximos 3 días
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}

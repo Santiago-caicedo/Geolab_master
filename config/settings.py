@@ -42,6 +42,8 @@ INSTALLED_APPS = [
 
     'users',
     'core',
+    'solicitudes',
+    'ensayos',
 ]
 
 MIDDLEWARE = [
@@ -128,6 +130,42 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
+# 2. Lógica Inteligente: ¿Estoy en Producción (AWS)?
+if not DEBUG:  # <--- ESTA ES LA CLAVE
+    # Si DEBUG es Falso (Servidor), usamos S3
+    
+    # Configuración AWS
+    AWS_STORAGE_BUCKET_NAME = 'vadomdata' # O os.getenv('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = 'us-east-1'
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    AWS_DEFAULT_ACL = None
+    
+    # Sobrescribimos las URLs para apuntar a S3
+    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/geolab/static/'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/geolab/media/'
+    
+    # Definimos los Storages de AWS
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "geolab/media",
+                "file_overwrite": False,
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "geolab/static",
+            },
+        },
+    }
+
+else:
+    # Si DEBUG es Verdadero (Tu PC), usamos almacenamiento local normal
+    # No hace falta poner nada extra porque Django usa local por defecto.
+    pass
+
 # Configuración de Archivos Subidos (Media)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
@@ -148,3 +186,28 @@ LOGIN_URL = 'login'
 
 # Usar el modelo de usuario personalizado (Ya lo tenías, solo confirmo)
 AUTH_USER_MODEL = 'users.UsuarioBase'
+
+
+CSRF_TRUSTED_ORIGINS = [
+    'https://portalgeolab.com',
+    'https://www.portalgeolab.com',
+]
+
+
+# ============================================
+# CONFIGURACIÓN DE EMAIL
+# ============================================
+# Para desarrollo: usa consola (muestra emails en terminal)
+# Para producción: configura SMTP real
+
+if DEBUG:
+    EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'
+else:
+    EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
+    EMAIL_HOST = config('EMAIL_HOST', default='smtp.gmail.com')
+    EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+    EMAIL_USE_TLS = True
+    EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+    EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+
+DEFAULT_FROM_EMAIL = 'Geolab S.A.S <noreply@geolab.com>'

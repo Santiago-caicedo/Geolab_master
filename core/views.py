@@ -9,8 +9,11 @@ from .models import Informe, Obra
 
 @login_required
 def dashboard_router(request):
-    """Redirige al dashboard correcto según el tipo de usuario"""
+    """Redirige al dashboard correcto segun el tipo de usuario"""
     if request.user.es_geolab:
+        # Verificar si es tecnico de laboratorio
+        if request.user.es_tecnico_laboratorio:
+            return redirect('dashboard_tecnico')
         return dashboard_staff(request)
     elif request.user.es_cliente:
         return dashboard_client(request)
@@ -207,7 +210,59 @@ def editar_obra(request, pk):
         form = ObraForm(instance=obra)
 
     return render(request, 'core/editar_form.html', {
-        'form': form, 
+        'form': form,
         'titulo': f'Editar Obra: {obra.nombre}',
         'btn_texto': 'Actualizar Obra'
     })
+
+
+@login_required
+def lista_informes_obra(request, pk):
+    """
+    Lista completa de informes de una obra con paginación.
+    Página separada para ver todos los documentos técnicos.
+    """
+    obra = get_object_or_404(Obra, pk=pk)
+
+    # Verificar permisos
+    if not request.user.es_geolab:
+        if hasattr(request.user, 'perfil_cliente'):
+            perfil = request.user.perfil_cliente
+            if perfil.rol == 'director':
+                if obra.constructora != perfil.empresa:
+                    return redirect('home')
+            else:
+                if obra not in perfil.obras_asignadas.all():
+                    return redirect('home')
+        else:
+            return redirect('home')
+
+    # Obtener informes
+    informes = Informe.objects.filter(obra=obra).order_by('-fecha_creacion')
+
+    # Filtro de búsqueda
+    query = request.GET.get('q')
+    if query:
+        informes = informes.filter(titulo__icontains=query)
+
+    # Filtro de fecha
+    fecha_desde = request.GET.get('fecha_desde')
+    fecha_hasta = request.GET.get('fecha_hasta')
+    if fecha_desde:
+        informes = informes.filter(fecha_creacion__date__gte=fecha_desde)
+    if fecha_hasta:
+        informes = informes.filter(fecha_creacion__date__lte=fecha_hasta)
+
+    # Paginación (20 por página)
+    paginator = Paginator(informes, 20)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'obra': obra,
+        'page_obj': page_obj,
+        'query': query,
+        'fecha_desde': fecha_desde,
+        'fecha_hasta': fecha_hasta,
+        'total_informes': obra.informes.count(),
+    }
+    return render(request, 'core/lista_informes_obra.html', context)

@@ -1,0 +1,49 @@
+{% extends 'solicitudes/base_public.html' %}
+
+{% block title %}Remisión ya completada{% endblock %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-6">
+        <div class="card card-custom text-center">
+            <div class="card-body py-5">
+                <div class="rounded-circle bg-warning bg-opacity-10 d-inline-flex align-items-center justify-content-center mb-4"
+                     style="width: 80px; height: 80px;">
+                    <i class="bi bi-exclamation-triangle text-warning" style="font-size: 2.5rem;"></i>
+                </div>
+
+                <h3 class="fw-bold mb-3">Esta Remisión ya fue Completada</h3>
+
+                <p class="text-muted mb-4">
+                    La remisión de muestras que intenta acceder ya ha sido completada anteriormente y no puede ser modificada.
+                </p>
+
+                <div class="alert alert-light text-start mb-4">
+                    <div class="row g-2">
+                        <div class="col-6">
+                            <small class="text-muted d-block">Orden de Trabajo</small>
+                            <strong class="text-danger">{{ remision.orden_trabajo }}</strong>
+                        </div>
+                        <div class="col-6">
+                            <small class="text-muted d-block">Fecha de Envío</small>
+                            <strong>{{ remision.fecha_respuesta|date:"d/m/Y H:i" }}</strong>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Obra</small>
+                            <strong>{{ remision.obra.nombre }}</strong>
+                        </div>
+                        <div class="col-12">
+                            <small class="text-muted d-block">Firmado por</small>
+                            <strong>{{ remision.firmante_nombre }}</strong>
+                        </div>
+                    </div>
+                </div>
+
+                <p class="text-muted small mb-0">
+                    Si necesita realizar una nueva remisión, por favor contacte al equipo de Geolab.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

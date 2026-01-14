@@ -1,0 +1,209 @@
+{% extends 'base.html' %}
+
+{% block title %}Hojas de Trabajo por Obra{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-clipboard2-data me-2"></i>
+                Hojas de Trabajo
+            </h2>
+            <p class="text-muted mb-0">Selecciona una obra para ver su hoja de trabajo</p>
+        </div>
+        <a href="{% url 'muestras_para_hoy' %}" class="btn btn-danger">
+            <i class="bi bi-calendar-check me-2"></i>
+            Ensayos del Dia
+            {% if total_hoy > 0 %}
+            <span class="badge bg-white text-danger ms-1">{{ total_hoy }}</span>
+            {% endif %}
+        </a>
+    </div>
+
+    <!-- Estadisticas rapidas -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-3">
+            <div class="card border-danger h-100">
+                <div class="card-body text-center py-3">
+                    <h2 class="text-danger mb-0">{{ total_hoy }}</h2>
+                    <small class="text-muted">Muestras para HOY</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-warning h-100">
+                <div class="card-body text-center py-3">
+                    <h2 class="text-warning mb-0">{{ total_vencidas }}</h2>
+                    <small class="text-muted">Muestras Vencidas</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-primary h-100">
+                <div class="card-body text-center py-3">
+                    <h2 class="text-primary mb-0">{{ total_obras }}</h2>
+                    <small class="text-muted">Obras con Muestras</small>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card border-secondary h-100">
+                <div class="card-body text-center py-3">
+                    <h2 class="text-secondary mb-0">{{ fecha_hoy|date:"d/m/Y" }}</h2>
+                    <small class="text-muted">Fecha Actual</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card mb-4">
+        <div class="card-body py-3">
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small">Buscar obra</label>
+                    <input type="text" name="q" class="form-control form-control-sm"
+                           value="{{ busqueda }}" placeholder="Nombre, codigo...">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label small">Constructora</label>
+                    <select name="constructora" class="form-select form-select-sm">
+                        <option value="">Todas las constructoras</option>
+                        {% for c in constructoras %}
+                        <option value="{{ c.pk }}" {% if constructora_filtro == c.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ c.nombre|truncatechars:40 }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-4 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search me-1"></i> Filtrar
+                    </button>
+                    <a href="{% url 'lista_obras_hojas_trabajo' %}" class="btn btn-sm btn-outline-secondary">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de obras -->
+    <div class="row">
+        {% for item in obras %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100 {% if item.muestras_hoy > 0 %}border-danger{% elif item.muestras_vencidas > 0 %}border-warning{% endif %}">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>{{ item.obra.codigo_obra }}</strong>
+                    </div>
+                    <div>
+                        {% if item.muestras_hoy > 0 %}
+                        <span class="badge bg-danger" title="Muestras para hoy">
+                            <i class="bi bi-exclamation-triangle me-1"></i>{{ item.muestras_hoy }} HOY
+                        </span>
+                        {% endif %}
+                        {% if item.muestras_vencidas > 0 %}
+                        <span class="badge bg-warning text-dark" title="Muestras vencidas">
+                            {{ item.muestras_vencidas }} vencidas
+                        </span>
+                        {% endif %}
+                    </div>
+                </div>
+                <div class="card-body">
+                    <h6 class="card-title mb-1">{{ item.obra.nombre|truncatechars:40 }}</h6>
+                    <p class="text-muted small mb-3">
+                        <i class="bi bi-building me-1"></i>
+                        {{ item.obra.constructora.nombre|truncatechars:30 }}
+                    </p>
+
+                    <!-- Progreso -->
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small>Progreso de ensayos</small>
+                            <small>{{ item.completadas }}/{{ item.total_muestras }}</small>
+                        </div>
+                        <div class="progress" style="height: 8px;">
+                            <div class="progress-bar
+                                {% if item.progreso == 100 %}bg-success
+                                {% elif item.progreso > 0 %}bg-primary
+                                {% else %}bg-secondary{% endif %}"
+                                 style="width: {{ item.progreso }}%">
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Stats -->
+                    <div class="row text-center small">
+                        <div class="col-4">
+                            <div class="text-muted">Total</div>
+                            <strong>{{ item.total_muestras }}</strong>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted">Pendientes</div>
+                            <strong class="text-warning">{{ item.pendientes }}</strong>
+                        </div>
+                        <div class="col-4">
+                            <div class="text-muted">Completadas</div>
+                            <strong class="text-success">{{ item.completadas }}</strong>
+                        </div>
+                    </div>
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'hoja_trabajo_obra' item.obra.pk %}"
+                       class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-clipboard2-data me-2"></i>
+                        Abrir Hoja de Trabajo
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% empty %}
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body text-center py-5">
+                    <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+                    <p class="text-muted mb-0">
+                        No hay obras con hojas de trabajo.
+                    </p>
+                    <p class="text-muted small">
+                        Las hojas de trabajo se crean automaticamente cuando una remision es completada por el cliente.
+                    </p>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+
+    <!-- Paginacion -->
+    {% if obras.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if obras.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ obras.previous_page_number }}{% if busqueda %}&q={{ busqueda }}{% endif %}{% if constructora_filtro %}&constructora={{ constructora_filtro }}{% endif %}">
+                    Anterior
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Pagina {{ obras.number }} de {{ obras.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if obras.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ obras.next_page_number }}{% if busqueda %}&q={{ busqueda }}{% endif %}{% if constructora_filtro %}&constructora={{ constructora_filtro }}{% endif %}">
+                    Siguiente
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+</div>
+{% endblock %}

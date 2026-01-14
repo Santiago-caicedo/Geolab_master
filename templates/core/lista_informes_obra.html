@@ -1,0 +1,199 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="mb-4">
+    <nav aria-label="breadcrumb">
+        <ol class="breadcrumb mb-0">
+            <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none">Empresas</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="text-decoration-none">{{ obra.constructora.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_obra' obra.pk %}" class="text-decoration-none">{{ obra.nombre }}</a></li>
+            <li class="breadcrumb-item active">Informes</li>
+        </ol>
+    </nav>
+</div>
+
+<!-- Header -->
+<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
+    <div>
+        <h4 class="fw-bold mb-1">
+            <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>
+            Documentos Tecnicos
+        </h4>
+        <p class="text-muted mb-0">
+            {{ obra.nombre }}
+            <span class="badge bg-dark ms-2">{{ obra.codigo_obra }}</span>
+        </p>
+    </div>
+
+    {% if user.es_geolab %}
+    <button class="btn btn-primary shadow-sm">
+        <i class="bi bi-cloud-arrow-up me-1"></i> Cargar Informe
+    </button>
+    {% endif %}
+</div>
+
+<!-- Filtros -->
+<div class="card card-custom mb-4">
+    <div class="card-body py-3">
+        <form method="get" class="row g-3 align-items-end">
+            <div class="col-md-5">
+                <label class="form-label small text-muted">Buscar documento</label>
+                <div class="input-group">
+                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
+                    <input type="text" name="q" class="form-control border-start-0 bg-light"
+                           placeholder="Nombre del archivo..."
+                           value="{{ query|default:'' }}">
+                </div>
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Desde</label>
+                <input type="date" name="fecha_desde" class="form-control"
+                       value="{{ fecha_desde|default:'' }}">
+            </div>
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Hasta</label>
+                <input type="date" name="fecha_hasta" class="form-control"
+                       value="{{ fecha_hasta|default:'' }}">
+            </div>
+            <div class="col-md-3 d-flex gap-2">
+                <button type="submit" class="btn btn-primary flex-grow-1">
+                    <i class="bi bi-funnel me-1"></i> Filtrar
+                </button>
+                <a href="{% url 'lista_informes_obra' obra.pk %}" class="btn btn-outline-secondary" title="Limpiar filtros">
+                    <i class="bi bi-x-lg"></i>
+                </a>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Tabla de informes -->
+<div class="card card-custom">
+    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+        <h6 class="mb-0 fw-bold">
+            Listado de Documentos
+        </h6>
+        <span class="badge bg-primary">{{ total_informes }} documento{{ total_informes|pluralize:"s" }}</span>
+    </div>
+    <div class="card-body p-0">
+        {% if page_obj %}
+        <div class="table-responsive">
+            <table class="table table-hover align-middle mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4" style="width: 55%;">Nombre del Archivo</th>
+                        <th>Fecha de Carga</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for informe in page_obj %}
+                    <tr>
+                        <td class="ps-4 py-3">
+                            <div class="d-flex align-items-start gap-3">
+                                <div class="mt-1 text-danger">
+                                    <i class="bi bi-file-earmark-pdf-fill fs-4"></i>
+                                </div>
+                                <div>
+                                    <div class="fw-bold text-dark text-break" style="max-width: 400px;">
+                                        {{ informe.titulo }}
+                                    </div>
+                                    <small class="text-muted" style="font-size: 0.75rem;">
+                                        ID: {{ informe.id_wp_original|default:informe.pk }}
+                                    </small>
+                                </div>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="d-flex flex-column">
+                                <span class="fw-medium text-secondary">{{ informe.fecha_creacion|date:"d/m/Y" }}</span>
+                                <small class="text-muted" style="font-size: 0.7rem;">{{ informe.fecha_creacion|date:"h:i A" }}</small>
+                            </div>
+                        </td>
+                        <td class="text-end pe-4">
+                            {% if informe.archivo %}
+                            <a href="{{ informe.archivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
+                                <i class="bi bi-download me-1"></i> Descargar
+                            </a>
+                            {% else %}
+                            <span class="badge bg-light text-muted border fw-normal">No disponible</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginacion -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center">
+            <small class="text-muted">
+                Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
+            </small>
+            <nav>
+                <ul class="pagination pagination-sm mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link border-0 text-dark" href="?page=1&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
+                            <i class="bi bi-chevron-double-left"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.previous_page_number }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    <li class="page-item active">
+                        <span class="page-link bg-primary border-primary">{{ page_obj.number }}</span>
+                    </li>
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.next_page_number }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    <li class="page-item">
+                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.paginator.num_pages }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
+                            <i class="bi bi-chevron-double-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+
+        {% else %}
+        <div class="text-center py-5">
+            <div class="mb-3">
+                <i class="bi bi-folder-x text-muted" style="font-size: 3rem;"></i>
+            </div>
+            <h6 class="text-muted">No hay documentos registrados</h6>
+            <p class="text-muted small mb-4">
+                {% if query %}
+                    No se encontraron resultados para "{{ query }}".
+                {% else %}
+                    Esta obra aun no tiene documentos tecnicos cargados.
+                {% endif %}
+            </p>
+            {% if user.es_geolab %}
+            <button class="btn btn-primary">
+                <i class="bi bi-cloud-arrow-up me-1"></i> Cargar Primer Informe
+            </button>
+            {% endif %}
+        </div>
+        {% endif %}
+    </div>
+</div>
+
+<!-- Boton volver -->
+<div class="mt-4">
+    <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary">
+        <i class="bi bi-arrow-left me-1"></i> Volver al Expediente
+    </a>
+</div>
+{% endblock %}

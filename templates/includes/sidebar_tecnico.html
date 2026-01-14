@@ -1,0 +1,64 @@
+{% load static %}
+<nav class="sidebar" style="background: linear-gradient(180deg, #1a365d 0%, #234876 100%);">
+    <a href="{% url 'home' %}" class="sidebar-brand">
+        <img src="{% static 'img/geolab-logo.png' %}" alt="Geolab Sistema" style="width: 160px; height: auto;">
+    </a>
+
+    <div class="d-flex flex-column py-2 h-100 text-nowrap overflow-auto" style="scrollbar-width: none;">
+
+        <!-- Indicador de rol -->
+        <div class="px-3 py-2 mb-2" style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width: 32px; height: 32px; background: rgba(49, 130, 206, 0.3);">
+                    <i class="bi bi-flask text-info"></i>
+                </div>
+                <div>
+                    <small class="d-block text-white-50" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;">
+                        Tecnico de Laboratorio
+                    </small>
+                    <span class="text-white small fw-medium">
+                        {{ user.first_name|default:user.username }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-section">ENSAYOS</div>
+
+        <a href="{% url 'home' %}" class="nav-link {% if request.resolver_match.url_name == 'home' %}active{% endif %}">
+            <i class="bi bi-calendar-check"></i> Ensayos del Dia
+        </a>
+
+        <a href="{% url 'muestras_para_hoy' %}" class="nav-link {% if 'hoy' in request.path %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Muestras Pendientes
+        </a>
+
+        <div class="flex-grow-1"></div>
+
+        <!-- Resumen rapido del dia -->
+        <div class="px-3 py-3 mx-3 mb-3 rounded" style="background: rgba(255,255,255,0.05);">
+            <small class="text-white-50 d-block mb-2" style="font-size: 0.7rem; text-transform: uppercase;">
+                Resumen de Hoy
+            </small>
+            <div class="d-flex justify-content-between align-items-center text-white mb-1">
+                <span class="small">Pendientes</span>
+                <span class="badge bg-warning text-dark" id="badge-pendientes">-</span>
+            </div>
+            <div class="d-flex justify-content-between align-items-center text-white">
+                <span class="small">Completados</span>
+                <span class="badge bg-success" id="badge-completados">-</span>
+            </div>
+        </div>
+
+        <div class="p-3">
+            <form action="{% url 'admin:logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn w-100 btn-sm d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
+                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
+                    <i class="bi bi-box-arrow-left"></i> Cerrar Sesion
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>

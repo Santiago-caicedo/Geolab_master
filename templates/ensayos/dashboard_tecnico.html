@@ -1,0 +1,544 @@
+{% extends 'base_tecnico.html' %}
+{% load static %}
+
+{% block title %}Ensayos del Dia - Geolab{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        background: white;
+        border-radius: 12px;
+        padding: 1.25rem;
+        border: 1px solid #e2e8f0;
+        text-align: center;
+    }
+
+    .stat-card.urgente {
+        background: linear-gradient(135deg, #fef2f2 0%, #fee2e2 100%);
+        border-color: #fecaca;
+    }
+
+    .stat-card.hoy {
+        background: linear-gradient(135deg, #fffbeb 0%, #fef3c7 100%);
+        border-color: #fde68a;
+    }
+
+    .stat-number {
+        font-size: 2.5rem;
+        font-weight: 700;
+        line-height: 1;
+    }
+
+    .obra-card {
+        background: white;
+        border-radius: 12px;
+        border: 1px solid #e2e8f0;
+        overflow: hidden;
+        margin-bottom: 1.5rem;
+    }
+
+    .obra-header {
+        background: linear-gradient(135deg, #1e3a5f 0%, #234876 100%);
+        color: white;
+        padding: 1rem 1.25rem;
+    }
+
+    .obra-header h5 {
+        margin: 0;
+        font-weight: 600;
+    }
+
+    .obra-badges {
+        display: flex;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+
+    .muestra-table {
+        width: 100%;
+        font-size: 0.85rem;
+    }
+
+    .muestra-table th {
+        background: #f8fafc;
+        padding: 0.75rem 0.5rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.5px;
+        color: #64748b;
+        border-bottom: 2px solid #e2e8f0;
+        text-align: center;
+    }
+
+    .muestra-table td {
+        padding: 0.5rem;
+        border-bottom: 1px solid #f1f5f9;
+        vertical-align: middle;
+        text-align: center;
+    }
+
+    .muestra-table tr:hover {
+        background: #f8fafc;
+    }
+
+    .muestra-table tr.vencida {
+        background: #fef2f2;
+    }
+
+    .muestra-table tr.hoy {
+        background: #fffbeb;
+    }
+
+    .input-medicion {
+        width: 60px;
+        padding: 0.35rem 0.25rem;
+        text-align: center;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.85rem;
+        transition: all 0.2s;
+    }
+
+    .input-medicion:focus {
+        outline: none;
+        border-color: #3b82f6;
+        box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+    }
+
+    .input-medicion.filled {
+        background: #f0fdf4;
+        border-color: #86efac;
+    }
+
+    .select-falla {
+        width: 50px;
+        padding: 0.35rem;
+        border: 1px solid #e2e8f0;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        cursor: pointer;
+    }
+
+    .btn-guardar {
+        background: #22c55e;
+        color: white;
+        border: none;
+        padding: 0.35rem 0.75rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .btn-guardar:hover {
+        background: #16a34a;
+    }
+
+    .btn-guardar:disabled {
+        background: #94a3b8;
+        cursor: not-allowed;
+    }
+
+    .badge-dias {
+        font-size: 0.7rem;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+    }
+
+    .info-muestra {
+        text-align: left;
+        font-size: 0.8rem;
+    }
+
+    .info-muestra .numero {
+        font-weight: 700;
+        color: #1e3a5f;
+    }
+
+    .info-muestra .tipo {
+        color: #64748b;
+        font-size: 0.7rem;
+    }
+
+    .calc-value {
+        color: #3b82f6;
+        font-weight: 600;
+        font-size: 0.8rem;
+    }
+
+    .empty-state {
+        text-align: center;
+        padding: 4rem 2rem;
+        color: #64748b;
+    }
+
+    .empty-state i {
+        font-size: 4rem;
+        color: #cbd5e1;
+        margin-bottom: 1rem;
+    }
+
+    /* Indicador de cambios sin guardar */
+    .unsaved-indicator {
+        display: none;
+        position: fixed;
+        bottom: 2rem;
+        right: 2rem;
+        background: #f59e0b;
+        color: white;
+        padding: 0.75rem 1.25rem;
+        border-radius: 8px;
+        font-weight: 600;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 1000;
+    }
+
+    .unsaved-indicator.show {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid px-4">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">Ensayos del Dia</h4>
+            <p class="text-muted mb-0">{{ fecha_hoy|date:"l, d F Y" }}</p>
+        </div>
+    </div>
+
+    <!-- Stats Cards -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="stat-card urgente">
+                <div class="stat-number text-danger">{{ total_vencidas }}</div>
+                <div class="text-muted small mt-1">VENCIDAS</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card hoy">
+                <div class="stat-number text-warning">{{ total_hoy }}</div>
+                <div class="text-muted small mt-1">PARA HOY</div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="stat-card">
+                <div class="stat-number text-primary">{{ total_pendientes }}</div>
+                <div class="text-muted small mt-1">TOTAL PENDIENTES</div>
+            </div>
+        </div>
+    </div>
+
+    {% if obras %}
+        <!-- Obras con muestras -->
+        {% for item in obras %}
+        <div class="obra-card">
+            <div class="obra-header">
+                <h5><i class="bi bi-building me-2"></i>{{ item.obra.nombre }}</h5>
+                <div class="obra-badges">
+                    <span class="badge bg-light text-dark">{{ item.obra.constructora.nombre }}</span>
+                    {% if item.muestras_vencidas %}
+                    <span class="badge bg-danger">{{ item.muestras_vencidas|length }} vencidas</span>
+                    {% endif %}
+                    {% if item.muestras_hoy %}
+                    <span class="badge bg-warning text-dark">{{ item.muestras_hoy|length }} hoy</span>
+                    {% endif %}
+                </div>
+            </div>
+
+            <div class="table-responsive">
+                <table class="muestra-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 120px;">Muestra</th>
+                            <th>Fecha Falla</th>
+                            <th>D1</th>
+                            <th>D2</th>
+                            <th>D3</th>
+                            <th>L1</th>
+                            <th>L2</th>
+                            <th>L3</th>
+                            <th>Peso (g)</th>
+                            <th>Carga (kN)</th>
+                            <th>Falla</th>
+                            <th style="width: 80px;"></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for m in item.muestras_vencidas %}
+                        <tr class="vencida" data-resultado-pk="{{ m.resultado.pk }}">
+                            <td class="info-muestra">
+                                <span class="numero">#{{ m.muestra.numero_muestra }}</span>
+                                <span class="badge badge-dias bg-danger ms-1">{{ m.dias_vencida }}d</span>
+                                <div class="tipo">{{ m.muestra.get_tipo_muestra_display }}</div>
+                            </td>
+                            <td>
+                                <span class="text-danger fw-bold">{{ m.fecha_falla|date:"d/m" }}</span>
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d1 %}filled{% endif %}"
+                                       name="diametro_d1" value="{{ m.resultado.diametro_d1|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d2 %}filled{% endif %}"
+                                       name="diametro_d2" value="{{ m.resultado.diametro_d2|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d3 %}filled{% endif %}"
+                                       name="diametro_d3" value="{{ m.resultado.diametro_d3|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l1 %}filled{% endif %}"
+                                       name="longitud_l1" value="{{ m.resultado.longitud_l1|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l2 %}filled{% endif %}"
+                                       name="longitud_l2" value="{{ m.resultado.longitud_l2|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l3 %}filled{% endif %}"
+                                       name="longitud_l3" value="{{ m.resultado.longitud_l3|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.peso_gramos %}filled{% endif %}"
+                                       name="peso_gramos" value="{{ m.resultado.peso_gramos|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}" style="width: 70px;">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.carga_maxima_kn %}filled{% endif %}"
+                                       name="carga_maxima_kn" value="{{ m.resultado.carga_maxima_kn|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}" style="width: 70px;">
+                            </td>
+                            <td>
+                                <select class="select-falla" name="forma_falla" data-pk="{{ m.resultado.pk }}">
+                                    <option value="">-</option>
+                                    <option value="1" {% if m.resultado.forma_falla == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if m.resultado.forma_falla == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if m.resultado.forma_falla == '3' %}selected{% endif %}>3</option>
+                                    <option value="4" {% if m.resultado.forma_falla == '4' %}selected{% endif %}>4</option>
+                                    <option value="5" {% if m.resultado.forma_falla == '5' %}selected{% endif %}>5</option>
+                                    <option value="6" {% if m.resultado.forma_falla == '6' %}selected{% endif %}>6</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button type="button" class="btn-guardar" onclick="guardarResultado({{ m.resultado.pk }}, this)">
+                                    <i class="bi bi-check2"></i> OK
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+
+                        {% for m in item.muestras_hoy %}
+                        <tr class="hoy" data-resultado-pk="{{ m.resultado.pk }}">
+                            <td class="info-muestra">
+                                <span class="numero">#{{ m.muestra.numero_muestra }}</span>
+                                <span class="badge badge-dias bg-warning text-dark ms-1">HOY</span>
+                                <div class="tipo">{{ m.muestra.get_tipo_muestra_display }}</div>
+                            </td>
+                            <td>
+                                <span class="text-warning fw-bold">{{ m.fecha_falla|date:"d/m" }}</span>
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d1 %}filled{% endif %}"
+                                       name="diametro_d1" value="{{ m.resultado.diametro_d1|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d2 %}filled{% endif %}"
+                                       name="diametro_d2" value="{{ m.resultado.diametro_d2|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.diametro_d3 %}filled{% endif %}"
+                                       name="diametro_d3" value="{{ m.resultado.diametro_d3|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l1 %}filled{% endif %}"
+                                       name="longitud_l1" value="{{ m.resultado.longitud_l1|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l2 %}filled{% endif %}"
+                                       name="longitud_l2" value="{{ m.resultado.longitud_l2|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.longitud_l3 %}filled{% endif %}"
+                                       name="longitud_l3" value="{{ m.resultado.longitud_l3|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.peso_gramos %}filled{% endif %}"
+                                       name="peso_gramos" value="{{ m.resultado.peso_gramos|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}" style="width: 70px;">
+                            </td>
+                            <td>
+                                <input type="number" step="0.1" class="input-medicion {% if m.resultado.carga_maxima_kn %}filled{% endif %}"
+                                       name="carga_maxima_kn" value="{{ m.resultado.carga_maxima_kn|default:'' }}"
+                                       data-pk="{{ m.resultado.pk }}" style="width: 70px;">
+                            </td>
+                            <td>
+                                <select class="select-falla" name="forma_falla" data-pk="{{ m.resultado.pk }}">
+                                    <option value="">-</option>
+                                    <option value="1" {% if m.resultado.forma_falla == '1' %}selected{% endif %}>1</option>
+                                    <option value="2" {% if m.resultado.forma_falla == '2' %}selected{% endif %}>2</option>
+                                    <option value="3" {% if m.resultado.forma_falla == '3' %}selected{% endif %}>3</option>
+                                    <option value="4" {% if m.resultado.forma_falla == '4' %}selected{% endif %}>4</option>
+                                    <option value="5" {% if m.resultado.forma_falla == '5' %}selected{% endif %}>5</option>
+                                    <option value="6" {% if m.resultado.forma_falla == '6' %}selected{% endif %}>6</option>
+                                </select>
+                            </td>
+                            <td>
+                                <button type="button" class="btn-guardar" onclick="guardarResultado({{ m.resultado.pk }}, this)">
+                                    <i class="bi bi-check2"></i> OK
+                                </button>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+        {% endfor %}
+
+    {% else %}
+        <!-- Estado vacio -->
+        <div class="empty-state">
+            <i class="bi bi-check-circle"></i>
+            <h5>No hay ensayos pendientes para hoy</h5>
+            <p class="text-muted">Todas las muestras programadas han sido completadas.</p>
+        </div>
+    {% endif %}
+</div>
+
+<!-- Indicador de guardado -->
+<div class="unsaved-indicator" id="unsavedIndicator">
+    <i class="bi bi-exclamation-triangle"></i>
+    <span>Guardando...</span>
+</div>
+
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    // Obtener CSRF token
+    function getCookie(name) {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                    cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+
+    // Guardar resultado individual
+    async function guardarResultado(pk, btn) {
+        const row = document.querySelector(`tr[data-resultado-pk="${pk}"]`);
+        const inputs = row.querySelectorAll('input, select');
+
+        const data = new FormData();
+        inputs.forEach(input => {
+            if (input.name && input.value) {
+                data.append(input.name, input.value);
+            }
+        });
+
+        // Mostrar estado de guardado
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
+
+        try {
+            const response = await fetch(`/ensayos/resultado/${pk}/editar/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': getCookie('csrftoken'),
+                },
+                body: data
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                // Marcar inputs como guardados
+                inputs.forEach(input => {
+                    if (input.value) {
+                        input.classList.add('filled');
+                    }
+                });
+
+                // Si se completo, remover fila con animacion
+                if (result.estado === 'completado') {
+                    row.style.transition = 'all 0.3s ease';
+                    row.style.opacity = '0';
+                    row.style.transform = 'translateX(20px)';
+                    setTimeout(() => {
+                        row.remove();
+                        actualizarContadores();
+                    }, 300);
+                } else {
+                    btn.innerHTML = '<i class="bi bi-check2"></i> OK';
+                    btn.disabled = false;
+                }
+            } else {
+                btn.innerHTML = '<i class="bi bi-x"></i> Error';
+                setTimeout(() => {
+                    btn.innerHTML = '<i class="bi bi-check2"></i> OK';
+                    btn.disabled = false;
+                }, 2000);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            btn.innerHTML = '<i class="bi bi-x"></i> Error';
+            setTimeout(() => {
+                btn.innerHTML = '<i class="bi bi-check2"></i> OK';
+                btn.disabled = false;
+            }, 2000);
+        }
+    }
+
+    // Actualizar contadores despues de completar
+    function actualizarContadores() {
+        const vencidas = document.querySelectorAll('tr.vencida').length;
+        const hoy = document.querySelectorAll('tr.hoy').length;
+        const total = vencidas + hoy;
+
+        // Actualizar badges en el sidebar si existen
+        const badgePendientes = document.getElementById('badge-pendientes');
+        const badgeCompletados = document.getElementById('badge-completados');
+
+        if (badgePendientes) {
+            badgePendientes.textContent = total;
+        }
+    }
+
+    // Marcar input como modificado
+    document.querySelectorAll('.input-medicion, .select-falla').forEach(input => {
+        input.addEventListener('change', function() {
+            if (this.value) {
+                this.classList.add('filled');
+            } else {
+                this.classList.remove('filled');
+            }
+        });
+    });
+</script>
+{% endblock %}

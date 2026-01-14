@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+</head>
+<body style="margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f8fafc;">
+    <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f8fafc; padding: 40px 20px;">
+        <tr>
+            <td align="center">
+                <table width="600" cellpadding="0" cellspacing="0" style="background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <tr>
+                        <td style="background-color: #1c2e4a; padding: 30px; text-align: center; border-radius: 12px 12px 0 0;">
+                            <h1 style="color: #ffffff; margin: 0; font-size: 24px; font-weight: 600;">GEOLAB</h1>
+                            <p style="color: rgba(255,255,255,0.7); margin: 5px 0 0 0; font-size: 14px;">Sistema de Gestión de Calidad</p>
+                        </td>
+                    </tr>
+
+                    <!-- Content -->
+                    <tr>
+                        <td style="padding: 40px 30px;">
+                            <h2 style="color: #1c2e4a; margin: 0 0 20px 0; font-size: 20px;">
+                                Solicitud de Remisión de Muestras
+                            </h2>
+
+                            <p style="color: #64748b; line-height: 1.6; margin: 0 0 20px 0;">
+                                Se ha generado una solicitud de remisión de muestras para la siguiente obra. Por favor complete el formulario haciendo clic en el botón de abajo.
+                            </p>
+
+                            <!-- Info Box -->
+                            <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #f1f5f9; border-radius: 8px; margin-bottom: 30px;">
+                                <tr>
+                                    <td style="padding: 20px;">
+                                        <table width="100%" cellpadding="0" cellspacing="0">
+                                            <tr>
+                                                <td style="padding-bottom: 10px;">
+                                                    <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Empresa</span><br>
+                                                    <strong style="color: #1c2e4a;">{{ remision.obra.constructora.nombre }}</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td style="padding-bottom: 10px;">
+                                                    <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Obra</span><br>
+                                                    <strong style="color: #1c2e4a;">{{ remision.obra.nombre }}</strong>
+                                                </td>
+                                            </tr>
+                                            <tr>
+                                                <td>
+                                                    <span style="color: #64748b; font-size: 12px; text-transform: uppercase;">Orden de Trabajo</span><br>
+                                                    <strong style="color: #dc2626; font-size: 18px;">{{ remision.orden_trabajo }}</strong>
+                                                </td>
+                                            </tr>
+                                        </table>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <!-- CTA Button -->
+                            <table width="100%" cellpadding="0" cellspacing="0">
+                                <tr>
+                                    <td align="center">
+                                        <a href="{{ url_formulario }}"
+                                           style="display: inline-block; background-color: #008ed6; color: #ffffff; text-decoration: none; padding: 15px 40px; border-radius: 8px; font-weight: 600; font-size: 16px;">
+                                            Completar Formulario de Remisión
+                                        </a>
+                                    </td>
+                                </tr>
+                            </table>
+
+                            <p style="color: #94a3b8; font-size: 13px; margin-top: 30px; text-align: center;">
+                                Si el botón no funciona, copie y pegue este enlace en su navegador:<br>
+                                <a href="{{ url_formulario }}" style="color: #008ed6; word-break: break-all;">{{ url_formulario }}</a>
+                            </p>
+                        </td>
+                    </tr>
+
+                    <!-- Footer -->
+                    <tr>
+                        <td style="background-color: #f8fafc; padding: 20px 30px; border-radius: 0 0 12px 12px; border-top: 1px solid #e2e8f0;">
+                            <p style="color: #94a3b8; font-size: 12px; margin: 0; text-align: center;">
+                                Este es un mensaje automático del Sistema de Gestión de Calidad de Geolab S.A.S.<br>
+                                Por favor no responda a este correo.
+                            </p>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>

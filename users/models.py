@@ -24,12 +24,27 @@ class UsuarioBase(AbstractUser):
     def __str__(self):
         return self.username
 
+    @property
+    def es_tecnico_laboratorio(self):
+        """Verifica si el usuario es técnico de laboratorio"""
+        if self.es_geolab and hasattr(self, 'perfil_geolab'):
+            return self.perfil_geolab.area == 'tecnico'
+        return False
+
+    @property
+    def es_admin_geolab(self):
+        """Verifica si el usuario es admin/staff completo de Geolab (no técnico)"""
+        if self.es_geolab and hasattr(self, 'perfil_geolab'):
+            return self.perfil_geolab.area in ['admin', 'lab', 'recepcion']
+        return self.es_geolab
+
 # 3. PERFIL INTERNO (Tu equipo)
 class FuncionarioGeolab(models.Model):
     AREAS = [
-        ('lab', 'Laboratorio'),
         ('admin', 'Administrativo'),
+        ('lab', 'Supervisor de Laboratorio'),
         ('recepcion', 'Recepción de Muestras'),
+        ('tecnico', 'Técnico de Laboratorio'),
     ]
     user = models.OneToOneField(UsuarioBase, on_delete=models.CASCADE, related_name='perfil_geolab')
     area = models.CharField(max_length=50, choices=AREAS)

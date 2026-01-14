@@ -1,0 +1,119 @@
+{% extends 'base.html' %}
+
+{% block title %}Hojas de Trabajo - {{ obra.nombre }}{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item">
+                <a href="{% url 'lista_constructoras' %}">Empresas</a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'detalle_constructora' obra.constructora.pk %}">
+                    {{ obra.constructora.nombre }}
+                </a>
+            </li>
+            <li class="breadcrumb-item">
+                <a href="{% url 'detalle_obra' obra.pk %}">{{ obra.nombre }}</a>
+            </li>
+            <li class="breadcrumb-item active">Hojas de Trabajo</li>
+        </ol>
+    </nav>
+
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="mb-1">
+                <i class="bi bi-clipboard2-data me-2"></i>
+                Hojas de Trabajo (F-GT-05)
+            </h2>
+            <p class="text-muted mb-0">
+                {{ obra.nombre }}
+                <span class="badge bg-secondary ms-2">{{ obra.codigo_obra }}</span>
+            </p>
+        </div>
+        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-2"></i>
+            Volver al Expediente
+        </a>
+    </div>
+
+    <!-- Lista de hojas -->
+    {% if hojas %}
+    <div class="row">
+        {% for hoja in hojas %}
+        <div class="col-md-6 col-lg-4 mb-4">
+            <div class="card h-100">
+                <div class="card-header d-flex justify-content-between align-items-center">
+                    <span>
+                        <strong>{{ hoja.codigo_formato }}</strong>
+                        - Remisión #{{ hoja.remision.orden_trabajo }}
+                    </span>
+                    {% if hoja.estado == 'pendiente' %}
+                        <span class="badge bg-secondary">Pendiente</span>
+                    {% elif hoja.estado == 'en_proceso' %}
+                        <span class="badge bg-warning text-dark">En Proceso</span>
+                    {% elif hoja.estado == 'completada' %}
+                        <span class="badge bg-success">Completada</span>
+                    {% else %}
+                        <span class="badge bg-primary">Informe</span>
+                    {% endif %}
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <div class="d-flex justify-content-between mb-1">
+                            <small>Progreso</small>
+                            <small>{{ hoja.muestras_completadas }}/{{ hoja.total_muestras }}</small>
+                        </div>
+                        <div class="progress" style="height: 10px;">
+                            <div class="progress-bar
+                                {% if hoja.progreso == 100 %}bg-success
+                                {% elif hoja.progreso > 0 %}bg-warning
+                                {% else %}bg-secondary{% endif %}"
+                                 style="width: {{ hoja.progreso }}%">
+                            </div>
+                        </div>
+                    </div>
+                    <p class="card-text">
+                        <small class="text-muted">
+                            <i class="bi bi-calendar me-1"></i>
+                            Creada: {{ hoja.fecha_creacion|date:"d/m/Y H:i" }}
+                        </small>
+                    </p>
+                    {% if hoja.numero_informe %}
+                    <p class="card-text">
+                        <small>
+                            <i class="bi bi-file-text me-1"></i>
+                            Informe: {{ hoja.numero_informe }}
+                        </small>
+                    </p>
+                    {% endif %}
+                </div>
+                <div class="card-footer bg-transparent">
+                    <a href="{% url 'detalle_hoja_trabajo' hoja.pk %}"
+                       class="btn btn-primary btn-sm w-100">
+                        <i class="bi bi-pencil-square me-2"></i>
+                        Abrir Hoja de Trabajo
+                    </a>
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="card">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-inbox fs-1 text-muted d-block mb-3"></i>
+            <p class="text-muted mb-3">
+                No hay hojas de trabajo para esta obra.
+            </p>
+            <p class="text-muted small">
+                Las hojas de trabajo se crean automáticamente cuando una remisión es completada por el cliente.
+            </p>
+        </div>
+    </div>
+    {% endif %}
+</div>
+{% endblock %}

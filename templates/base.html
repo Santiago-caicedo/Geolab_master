@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Geolab Enterprise System</title>
+    <title>{% block title %}Geolab Enterprise System{% endblock %}</title>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
@@ -160,10 +160,13 @@
             background-color: white;
         }
     </style>
+    {% block extra_css %}{% endblock %}
 </head>
 <body>
 
-    {% if user.es_geolab %}
+    {% if user.es_tecnico_laboratorio %}
+        {% include 'includes/sidebar_tecnico.html' %}
+    {% elif user.es_geolab %}
         {% include 'includes/sidebar_staff.html' %}
     {% else %}
         {% include 'includes/sidebar_client.html' %}
@@ -176,7 +179,9 @@
             
             <div>
                 <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
-                    {% if user.es_geolab %}
+                    {% if user.es_tecnico_laboratorio %}
+                        Panel de Laboratorio
+                    {% elif user.es_geolab %}
                         Panel Administrativo
                     {% else %}
                         Portal de Clientes
@@ -200,7 +205,9 @@
                             {{ user.first_name|default:user.username|title }}
                         </div>
                         <small class="text-muted" style="font-size: 0.7rem;">
-                            {% if user.es_geolab %}
+                            {% if user.es_tecnico_laboratorio %}
+                                Tecnico de Laboratorio
+                            {% elif user.es_geolab %}
                                 Staff Geolab
                             {% else %}
                                 {{ user.perfil_cliente.get_rol_display }}

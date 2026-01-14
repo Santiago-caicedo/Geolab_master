@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git restore:*)",
+      "Bash(python manage.py startapp:*)",
+      "Bash(python3:*)",
+      "Bash(pip install:*)",
+      "Bash(source venv/bin/activate)",
+      "Bash(wc:*)",
+      "Bash(ls:*)",
+      "Bash(tree:*)",
+      "Bash(pip3 install:*)",
+      "Bash(source venv/Scripts/activate)",
+      "Bash(python:*)",
+      "Bash(./venv/Scripts/python.exe:*)",
+      "Bash(/mnt/c/Users/ASUS/documents/geolab_master/venv/Scripts/python.exe:*)",
+      "Bash(./venv/Scripts/pip.exe install:*)"
+    ]
+  }
+}

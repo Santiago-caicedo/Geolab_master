@@ -1,0 +1,473 @@
+{% extends 'base.html' %}
+
+{% block title %}Hoja de Trabajo Global - Ensayos{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4">
+    <!-- Encabezado con resumen -->
+    <div class="card mb-4">
+        <div class="card-header bg-dark text-white">
+            <div class="row align-items-center">
+                <div class="col-md-8">
+                    <h4 class="mb-1">
+                        <i class="bi bi-clipboard2-data me-2"></i>
+                        HOJA DE TRABAJO GLOBAL - F-GT-05
+                    </h4>
+                    <small>Todas las muestras de todas las remisiones</small>
+                </div>
+                <div class="col-md-4 text-md-end">
+                    <div class="text-white-50">Fecha: {{ fecha_hoy|date:"d/m/Y" }}</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card-body">
+            <!-- Estadisticas rapidas -->
+            <div class="row g-3 mb-4">
+                <div class="col-md-3">
+                    <div class="card border-danger h-100">
+                        <div class="card-body text-center py-3">
+                            <h2 class="text-danger mb-0">{{ conteo_hoy }}</h2>
+                            <small class="text-muted">Fallar HOY</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-warning h-100">
+                        <div class="card-body text-center py-3">
+                            <h2 class="text-warning mb-0">{{ conteo_vencidas }}</h2>
+                            <small class="text-muted">Vencidas</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-info h-100">
+                        <div class="card-body text-center py-3">
+                            <h2 class="text-info mb-0">{{ conteo_proximas }}</h2>
+                            <small class="text-muted">Prox. 3 dias</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card border-secondary h-100">
+                        <div class="card-body text-center py-3">
+                            <h2 class="text-secondary mb-0">{{ total_resultados }}</h2>
+                            <small class="text-muted">Total muestras</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <form method="get" class="row g-2 align-items-end">
+                <div class="col-md-3">
+                    <label class="form-label small">Buscar</label>
+                    <input type="text" name="q" class="form-control form-control-sm"
+                           value="{{ busqueda }}" placeholder="Obra, codigo, localizacion...">
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Obra</label>
+                    <select name="obra" class="form-select form-select-sm">
+                        <option value="">Todas las obras</option>
+                        {% for obra in obras %}
+                        <option value="{{ obra.pk }}" {% if obra_filtro == obra.pk|stringformat:"s" %}selected{% endif %}>
+                            {{ obra.nombre|truncatechars:30 }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <label class="form-label small">Estado</label>
+                    <select name="estado" class="form-select form-select-sm">
+                        <option value="">Todos</option>
+                        {% for value, label in estados %}
+                        <option value="{{ value }}" {% if estado_filtro == value %}selected{% endif %}>
+                            {{ label }}
+                        </option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <div class="form-check">
+                        <input type="checkbox" name="solo_hoy" value="1" class="form-check-input"
+                               id="filtroHoy" {% if ver_solo_hoy %}checked{% endif %}>
+                        <label class="form-check-label" for="filtroHoy">
+                            Solo Hoy/Vencidas
+                        </label>
+                    </div>
+                </div>
+                <div class="col-md-3 text-end">
+                    <button type="submit" class="btn btn-sm btn-primary">
+                        <i class="bi bi-search me-1"></i> Filtrar
+                    </button>
+                    <a href="{% url 'hoja_trabajo_global' %}" class="btn btn-sm btn-outline-secondary">
+                        Limpiar
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Barra de acciones -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="btn-group">
+            <button type="button" class="btn btn-danger" id="btnSeleccionarHoy">
+                <i class="bi bi-check2-square me-2"></i>
+                Seleccionar Muestras de HOY
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="btnDeseleccionarTodas">
+                <i class="bi bi-square me-2"></i>
+                Deseleccionar Todas
+            </button>
+        </div>
+        <div>
+            <span class="text-muted me-2">Seleccionadas: <strong id="conteoSeleccionadas">0</strong></span>
+            <button type="button" class="btn btn-success" id="btnGenerarInforme" disabled>
+                <i class="bi bi-file-pdf me-2"></i>
+                Generar Informe del Dia
+            </button>
+        </div>
+    </div>
+
+    <!-- Tabla global de muestras -->
+    <div class="card">
+        <div class="table-responsive">
+            <table class="table table-sm table-bordered table-hover mb-0" id="tabla-global">
+                <thead class="table-dark sticky-top">
+                    <tr>
+                        <th class="text-center" style="width: 40px;">
+                            <input type="checkbox" id="selectAll" class="form-check-input">
+                        </th>
+                        <th class="text-center" style="width: 60px;">Muestra</th>
+                        <th>Obra</th>
+                        <th>Localizacion</th>
+                        <th class="text-center">Tipo</th>
+                        <th class="text-center">F. Toma</th>
+                        <th class="text-center">Edad</th>
+                        <th class="text-center">F. Falla</th>
+                        <th class="text-center">Dias</th>
+                        <th class="text-center">F'c</th>
+                        <th class="text-center">Carga (KN)</th>
+                        <th class="text-center">Esfuerzo</th>
+                        <th class="text-center">%</th>
+                        <th class="text-center">Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for item in resultados %}
+                    {% with r=item.resultado %}
+                    <tr id="fila-{{ r.pk }}"
+                        class="{% if item.es_hoy %}table-danger fila-hoy{% elif item.esta_vencida %}table-warning fila-vencida{% elif r.estado == 'completado' %}table-success{% endif %}"
+                        data-pk="{{ r.pk }}"
+                        data-es-hoy="{{ item.es_hoy|yesno:'true,false' }}"
+                        data-vencida="{{ item.esta_vencida|yesno:'true,false' }}">
+
+                        <td class="text-center">
+                            <input type="checkbox"
+                                   class="form-check-input check-muestra"
+                                   data-pk="{{ r.pk }}"
+                                   {% if r.seleccionado %}checked{% endif %}
+                                   {% if r.estado == 'completado' %}disabled{% endif %}>
+                        </td>
+                        <td class="text-center fw-bold">{{ r.muestra.numero_muestra }}</td>
+                        <td>
+                            <small>
+                                <a href="{% url 'detalle_obra' r.hoja_trabajo.remision.obra.pk %}" class="text-decoration-none">
+                                    {{ r.hoja_trabajo.remision.obra.nombre|truncatechars:25 }}
+                                </a>
+                            </small>
+                            <br>
+                            <span class="badge bg-light text-dark" style="font-size: 0.65rem;">
+                                {{ r.hoja_trabajo.remision.obra.codigo_obra }}
+                            </span>
+                        </td>
+                        <td>
+                            <small title="{{ r.muestra.localizacion }}">
+                                {{ r.muestra.localizacion|truncatechars:30 }}
+                            </small>
+                        </td>
+                        <td class="text-center">
+                            <small>{{ r.muestra.get_tipo_muestra_display|default:"-" }}</small>
+                        </td>
+                        <td class="text-center">
+                            <small>{{ r.muestra.fecha_toma|date:"d/m/y" }}</small>
+                        </td>
+                        <td class="text-center">{{ r.muestra.edad_ensayo_dias }}d</td>
+                        <td class="text-center">
+                            {% if item.fecha_falla %}
+                                {% if item.es_hoy %}
+                                    <span class="badge bg-danger">
+                                        <i class="bi bi-exclamation-triangle me-1"></i>HOY
+                                    </span>
+                                {% elif item.esta_vencida %}
+                                    <span class="badge bg-warning text-dark">
+                                        {{ item.fecha_falla|date:"d/m" }}
+                                    </span>
+                                {% else %}
+                                    <small>{{ item.fecha_falla|date:"d/m/y" }}</small>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if item.dias_restantes is not None %}
+                                {% if item.dias_restantes == 0 %}
+                                    <span class="badge bg-danger">0</span>
+                                {% elif item.dias_restantes < 0 %}
+                                    <span class="badge bg-warning text-dark">{{ item.dias_restantes }}</span>
+                                {% elif item.dias_restantes <= 3 %}
+                                    <span class="badge bg-info">{{ item.dias_restantes }}</span>
+                                {% else %}
+                                    <small class="text-muted">{{ item.dias_restantes }}</small>
+                                {% endif %}
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">{{ r.muestra.fc_resistencia|default:"-" }}</td>
+                        <td class="text-center">
+                            {% if r.carga_maxima_kn %}
+                                {{ r.carga_maxima_kn }}
+                            {% else %}
+                                <span class="text-muted">-</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.esfuerzo_mpa %}
+                                <strong>{{ r.esfuerzo_mpa }}</strong>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.porcentaje_desarrollo %}
+                                <strong class="{% if r.cumple_resistencia %}text-success{% else %}text-danger{% endif %}">
+                                    {{ r.porcentaje_desarrollo }}%
+                                </strong>
+                            {% else %}
+                                -
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            {% if r.estado == 'completado' %}
+                                <span class="badge bg-success">
+                                    <i class="bi bi-check-lg"></i>
+                                </span>
+                            {% elif r.estado == 'fallido' %}
+                                <span class="badge bg-danger">
+                                    <i class="bi bi-x-lg"></i>
+                                </span>
+                            {% else %}
+                                <span class="badge bg-secondary">Pendiente</span>
+                            {% endif %}
+                        </td>
+                        <td class="text-center">
+                            <a href="{% url 'detalle_hoja_trabajo' r.hoja_trabajo.pk %}"
+                               class="btn btn-sm btn-outline-primary py-0"
+                               title="Ir a hoja de trabajo">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                        </td>
+                    </tr>
+                    {% endwith %}
+                    {% empty %}
+                    <tr>
+                        <td colspan="15" class="text-center py-5 text-muted">
+                            <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                            No hay muestras que coincidan con los filtros.
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+
+    <!-- Paginacion -->
+    {% if resultados.has_other_pages %}
+    <nav class="mt-4">
+        <ul class="pagination justify-content-center">
+            {% if resultados.has_previous %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ resultados.previous_page_number }}{% if busqueda %}&q={{ busqueda }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}{% if obra_filtro %}&obra={{ obra_filtro }}{% endif %}{% if ver_solo_hoy %}&solo_hoy=1{% endif %}">
+                    Anterior
+                </a>
+            </li>
+            {% endif %}
+
+            <li class="page-item disabled">
+                <span class="page-link">
+                    Pagina {{ resultados.number }} de {{ resultados.paginator.num_pages }}
+                </span>
+            </li>
+
+            {% if resultados.has_next %}
+            <li class="page-item">
+                <a class="page-link" href="?page={{ resultados.next_page_number }}{% if busqueda %}&q={{ busqueda }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}{% if obra_filtro %}&obra={{ obra_filtro }}{% endif %}{% if ver_solo_hoy %}&solo_hoy=1{% endif %}">
+                    Siguiente
+                </a>
+            </li>
+            {% endif %}
+        </ul>
+    </nav>
+    {% endif %}
+
+    <!-- Leyenda -->
+    <div class="card mt-4">
+        <div class="card-body py-2">
+            <small class="text-muted">
+                <strong>Leyenda:</strong>
+                <span class="badge bg-danger ms-2">Fallar HOY</span>
+                <span class="badge bg-warning text-dark ms-2">Vencidas</span>
+                <span class="badge bg-success ms-2">Completado</span>
+                <span class="text-success ms-2 fw-bold">100%+ = Cumple</span>
+                <span class="text-danger ms-2 fw-bold">&lt;100% = No cumple</span>
+            </small>
+        </div>
+    </div>
+</div>
+
+<style>
+    #tabla-global {
+        font-size: 0.85rem;
+    }
+    #tabla-global th {
+        white-space: nowrap;
+    }
+    #tabla-global td {
+        vertical-align: middle;
+    }
+    .fila-hoy {
+        animation: pulse-red 2s infinite;
+    }
+    @keyframes pulse-red {
+        0%, 100% { background-color: rgba(220, 53, 69, 0.15); }
+        50% { background-color: rgba(220, 53, 69, 0.3); }
+    }
+    .sticky-top {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+    }
+</style>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token }}';
+    const checkboxes = document.querySelectorAll('.check-muestra');
+    const selectAll = document.getElementById('selectAll');
+    const btnSeleccionarHoy = document.getElementById('btnSeleccionarHoy');
+    const btnDeseleccionarTodas = document.getElementById('btnDeseleccionarTodas');
+    const btnGenerarInforme = document.getElementById('btnGenerarInforme');
+    const conteoSeleccionadas = document.getElementById('conteoSeleccionadas');
+
+    // Funcion para actualizar conteo
+    function actualizarConteo() {
+        const seleccionadas = document.querySelectorAll('.check-muestra:checked:not(:disabled)').length;
+        conteoSeleccionadas.textContent = seleccionadas;
+        btnGenerarInforme.disabled = seleccionadas === 0;
+    }
+
+    // Evento de cambio en cada checkbox
+    checkboxes.forEach(cb => {
+        cb.addEventListener('change', function() {
+            const pk = this.dataset.pk;
+
+            fetch(`/resultado/${pk}/toggle-seleccion/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': csrfToken,
+                    'Content-Type': 'application/json',
+                }
+            }).then(response => response.json())
+              .then(data => {
+                  actualizarConteo();
+              });
+        });
+    });
+
+    // Seleccionar todas visibles
+    selectAll.addEventListener('change', function() {
+        checkboxes.forEach(cb => {
+            if (!cb.disabled) {
+                cb.checked = this.checked;
+                cb.dispatchEvent(new Event('change'));
+            }
+        });
+    });
+
+    // Seleccionar muestras de HOY automaticamente
+    btnSeleccionarHoy.addEventListener('click', function() {
+        fetch('/hojas-trabajo/seleccionar-hoy/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+            }
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  // Actualizar checkboxes visualmente
+                  document.querySelectorAll('.fila-hoy .check-muestra, .fila-vencida .check-muestra').forEach(cb => {
+                      if (!cb.disabled) {
+                          cb.checked = true;
+                      }
+                  });
+                  actualizarConteo();
+                  alert(data.mensaje);
+              }
+          });
+    });
+
+    // Deseleccionar todas
+    btnDeseleccionarTodas.addEventListener('click', function() {
+        fetch('/hojas-trabajo/deseleccionar-todas/', {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': csrfToken,
+                'Content-Type': 'application/json',
+            }
+        }).then(response => response.json())
+          .then(data => {
+              if (data.success) {
+                  checkboxes.forEach(cb => {
+                      cb.checked = false;
+                  });
+                  selectAll.checked = false;
+                  actualizarConteo();
+              }
+          });
+    });
+
+    // Generar informe (placeholder por ahora)
+    btnGenerarInforme.addEventListener('click', function() {
+        const seleccionadas = Array.from(document.querySelectorAll('.check-muestra:checked:not(:disabled)'))
+                                   .map(cb => cb.dataset.pk);
+
+        if (seleccionadas.length === 0) {
+            alert('Selecciona al menos una muestra');
+            return;
+        }
+
+        // TODO: Implementar generacion de PDF
+        alert('Proximamente: Generar informe con ' + seleccionadas.length + ' muestras seleccionadas.\n\nIDs: ' + seleccionadas.join(', '));
+    });
+
+    // Inicializar conteo
+    actualizarConteo();
+
+    // Auto-seleccionar muestras de HOY al cargar (opcional)
+    // Si hay muestras de hoy sin seleccionar, preguntar
+    const muestrasHoySinSeleccionar = document.querySelectorAll('.fila-hoy .check-muestra:not(:checked):not(:disabled)');
+    if (muestrasHoySinSeleccionar.length > 0) {
+        // Marcarlas automaticamente
+        muestrasHoySinSeleccionar.forEach(cb => {
+            cb.checked = true;
+        });
+        actualizarConteo();
+    }
+});
+</script>
+{% endblock %}

@@ -20,7 +20,19 @@
             <i class="bi bi-cloud-arrow-up-fill"></i> Cargar Informe
         </a>
 
-        
+        <a href="{% url 'lista_remisiones' %}" class="nav-link {% if 'remisiones' in request.path and 'hojas' not in request.path %}active{% endif %}">
+            <i class="bi bi-file-earmark-medical"></i> Remisiones de Muestras
+        </a>
+
+        <a href="{% url 'lista_obras_hojas_trabajo' %}" class="nav-link {% if 'hojas-trabajo' in request.path and 'hoy' not in request.path %}active{% endif %}">
+            <i class="bi bi-clipboard2-data"></i> Hojas de Trabajo
+        </a>
+
+        <a href="{% url 'muestras_para_hoy' %}" class="nav-link {% if 'hoy' in request.path %}active{% endif %}">
+            <i class="bi bi-calendar-check"></i> Ensayos del Dia
+        </a>
+
+
         <div class="nav-section">ADMINISTRACIÓN</div>
         
         <a href="/admin/users/clienteexterno/" class="nav-link" target="_blank">
