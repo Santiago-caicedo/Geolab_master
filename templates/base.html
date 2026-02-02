@@ -159,6 +159,62 @@
             border-top: 1px solid var(--border-color);
             background-color: white;
         }
+
+        /* --- SIDEBAR COLAPSABLE --- */
+        .sidebar-collapsed .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+
+        .btn-toggle-sidebar {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-main);
+        }
+
+        .btn-toggle-sidebar:hover {
+            background: var(--bg-body);
+            border-color: var(--brand-blue);
+            color: var(--brand-blue);
+        }
+
+        /* Responsive - ocultar sidebar en movil por defecto */
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            body.sidebar-visible .sidebar {
+                transform: translateX(0);
+            }
+            body.sidebar-visible .main-content {
+                margin-left: 0;
+            }
+            /* Overlay cuando sidebar esta visible en movil */
+            body.sidebar-visible::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -168,6 +224,8 @@
         {% include 'includes/sidebar_tecnico.html' %}
     {% elif user.es_geolab %}
         {% include 'includes/sidebar_staff.html' %}
+    {% elif user.es_remitente %}
+        {% include 'includes/sidebar_remitente.html' %}
     {% else %}
         {% include 'includes/sidebar_client.html' %}
     {% endif %}
@@ -176,28 +234,54 @@
     <div class="main-content">
         
         <header class="top-navbar">
-            
-            <div>
-                <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
-                    {% if user.es_tecnico_laboratorio %}
-                        Panel de Laboratorio
-                    {% elif user.es_geolab %}
-                        Panel Administrativo
-                    {% else %}
-                        Portal de Clientes
-                    {% endif %}
-                </h5>
-                <small class="text-muted">
-                    {% now "l, d F Y" %}
-                </small>
+
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="Ocultar/Mostrar menu">
+                    <i class="bi bi-list" id="sidebar-toggle-icon"></i>
+                </button>
+                <div>
+                    <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
+                        {% if user.es_tecnico_laboratorio %}
+                            Panel de Laboratorio
+                        {% elif user.es_geolab %}
+                            Panel Administrativo
+                        {% elif user.es_remitente %}
+                            Panel de Remitente
+                        {% else %}
+                            Portal de Clientes
+                        {% endif %}
+                    </h5>
+                    <small class="text-muted">
+                        {% now "l, d F Y" %}
+                    </small>
+                </div>
             </div>
 
             <div class="d-flex align-items-center gap-4">
-                
-                <button class="btn btn-light rounded-circle position-relative border shadow-sm d-flex align-items-center justify-content-center" style="width: 40px; height: 40px;">
-                    <i class="bi bi-bell"></i>
-                    <span class="position-absolute top-0 start-100 translate-middle p-1 bg-danger border border-light rounded-circle"></span>
-                </button>
+
+                <!-- Campana de notificaciones -->
+                <div class="dropdown">
+                    <button class="btn btn-light rounded-circle position-relative border shadow-sm d-flex align-items-center justify-content-center"
+                            style="width: 40px; height: 40px;"
+                            data-bs-toggle="dropdown"
+                            aria-expanded="false"
+                            id="notificacionesBtn">
+                        <i class="bi bi-bell"></i>
+                        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none"
+                              id="notificaciones-badge" style="font-size: 0.65rem;">0</span>
+                    </button>
+                    <div class="dropdown-menu dropdown-menu-end p-0" style="width: 320px; max-height: 400px; overflow-y: auto;">
+                        <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
+                            <span class="fw-semibold small">Notificaciones</span>
+                            <a href="{% url 'lista_notificaciones' %}" class="small text-decoration-none">Ver todas</a>
+                        </div>
+                        <div id="notificaciones-lista">
+                            <div class="text-center py-4 text-muted small">
+                                <i class="bi bi-bell-slash"></i> Sin notificaciones nuevas
+                            </div>
+                        </div>
+                    </div>
+                </div>
 
                 <div class="d-flex align-items-center gap-3 ps-3 border-start">
                     <div class="text-end d-none d-sm-block" style="line-height: 1.2;">
@@ -209,7 +293,9 @@
                                 Tecnico de Laboratorio
                             {% elif user.es_geolab %}
                                 Staff Geolab
-                            {% else %}
+                            {% elif user.es_remitente %}
+                                Remitente
+                            {% elif user.es_cliente %}
                                 {{ user.perfil_cliente.get_rol_display }}
                             {% endif %}
                         </small>
@@ -229,18 +315,150 @@
         </div>
         
         <footer>
-            <strong>Geolab S.A.S</strong> &copy; {% now "Y" %} - Sistema de Gestión de Calidad.
+            <div class="d-flex justify-content-center align-items-center flex-wrap gap-3">
+                <span><strong>Geolab S.A.S</strong> &copy; {% now "Y" %} - Sistema de Gestion de Calidad.</span>
+                {% if user.es_cliente %}
+                <span class="text-muted">|</span>
+                <a href="https://vadomdata.com" target="_blank" rel="noopener" class="d-inline-flex align-items-center gap-2 text-decoration-none text-muted" title="Vadom Data Consulting SAS">
+                    <span style="font-size: 0.75rem;">Plataforma desarrollada por Vadom Data Consulting SAS</span>
+                    <img src="{% static 'img/vadom_logo.png' %}" alt="Vadom Data Consulting SAS" style="height: 24px; width: auto;">
+                </a>
+                {% endif %}
+            </div>
         </footer>
 
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
-    
+
     <script>
+        // Tooltips de Bootstrap
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
         })
+
+        // Toggle Sidebar
+        function toggleSidebar() {
+            const body = document.body;
+            const icon = document.getElementById('sidebar-toggle-icon');
+            const isMobile = window.innerWidth <= 768;
+
+            if (isMobile) {
+                body.classList.toggle('sidebar-visible');
+            } else {
+                body.classList.toggle('sidebar-collapsed');
+                // Guardar preferencia en localStorage
+                const isCollapsed = body.classList.contains('sidebar-collapsed');
+                localStorage.setItem('sidebarCollapsed', isCollapsed);
+            }
+
+            // Cambiar icono
+            if (body.classList.contains('sidebar-collapsed') || (!isMobile && body.classList.contains('sidebar-collapsed'))) {
+                icon.classList.remove('bi-list');
+                icon.classList.add('bi-layout-sidebar');
+            } else {
+                icon.classList.remove('bi-layout-sidebar');
+                icon.classList.add('bi-list');
+            }
+        }
+
+        // Restaurar estado del sidebar al cargar
+        document.addEventListener('DOMContentLoaded', function() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            const isMobile = window.innerWidth <= 768;
+            const icon = document.getElementById('sidebar-toggle-icon');
+
+            if (!isMobile && isCollapsed) {
+                document.body.classList.add('sidebar-collapsed');
+                icon.classList.remove('bi-list');
+                icon.classList.add('bi-layout-sidebar');
+            }
+        });
+
+        // Cerrar sidebar en movil al hacer click en el overlay
+        document.addEventListener('click', function(e) {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && document.body.classList.contains('sidebar-visible')) {
+                const sidebar = document.querySelector('.sidebar');
+                const toggleBtn = document.querySelector('.btn-toggle-sidebar');
+                if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                    document.body.classList.remove('sidebar-visible');
+                }
+            }
+        });
+
+        // ========== NOTIFICACIONES ==========
+        function actualizarContadorNotificaciones() {
+            fetch('{% url "contar_notificaciones_no_leidas" %}')
+                .then(response => response.json())
+                .then(data => {
+                    const badge = document.getElementById('notificaciones-badge');
+                    if (badge) {
+                        if (data.count > 0) {
+                            badge.textContent = data.count > 99 ? '99+' : data.count;
+                            badge.classList.remove('d-none');
+                        } else {
+                            badge.classList.add('d-none');
+                        }
+                    }
+                })
+                .catch(err => console.log('Error actualizando notificaciones'));
+        }
+
+        function cargarNotificacionesDropdown() {
+            const lista = document.getElementById('notificaciones-lista');
+            if (!lista) return;
+
+            lista.innerHTML = '<div class="text-center py-3"><div class="spinner-border spinner-border-sm text-primary" role="status"></div></div>';
+
+            fetch('{% url "obtener_notificaciones_recientes" %}')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.notificaciones && data.notificaciones.length > 0) {
+                        let html = '';
+                        data.notificaciones.forEach(n => {
+                            const bgClass = n.leida ? '' : 'bg-light';
+                            const iconClass = n.tipo === 'nueva_remision' ? 'bi-file-earmark-text text-primary' : 'bi-bell text-secondary';
+                            const url = n.remision_id ? '{% url "detalle_remision" 0 %}'.replace('0', n.remision_id) : '{% url "lista_notificaciones" %}';
+
+                            html += `
+                                <a href="${url}" class="dropdown-item d-flex gap-2 py-2 border-bottom ${bgClass}" style="white-space: normal;">
+                                    <div class="flex-shrink-0">
+                                        <i class="bi ${iconClass}" style="font-size: 1.2rem;"></i>
+                                    </div>
+                                    <div class="flex-grow-1 overflow-hidden">
+                                        <div class="fw-semibold small ${n.leida ? 'text-muted' : 'text-dark'}">${n.titulo}</div>
+                                        <div class="text-muted small text-truncate">${n.mensaje}</div>
+                                        <div class="text-muted" style="font-size: 0.7rem;">${n.fecha}</div>
+                                    </div>
+                                    ${!n.leida ? '<span class="badge bg-primary rounded-pill align-self-center">Nueva</span>' : ''}
+                                </a>
+                            `;
+                        });
+                        lista.innerHTML = html;
+                    } else {
+                        lista.innerHTML = '<div class="text-center py-4 text-muted small"><i class="bi bi-bell-slash"></i> Sin notificaciones</div>';
+                    }
+                })
+                .catch(err => {
+                    console.log('Error cargando notificaciones', err);
+                    lista.innerHTML = '<div class="text-center py-4 text-muted small"><i class="bi bi-exclamation-circle"></i> Error al cargar</div>';
+                });
+        }
+
+        // Ejecutar al cargar y cada 30 segundos
+        document.addEventListener('DOMContentLoaded', function() {
+            actualizarContadorNotificaciones();
+            setInterval(actualizarContadorNotificaciones, 30000);
+
+            // Cargar notificaciones cuando se abre el dropdown
+            const notifBtn = document.getElementById('notificacionesBtn');
+            if (notifBtn) {
+                notifBtn.addEventListener('click', cargarNotificacionesDropdown);
+            }
+        });
     </script>
+    {% block extra_js %}{% endblock %}
 </body>
 </html>

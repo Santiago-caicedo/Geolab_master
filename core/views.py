@@ -1,6 +1,7 @@
 from django.shortcuts import get_object_or_404, render, redirect
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
+from django.db import models
 from django.db.models import Count, Q
 from django.contrib import messages
 from .forms import ConstructoraForm, ObraForm
@@ -16,6 +17,9 @@ def dashboard_router(request):
             return redirect('dashboard_tecnico')
         return dashboard_staff(request)
     elif request.user.es_cliente:
+        # Verificar si es remitente (nuevo rol)
+        if request.user.es_remitente:
+            return redirect('dashboard_remitente')
         return dashboard_client(request)
     else:
         return render(request, 'core/pending.html') # Usuario sin rol definido
@@ -23,55 +27,160 @@ def dashboard_router(request):
 @login_required
 def dashboard_staff(request):
     """Vista Tipo Torre de Control para Geolab"""
+    from users.models import Constructora
+    from solicitudes.models import RemisionMuestras, Muestra
+    from django.utils import timezone
+    from datetime import timedelta
+
     # Estadísticas Globales
+    total_empresas = Constructora.objects.count()
+    total_obras = Obra.objects.count()
     total_informes = Informe.objects.count()
-    obras_activas = Obra.objects.count()
-    
-    # Últimos 10 informes cargados al sistema (de cualquier cliente)
-    ultimos_informes = Informe.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:10]
+
+    # Remisiones
+    remisiones_pendientes = RemisionMuestras.objects.filter(estado='enviada').count()
+    remisiones_completadas = RemisionMuestras.objects.filter(estado='completada').count()
+
+    # Ensayos programados para hoy
+    hoy = timezone.now().date()
+    ensayos_hoy = Muestra.objects.filter(
+        remision__estado='completada',
+        fecha_toma__lte=hoy
+    ).annotate(
+        fecha_ensayo=models.ExpressionWrapper(
+            models.F('fecha_toma') + timedelta(days=1) * models.F('edad_ensayo_dias'),
+            output_field=models.DateField()
+        )
+    ).filter(fecha_ensayo=hoy).count()
+
+    # Últimos 8 informes cargados al sistema
+    ultimos_informes = Informe.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:8]
+
+    # Últimas 5 remisiones
+    ultimas_remisiones = RemisionMuestras.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:5]
+
+    # Obras con más actividad reciente (últimos 30 días)
+    hace_30_dias = timezone.now() - timedelta(days=30)
+    obras_activas = Obra.objects.annotate(
+        informes_recientes=Count('informes', filter=Q(informes__fecha_creacion__gte=hace_30_dias)),
+        remisiones_recientes=Count('remisiones', filter=Q(remisiones__fecha_creacion__gte=hace_30_dias))
+    ).filter(
+        Q(informes_recientes__gt=0) | Q(remisiones_recientes__gt=0)
+    ).order_by('-informes_recientes', '-remisiones_recientes')[:5]
 
     context = {
+        'total_empresas': total_empresas,
+        'total_obras': total_obras,
         'total_informes': total_informes,
+        'remisiones_pendientes': remisiones_pendientes,
+        'remisiones_completadas': remisiones_completadas,
+        'ensayos_hoy': ensayos_hoy,
+        'ultimos_informes': ultimos_informes,
+        'ultimas_remisiones': ultimas_remisiones,
         'obras_activas': obras_activas,
-        'ultimos_informes': ultimos_informes
     }
     return render(request, 'core/home_staff.html', context)
 
 @login_required
 def dashboard_client(request):
-    """Vista Tipo Portal Bancario para Clientes"""
+    """
+    Dashboard principal para clientes.
+    Muestra tarjetas de obras disponibles y últimos informes.
+    """
     perfil = request.user.perfil_cliente
-    
-    # 1. FILTRADO DE SEGURIDAD
+
+    # 1. FILTRADO DE SEGURIDAD - Obras según rol
     if perfil.rol == 'director':
-        # Ve todo lo de su empresa
+        # Director ve todas las obras de su empresa
         obras = Obra.objects.filter(constructora=perfil.empresa)
         informes = Informe.objects.filter(obra__constructora=perfil.empresa)
     else:
-        # Residente: Solo sus obras asignadas
+        # Residente ve solo sus obras asignadas
         obras = perfil.obras_asignadas.all()
         informes = Informe.objects.filter(obra__in=obras)
 
-    # 2. BÚSQUEDA
-    query = request.GET.get('q')
-    if query:
-        informes = informes.filter(
-            Q(titulo__icontains=query) |
-            Q(obra__nombre__icontains=query)
-        )
+    # 2. Anotar conteo de informes por obra
+    obras = obras.annotate(num_informes=Count('informes')).order_by('nombre')
 
-    # 3. DATOS PARA EL DASHBOARD
-    # Paginación de informes
-    paginator = Paginator(informes.order_by('-fecha_creacion'), 10)
-    page_obj = paginator.get_page(request.GET.get('page'))
-    
+    # 3. Últimos 5 informes para vista rápida
+    ultimos_informes = informes.select_related('obra').order_by('-fecha_creacion')[:5]
+
+    # 4. Total de informes disponibles
+    total_informes = informes.count()
+
     context = {
         'perfil': perfil,
-        'mis_obras': obras, # Para mostrar tarjetas de obras
-        'page_obj': page_obj,
-        'query': query
+        'mis_obras': obras,
+        'ultimos_informes': ultimos_informes,
+        'total_informes': total_informes,
     }
     return render(request, 'core/home_client.html', context)
+
+
+@login_required
+def informes_obra_cliente(request, pk):
+    """
+    Lista de informes de una obra específica para clientes.
+    Incluye búsqueda, filtros por fecha y ordenamiento.
+    """
+    obra = get_object_or_404(Obra, pk=pk)
+
+    # Verificar permisos del cliente
+    if not request.user.es_cliente:
+        return redirect('home')
+
+    perfil = request.user.perfil_cliente
+
+    # Verificar acceso según rol
+    if perfil.rol == 'director':
+        if obra.constructora != perfil.empresa:
+            messages.error(request, 'No tienes acceso a esta obra.')
+            return redirect('home')
+    else:
+        if obra not in perfil.obras_asignadas.all():
+            messages.error(request, 'No tienes acceso a esta obra.')
+            return redirect('home')
+
+    # Obtener informes de la obra
+    informes = Informe.objects.filter(obra=obra)
+
+    # Filtro de búsqueda
+    query = request.GET.get('q', '')
+    if query:
+        informes = informes.filter(titulo__icontains=query)
+
+    # Filtro de fecha desde
+    fecha_desde = request.GET.get('fecha_desde', '')
+    if fecha_desde:
+        informes = informes.filter(fecha_creacion__date__gte=fecha_desde)
+
+    # Filtro de fecha hasta
+    fecha_hasta = request.GET.get('fecha_hasta', '')
+    if fecha_hasta:
+        informes = informes.filter(fecha_creacion__date__lte=fecha_hasta)
+
+    # Ordenamiento (más reciente o más antiguo)
+    orden = request.GET.get('orden', 'reciente')
+    if orden == 'antiguo':
+        informes = informes.order_by('fecha_creacion')
+    else:
+        informes = informes.order_by('-fecha_creacion')
+
+    # Paginación (15 por página)
+    paginator = Paginator(informes, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'obra': obra,
+        'page_obj': page_obj,
+        'query': query,
+        'fecha_desde': fecha_desde,
+        'fecha_hasta': fecha_hasta,
+        'orden': orden,
+        'total_informes': obra.informes.count(),
+        'perfil': perfil,
+    }
+    return render(request, 'core/informes_obra_cliente.html', context)
 
 
 
@@ -266,3 +375,84 @@ def lista_informes_obra(request, pk):
         'total_informes': obra.informes.count(),
     }
     return render(request, 'core/lista_informes_obra.html', context)
+
+
+@login_required
+def cargar_informe(request):
+    """
+    Vista para cargar nuevos informes técnicos.
+    Solo accesible para Staff Geolab.
+    """
+    from .forms import InformeForm
+    from django.utils import timezone
+
+    if not request.user.es_geolab:
+        return redirect('home')
+
+    if request.method == 'POST':
+        form = InformeForm(request.POST, request.FILES)
+        if form.is_valid():
+            informe = form.save(commit=False)
+            informe.fecha_creacion = timezone.now()
+            informe.save()
+            messages.success(
+                request,
+                f'Informe "{informe.titulo}" cargado exitosamente en {informe.obra.nombre}.'
+            )
+            # Redirigir al detalle de la obra
+            return redirect('detalle_obra', pk=informe.obra.pk)
+    else:
+        # Si viene de una obra específica, pre-seleccionar
+        obra_id = request.GET.get('obra')
+        initial = {}
+        if obra_id:
+            initial['obra'] = obra_id
+        form = InformeForm(initial=initial)
+
+    # Obtener estadísticas para mostrar
+    total_informes = Informe.objects.count()
+
+    # Obtener todas las constructoras para el buscador jerárquico
+    constructoras = Constructora.objects.all().order_by('nombre')
+
+    context = {
+        'form': form,
+        'total_informes': total_informes,
+        'constructoras': constructoras,
+    }
+    return render(request, 'core/cargar_informe.html', context)
+
+
+@login_required
+def cargar_informe_obra(request, pk):
+    """
+    Vista para cargar informe directamente a una obra específica.
+    """
+    from .forms import InformeForm
+    from django.utils import timezone
+
+    if not request.user.es_geolab:
+        return redirect('home')
+
+    obra = get_object_or_404(Obra, pk=pk)
+
+    if request.method == 'POST':
+        form = InformeForm(request.POST, request.FILES, constructora=obra.constructora)
+        if form.is_valid():
+            informe = form.save(commit=False)
+            informe.obra = obra  # Forzar la obra
+            informe.fecha_creacion = timezone.now()
+            informe.save()
+            messages.success(
+                request,
+                f'Informe "{informe.titulo}" cargado exitosamente.'
+            )
+            return redirect('detalle_obra', pk=obra.pk)
+    else:
+        form = InformeForm(initial={'obra': obra.pk}, constructora=obra.constructora)
+
+    context = {
+        'form': form,
+        'obra': obra,
+    }
+    return render(request, 'core/cargar_informe_obra.html', context)

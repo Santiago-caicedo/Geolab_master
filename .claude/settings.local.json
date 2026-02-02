@@ -14,7 +14,8 @@
       "Bash(python:*)",
       "Bash(./venv/Scripts/python.exe:*)",
       "Bash(/mnt/c/Users/ASUS/documents/geolab_master/venv/Scripts/python.exe:*)",
-      "Bash(./venv/Scripts/pip.exe install:*)"
+      "Bash(./venv/Scripts/pip.exe install:*)",
+      "Bash(cmd.exe /c \"python manage.py check\")"
     ]
   }
 }

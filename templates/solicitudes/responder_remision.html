@@ -1005,6 +1005,38 @@
         window.addEventListener('resize', function() {
             renderMobileCards();
         });
+
+        // ========== PREVENIR DOBLE CLIC ==========
+        const form = document.getElementById('remision-form');
+        const submitBtn = form.querySelector('button[type="submit"]');
+        let isSubmitting = false;
+
+        form.addEventListener('submit', function(e) {
+            // Si ya se está enviando, prevenir segundo envío
+            if (isSubmitting) {
+                e.preventDefault();
+                return false;
+            }
+
+            // Marcar como enviando
+            isSubmitting = true;
+
+            // Deshabilitar botón y cambiar texto
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="bi bi-hourglass-split me-2"></i> Enviando... Por favor espere';
+            submitBtn.style.opacity = '0.7';
+            submitBtn.style.cursor = 'not-allowed';
+
+            // Re-habilitar después de 30 segundos por si hay error de red
+            // (el usuario podrá reintentar)
+            setTimeout(function() {
+                isSubmitting = false;
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-send-check me-2"></i> Enviar Remision de Muestras';
+                submitBtn.style.opacity = '1';
+                submitBtn.style.cursor = 'pointer';
+            }, 30000);
+        });
     });
 </script>
 {% endblock %}

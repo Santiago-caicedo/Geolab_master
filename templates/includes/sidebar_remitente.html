@@ -1,0 +1,81 @@
+{% load static %}
+<nav class="sidebar" style="background-color: #1e293b;">
+    <a href="{% url 'home' %}" class="sidebar-brand">
+        <img src="{% static 'img/geolab-logo.png' %}" alt="Portal Remitente" style="width: 160px; height: auto;">
+    </a>
+
+    <div class="d-flex flex-column py-2 h-100">
+
+        <!-- Info de empresa -->
+        <div class="px-4 py-3 mb-2 bg-black bg-opacity-25 border-bottom border-secondary">
+            <small class="text-white-50 d-block text-uppercase fw-bold" style="font-size: 0.65rem; letter-spacing: 1px;">Empresa</small>
+            <div class="fw-bold text-white text-truncate">{{ user.perfil_cliente.empresa.nombre }}</div>
+            <div class="mt-1">
+                <span class="badge small" style="background-color: rgba(251, 146, 60, 0.35); color: #fdba74;">
+                    <i class="bi bi-send me-1"></i> Remitente
+                </span>
+            </div>
+        </div>
+
+        <div class="nav-section">NAVEGACION</div>
+
+        <a href="{% url 'home' %}" class="nav-link {% if request.resolver_match.url_name == 'home' or request.resolver_match.url_name == 'dashboard_remitente' %}active{% endif %}">
+            <i class="bi bi-grid-fill"></i> Mi Panel
+        </a>
+
+        <a href="{% url 'mis_remisiones_remitente' %}" class="nav-link {% if request.resolver_match.url_name == 'mis_remisiones_remitente' %}active{% endif %}">
+            <i class="bi bi-file-earmark-text"></i> Mis Remisiones
+        </a>
+
+        <div class="nav-section">MIS OBRAS</div>
+
+        <!-- Lista de obras del usuario -->
+        <div class="px-2" style="max-height: 250px; overflow-y: auto;">
+            {% for obra in user.perfil_cliente.obras_accesibles %}
+            <a href="{% url 'crear_remision_cliente' obra.pk %}"
+               class="nav-link py-2"
+               title="Crear remision para {{ obra.nombre }}">
+                <i class="bi bi-plus-circle"></i>
+                <span class="text-truncate">{{ obra.nombre|truncatechars:22 }}</span>
+            </a>
+            {% empty %}
+            <div class="px-3 py-2 text-white-50 small">
+                <i class="bi bi-info-circle me-1"></i> Sin obras asignadas
+            </div>
+            {% endfor %}
+        </div>
+
+        <div class="nav-section">AYUDA</div>
+
+        <a href="https://wa.me/573001234567" target="_blank" class="nav-link">
+            <i class="bi bi-whatsapp"></i> Soporte Tecnico
+        </a>
+
+        <div class="flex-grow-1"></div>
+
+        <!-- Usuario info -->
+        <div class="px-3 py-2 border-top border-secondary">
+            <div class="d-flex align-items-center gap-2 mb-2">
+                <div class="rounded-circle bg-warning d-flex align-items-center justify-content-center"
+                     style="width: 32px; height: 32px; font-size: 0.8rem;">
+                    <span class="text-dark fw-bold">{{ user.first_name|slice:":1"|upper }}{{ user.last_name|slice:":1"|upper }}</span>
+                </div>
+                <div class="text-truncate">
+                    <div class="text-white small fw-medium">{{ user.get_full_name|default:user.username }}</div>
+                    <div class="text-white-50" style="font-size: 0.7rem;">{{ user.email }}</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cerrar sesion -->
+        <div class="p-3 pt-0">
+            <form action="{% url 'admin:logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn w-100 btn-sm d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
+                        style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.1);">
+                    <i class="bi bi-box-arrow-left"></i> Cerrar Sesion
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>

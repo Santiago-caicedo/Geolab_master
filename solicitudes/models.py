@@ -39,7 +39,8 @@ class RemisionMuestras(models.Model):
         editable=False,
         help_text='Consecutivo automático por obra'
     )
-    token_acceso = models.CharField(max_length=64, unique=True, editable=False)
+    # Campo deprecado - ya no se usa (sistema de tokens eliminado)
+    token_acceso = models.CharField(max_length=64, unique=True, null=True, blank=True, editable=False)
     estado = models.CharField(max_length=20, choices=ESTADO_CHOICES, default='borrador')
 
     # Datos del proyecto (pre-llenados automáticamente)
@@ -50,8 +51,8 @@ class RemisionMuestras(models.Model):
     fecha_envio = models.DateTimeField(null=True, blank=True)
     fecha_respuesta = models.DateTimeField(null=True, blank=True)
 
-    # Email del destinatario
-    email_destinatario = models.EmailField(blank=True, verbose_name='Email del destinatario')
+    # Campo deprecado - ya no se usa (sistema de tokens eliminado)
+    email_destinatario = models.EmailField(blank=True, null=True, verbose_name='Email del destinatario')
 
     # ========== CADENA DE CUSTODIA - CLIENTE ==========
     cliente_fecha = models.DateField(null=True, blank=True, verbose_name='Fecha (Cliente)')
@@ -96,8 +97,6 @@ class RemisionMuestras(models.Model):
         return f"Remisión {self.orden_trabajo} - {self.obra.nombre}"
 
     def save(self, *args, **kwargs):
-        if not self.token_acceso:
-            self.token_acceso = uuid.uuid4().hex
         # Auto-generar orden_trabajo si es nueva remisión
         if not self.orden_trabajo:
             ultimo = RemisionMuestras.objects.filter(obra=self.obra).order_by('-orden_trabajo').first()
@@ -114,13 +113,17 @@ class RemisionMuestras(models.Model):
         from django.urls import reverse
         return reverse('detalle_remision', kwargs={'pk': self.pk})
 
-    def get_public_url(self):
-        from django.urls import reverse
-        return reverse('responder_remision', kwargs={'token': self.token_acceso})
-
     @property
     def total_muestras(self):
+        """Cuenta de filas de muestras"""
         return self.muestras.count()
+
+    @property
+    def total_cantidad(self):
+        """Suma de cantidades de todas las muestras (cilindros totales)"""
+        from django.db.models import Sum
+        resultado = self.muestras.aggregate(total=Sum('cantidad'))
+        return resultado['total'] or 0
 
     @property
     def esta_completada(self):
@@ -221,3 +224,60 @@ class Muestra(models.Model):
         if self.ensayo_otros:
             ensayos.append(self.ensayo_otros)
         return ensayos
+
+
+class Notificacion(models.Model):
+    """
+    Modelo para notificaciones del sistema.
+    Permite notificar a usuarios sobre nuevas remisiones y otros eventos.
+    """
+
+    TIPOS = [
+        ('nueva_remision', 'Nueva Remision Recibida'),
+        ('sistema', 'Notificacion del Sistema'),
+    ]
+
+    tipo = models.CharField(max_length=30, choices=TIPOS)
+    titulo = models.CharField(max_length=200)
+    mensaje = models.TextField()
+
+    # Destinatario específico (null = todos los staff)
+    destinatario = models.ForeignKey(
+        'users.UsuarioBase',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='notificaciones'
+    )
+
+    # Si es solo para staff de Geolab
+    solo_staff = models.BooleanField(default=True)
+
+    # Relación opcional con remisión
+    remision = models.ForeignKey(
+        'RemisionMuestras',
+        null=True,
+        blank=True,
+        on_delete=models.CASCADE,
+        related_name='notificaciones'
+    )
+
+    # Estado
+    leida = models.BooleanField(default=False)
+    fecha_creacion = models.DateTimeField(auto_now_add=True)
+    fecha_lectura = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        verbose_name = 'Notificación'
+        verbose_name_plural = 'Notificaciones'
+        ordering = ['-fecha_creacion']
+
+    def __str__(self):
+        return f"{self.titulo} - {'Leída' if self.leida else 'No leída'}"
+
+    def marcar_leida(self):
+        """Marca la notificación como leída"""
+        if not self.leida:
+            self.leida = True
+            self.fecha_lectura = timezone.now()
+            self.save()

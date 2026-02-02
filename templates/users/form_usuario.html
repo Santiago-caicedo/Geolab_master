@@ -1,0 +1,560 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ titulo }} - Geolab{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos para el autocompletado de empresa */
+    #empresa-results {
+        border-top: none;
+        border-radius: 0 0 0.375rem 0.375rem;
+    }
+    .empresa-option {
+        transition: background-color 0.15s ease;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .empresa-option:last-child {
+        border-bottom: none;
+    }
+    .empresa-option:hover {
+        background-color: var(--brand-blue) !important;
+        color: white !important;
+    }
+    .empresa-option:hover small {
+        color: rgba(255,255,255,0.7) !important;
+    }
+    #empresa-search:focus {
+        border-color: var(--brand-blue);
+        box-shadow: 0 0 0 0.2rem rgba(0, 142, 214, 0.15);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Encabezado -->
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'lista_usuarios_cliente' %}" class="text-decoration-none">Usuarios</a></li>
+                <li class="breadcrumb-item active">{{ titulo }}</li>
+            </ol>
+        </nav>
+        <h2 class="fw-bold mb-1" style="color: var(--text-main);">
+            <i class="bi bi-{% if es_edicion %}pencil-square{% else %}person-plus{% endif %} me-2" style="color: var(--brand-blue);"></i>
+            {{ titulo }}
+        </h2>
+    </div>
+
+    <div class="row">
+        <div class="col-lg-8">
+            <form method="post" id="usuario-form">
+                {% csrf_token %}
+
+                <!-- Mensajes de error generales -->
+                {% if form.non_field_errors %}
+                <div class="alert alert-danger">
+                    {% for error in form.non_field_errors %}
+                    <p class="mb-0">{{ error }}</p>
+                    {% endfor %}
+                </div>
+                {% endif %}
+
+                <!-- Datos de acceso -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h5 class="mb-0 fw-semibold">
+                            <i class="bi bi-key me-2 text-primary"></i>
+                            Datos de Acceso
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.username.label }} <span class="text-danger">*</span></label>
+                                {{ form.username }}
+                                {% if form.username.errors %}
+                                <div class="text-danger small mt-1">{{ form.username.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">{{ form.username.help_text }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.email.label }} <span class="text-danger">*</span></label>
+                                {{ form.email }}
+                                {% if form.email.errors %}
+                                <div class="text-danger small mt-1">{{ form.email.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">
+                                    {{ form.password.label }}
+                                    {% if not es_edicion %}<span class="text-danger">*</span>{% endif %}
+                                </label>
+                                {{ form.password }}
+                                {% if form.password.errors %}
+                                <div class="text-danger small mt-1">{{ form.password.errors.0 }}</div>
+                                {% endif %}
+                                <div class="form-text">{{ form.password.help_text }}</div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.password_confirm.label }}</label>
+                                {{ form.password_confirm }}
+                                {% if form.password_confirm.errors %}
+                                <div class="text-danger small mt-1">{{ form.password_confirm.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Datos personales -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h5 class="mb-0 fw-semibold">
+                            <i class="bi bi-person me-2 text-primary"></i>
+                            Datos Personales
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.first_name.label }} <span class="text-danger">*</span></label>
+                                {{ form.first_name }}
+                                {% if form.first_name.errors %}
+                                <div class="text-danger small mt-1">{{ form.first_name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">{{ form.last_name.label }} <span class="text-danger">*</span></label>
+                                {{ form.last_name }}
+                                {% if form.last_name.errors %}
+                                <div class="text-danger small mt-1">{{ form.last_name.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Cargo</label>
+                                {{ form.cargo }}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Telefono</label>
+                                {{ form.telefono }}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Empresa y Rol -->
+                <div class="card border-0 shadow-sm mb-4">
+                    <div class="card-header bg-white border-bottom py-3">
+                        <h5 class="mb-0 fw-semibold">
+                            <i class="bi bi-building me-2 text-primary"></i>
+                            Empresa y Permisos
+                        </h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Empresa <span class="text-danger">*</span></label>
+                                <!-- Buscador de empresa con autocompletado -->
+                                <div class="position-relative" id="empresa-autocomplete">
+                                    <input type="text"
+                                           id="empresa-search"
+                                           class="form-control"
+                                           placeholder="Buscar empresa..."
+                                           autocomplete="off"
+                                           {% if form.instance.pk and form.instance.empresa %}
+                                           value="{{ form.instance.empresa.nombre }}"
+                                           {% endif %}>
+                                    <input type="hidden" name="empresa" id="empresa-id"
+                                           value="{% if form.instance.pk and form.instance.empresa %}{{ form.instance.empresa.pk }}{% endif %}">
+                                    <div id="empresa-results" class="position-absolute w-100 bg-white border rounded-bottom shadow-sm"
+                                         style="display: none; max-height: 250px; overflow-y: auto; z-index: 1000; top: 100%;">
+                                    </div>
+                                </div>
+                                {% if form.empresa.errors %}
+                                <div class="text-danger small mt-1">{{ form.empresa.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Rol <span class="text-danger">*</span></label>
+                                {{ form.rol }}
+                                {% if form.rol.errors %}
+                                <div class="text-danger small mt-1">{{ form.rol.errors.0 }}</div>
+                                {% endif %}
+                            </div>
+                        </div>
+
+                        <!-- Explicación de roles -->
+                        <div class="row mt-3">
+                            <div class="col-12">
+                                <div class="alert alert-light border mb-0">
+                                    <div class="row">
+                                        <div class="col-md-4">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-person-badge text-success me-2 mt-1"></i>
+                                                <div>
+                                                    <strong>Director</strong>
+                                                    <p class="mb-0 small text-muted">
+                                                        Ve <strong>todas</strong> las obras e informes
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-person-workspace text-info me-2 mt-1"></i>
+                                                <div>
+                                                    <strong>Residente</strong>
+                                                    <p class="mb-0 small text-muted">
+                                                        Ve <strong>solo</strong> obras asignadas e informes
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        <div class="col-md-4">
+                                            <div class="d-flex align-items-start">
+                                                <i class="bi bi-send text-warning me-2 mt-1"></i>
+                                                <div>
+                                                    <strong>Remitente</strong>
+                                                    <p class="mb-0 small text-muted">
+                                                        <strong>Solo</strong> crea remisiones de muestras
+                                                    </p>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Obras asignadas (para residentes y remitentes) -->
+                        <div id="obras-container" class="mt-4" style="display: none;">
+                            <label class="form-label">
+                                <i class="bi bi-pin-map me-1"></i>
+                                Obras Asignadas <span class="text-danger">*</span>
+                            </label>
+                            <div class="border rounded p-3 bg-light" id="obras-list">
+                                {% if form.obras_asignadas.field.queryset.count > 0 %}
+                                <div class="row">
+                                    {% for obra in form.obras_asignadas.field.queryset %}
+                                    <div class="col-md-6 mb-2">
+                                        <div class="form-check">
+                                            <input type="checkbox" name="obras_asignadas" value="{{ obra.pk }}"
+                                                   class="form-check-input" id="obra_{{ obra.pk }}"
+                                                   {% if obra in form.obras_asignadas.initial %}checked{% endif %}>
+                                            <label class="form-check-label" for="obra_{{ obra.pk }}">
+                                                {{ obra.nombre }}
+                                                <span class="text-muted small">({{ obra.codigo_obra }})</span>
+                                            </label>
+                                        </div>
+                                    </div>
+                                    {% endfor %}
+                                </div>
+                                {% else %}
+                                <p class="text-muted mb-0 text-center py-2" id="no-obras-msg">
+                                    <i class="bi bi-info-circle me-1"></i>
+                                    Selecciona una empresa para ver sus obras
+                                </p>
+                                {% endif %}
+                            </div>
+                            <div class="form-text">{{ form.obras_asignadas.help_text }}</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Botones -->
+                <div class="d-flex justify-content-between">
+                    <a href="{% url 'lista_usuarios_cliente' %}" class="btn btn-outline-secondary">
+                        <i class="bi bi-arrow-left me-2"></i> Cancelar
+                    </a>
+                    <button type="submit" class="btn btn-primary px-4">
+                        <i class="bi bi-check-lg me-2"></i>
+                        {% if es_edicion %}Guardar Cambios{% else %}Crear Usuario{% endif %}
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <!-- Panel lateral de ayuda -->
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm bg-light">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-lightbulb text-warning me-2"></i>
+                        Informacion
+                    </h6>
+                    <ul class="list-unstyled mb-0 small text-muted">
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            El usuario podra iniciar sesion con su nombre de usuario o correo
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Los <strong>Directores</strong> ven todas las obras e informes de su empresa
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Los <strong>Residentes</strong> ven solo las obras asignadas e informes
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Los <strong>Remitentes</strong> solo pueden crear remisiones (sin ver informes)
+                        </li>
+                        <li>
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Puedes desactivar un usuario sin eliminarlo para revocar su acceso temporalmente
+                        </li>
+                    </ul>
+                </div>
+            </div>
+
+            {% if es_edicion and cliente %}
+            <div class="card border-0 shadow-sm mt-3">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-clock-history text-primary me-2"></i>
+                        Datos del Usuario
+                    </h6>
+                    <table class="table table-sm table-borderless mb-0 small">
+                        <tr>
+                            <td class="text-muted">Creado:</td>
+                            <td>{{ cliente.user.date_joined|date:"d/m/Y H:i" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Ultimo acceso:</td>
+                            <td>{{ cliente.user.last_login|date:"d/m/Y H:i"|default:"Nunca" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted">Estado:</td>
+                            <td>
+                                {% if cliente.user.is_active %}
+                                <span class="badge bg-success">Activo</span>
+                                {% else %}
+                                <span class="badge bg-danger">Inactivo</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const rolSelect = document.querySelector('select[name="rol"]');
+    const obrasContainer = document.getElementById('obras-container');
+    const obrasList = document.getElementById('obras-list');
+
+    // ========== AUTOCOMPLETADO DE EMPRESA ==========
+    const empresaSearch = document.getElementById('empresa-search');
+    const empresaId = document.getElementById('empresa-id');
+    const empresaResults = document.getElementById('empresa-results');
+
+    // Lista de empresas (cargada desde el formulario Django)
+    const empresas = [
+        {% for empresa in form.empresa.field.queryset %}
+        { id: {{ empresa.pk }}, nombre: "{{ empresa.nombre|escapejs }}", codigo: "{{ empresa.codigo|escapejs }}" },
+        {% endfor %}
+    ];
+
+    let selectedIndex = -1;
+
+    // Filtrar empresas según texto
+    function filterEmpresas(query) {
+        if (!query || query.length < 1) {
+            return empresas.slice(0, 10); // Mostrar primeras 10 si no hay búsqueda
+        }
+        const q = query.toLowerCase();
+        return empresas.filter(e =>
+            e.nombre.toLowerCase().includes(q) ||
+            e.codigo.toLowerCase().includes(q)
+        ).slice(0, 15);
+    }
+
+    // Renderizar resultados
+    function renderResults(results) {
+        if (results.length === 0) {
+            empresaResults.innerHTML = '<div class="p-3 text-muted text-center small">No se encontraron empresas</div>';
+            empresaResults.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+        results.forEach((empresa, index) => {
+            html += `
+                <div class="empresa-option p-2 px-3 cursor-pointer ${index === selectedIndex ? 'bg-primary text-white' : ''}"
+                     data-id="${empresa.id}"
+                     data-nombre="${empresa.nombre}"
+                     style="cursor: pointer;">
+                    <div class="fw-medium">${empresa.nombre}</div>
+                    <small class="${index === selectedIndex ? 'text-white-50' : 'text-muted'}">Codigo: ${empresa.codigo}</small>
+                </div>
+            `;
+        });
+        empresaResults.innerHTML = html;
+        empresaResults.style.display = 'block';
+
+        // Agregar eventos a las opciones
+        document.querySelectorAll('.empresa-option').forEach(option => {
+            option.addEventListener('click', function() {
+                selectEmpresa(this.dataset.id, this.dataset.nombre);
+            });
+            option.addEventListener('mouseenter', function() {
+                document.querySelectorAll('.empresa-option').forEach(o => {
+                    o.classList.remove('bg-primary', 'text-white');
+                    o.querySelector('small').classList.remove('text-white-50');
+                    o.querySelector('small').classList.add('text-muted');
+                });
+                this.classList.add('bg-primary', 'text-white');
+                this.querySelector('small').classList.remove('text-muted');
+                this.querySelector('small').classList.add('text-white-50');
+            });
+        });
+    }
+
+    // Seleccionar empresa
+    function selectEmpresa(id, nombre) {
+        empresaSearch.value = nombre;
+        empresaId.value = id;
+        empresaResults.style.display = 'none';
+        selectedIndex = -1;
+
+        // Cargar obras si es residente o remitente
+        if (rolSelect.value === 'residente' || rolSelect.value === 'remitente') {
+            cargarObras(id);
+        }
+    }
+
+    // Eventos del input de búsqueda
+    empresaSearch.addEventListener('input', function() {
+        selectedIndex = -1;
+        const results = filterEmpresas(this.value);
+        renderResults(results);
+
+        // Limpiar ID si el texto no coincide con la selección actual
+        const selectedEmpresa = empresas.find(e => e.id == empresaId.value);
+        if (!selectedEmpresa || selectedEmpresa.nombre !== this.value) {
+            empresaId.value = '';
+        }
+    });
+
+    empresaSearch.addEventListener('focus', function() {
+        const results = filterEmpresas(this.value);
+        renderResults(results);
+    });
+
+    // Navegación con teclado
+    empresaSearch.addEventListener('keydown', function(e) {
+        const options = document.querySelectorAll('.empresa-option');
+        if (options.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
+            updateSelection(options);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelection(options);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedIndex >= 0 && options[selectedIndex]) {
+                const opt = options[selectedIndex];
+                selectEmpresa(opt.dataset.id, opt.dataset.nombre);
+            }
+        } else if (e.key === 'Escape') {
+            empresaResults.style.display = 'none';
+        }
+    });
+
+    function updateSelection(options) {
+        options.forEach((opt, idx) => {
+            if (idx === selectedIndex) {
+                opt.classList.add('bg-primary', 'text-white');
+                opt.querySelector('small').classList.remove('text-muted');
+                opt.querySelector('small').classList.add('text-white-50');
+                opt.scrollIntoView({ block: 'nearest' });
+            } else {
+                opt.classList.remove('bg-primary', 'text-white');
+                opt.querySelector('small').classList.remove('text-white-50');
+                opt.querySelector('small').classList.add('text-muted');
+            }
+        });
+    }
+
+    // Cerrar resultados al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!document.getElementById('empresa-autocomplete').contains(e.target)) {
+            empresaResults.style.display = 'none';
+        }
+    });
+
+    // ========== MOSTRAR/OCULTAR OBRAS ==========
+    function toggleObrasVisibility() {
+        // Mostrar obras para Residente y Remitente (ambos necesitan asignación)
+        if (rolSelect.value === 'residente' || rolSelect.value === 'remitente') {
+            obrasContainer.style.display = 'block';
+            // Cargar obras si ya hay empresa seleccionada
+            if (empresaId.value) {
+                cargarObras(empresaId.value);
+            }
+        } else {
+            obrasContainer.style.display = 'none';
+        }
+    }
+
+    // ========== CARGAR OBRAS ==========
+    function cargarObras(empresaIdValue) {
+        if (!empresaIdValue) {
+            obrasList.innerHTML = '<p class="text-muted mb-0 text-center py-2"><i class="bi bi-info-circle me-1"></i> Selecciona una empresa para ver sus obras</p>';
+            return;
+        }
+
+        obrasList.innerHTML = '<p class="text-muted mb-0 text-center py-2"><i class="bi bi-hourglass-split me-1"></i> Cargando obras...</p>';
+
+        fetch(`/usuarios/api/obras-empresa/${empresaIdValue}/`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.obras && data.obras.length > 0) {
+                    let html = '<div class="row">';
+                    data.obras.forEach(obra => {
+                        html += `
+                            <div class="col-md-6 mb-2">
+                                <div class="form-check">
+                                    <input type="checkbox" name="obras_asignadas" value="${obra.id}"
+                                           class="form-check-input" id="obra_${obra.id}">
+                                    <label class="form-check-label" for="obra_${obra.id}">
+                                        ${obra.nombre}
+                                        <span class="text-muted small">(${obra.codigo_obra})</span>
+                                    </label>
+                                </div>
+                            </div>
+                        `;
+                    });
+                    html += '</div>';
+                    obrasList.innerHTML = html;
+                } else {
+                    obrasList.innerHTML = '<p class="text-muted mb-0 text-center py-2"><i class="bi bi-exclamation-circle me-1"></i> Esta empresa no tiene obras registradas</p>';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                obrasList.innerHTML = '<p class="text-danger mb-0 text-center py-2"><i class="bi bi-x-circle me-1"></i> Error al cargar obras</p>';
+            });
+    }
+
+    // ========== EVENT LISTENERS ==========
+    rolSelect.addEventListener('change', toggleObrasVisibility);
+
+    // Estado inicial
+    toggleObrasVisibility();
+});
+</script>
+{% endblock %}

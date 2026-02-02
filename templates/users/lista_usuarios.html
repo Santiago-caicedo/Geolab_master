@@ -1,0 +1,432 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Usuarios Cliente - Geolab{% endblock %}
+
+{% block extra_css %}
+<style>
+    /* Estilos para el autocompletado de empresa en filtros */
+    #filtro-empresa-results {
+        border-top: none;
+        border-radius: 0 0 0.375rem 0.375rem;
+    }
+    .filtro-empresa-option {
+        transition: background-color 0.15s ease;
+        border-bottom: 1px solid #f1f5f9;
+    }
+    .filtro-empresa-option:last-child {
+        border-bottom: none;
+    }
+    .filtro-empresa-option:hover {
+        background-color: var(--brand-blue) !important;
+        color: white !important;
+    }
+    .filtro-empresa-option:hover small {
+        color: rgba(255,255,255,0.7) !important;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1" style="color: var(--text-main);">
+                <i class="bi bi-people me-2" style="color: var(--brand-blue);"></i>
+                Usuarios Cliente
+            </h2>
+            <p class="text-muted mb-0">Gestiona el acceso de directores y residentes al portal</p>
+        </div>
+        <a href="{% url 'crear_usuario_cliente' %}" class="btn btn-primary">
+            <i class="bi bi-person-plus me-2"></i> Nuevo Usuario
+        </a>
+    </div>
+
+    <!-- Estadísticas -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-people-fill text-primary fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold text-primary">{{ clientes.count }}</div>
+                        <div class="text-muted small">Total Usuarios</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-person-badge text-success fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold text-success">{{ total_directores }}</div>
+                        <div class="text-muted small">Directores</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-info bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-person-workspace text-info fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-4 fw-bold text-info">{{ total_residentes }}</div>
+                        <div class="text-muted small">Residentes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small text-muted">Buscar</label>
+                    <div class="input-group">
+                        <span class="input-group-text bg-white border-end-0">
+                            <i class="bi bi-search text-muted"></i>
+                        </span>
+                        <input type="text" name="q" class="form-control border-start-0"
+                               placeholder="Nombre, email, empresa..." value="{{ busqueda }}">
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Rol</label>
+                    <select name="rol" class="form-select">
+                        <option value="">Todos los roles</option>
+                        <option value="director" {% if rol_filtro == 'director' %}selected{% endif %}>Director</option>
+                        <option value="residente" {% if rol_filtro == 'residente' %}selected{% endif %}>Residente</option>
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small text-muted">Empresa</label>
+                    <div class="position-relative" id="filtro-empresa-autocomplete">
+                        <input type="text"
+                               id="filtro-empresa-search"
+                               class="form-control"
+                               placeholder="Buscar empresa..."
+                               autocomplete="off"
+                               value="{% for empresa in empresas %}{% if empresa_filtro|stringformat:'s' == empresa.pk|stringformat:'s' %}{{ empresa.nombre }}{% endif %}{% endfor %}">
+                        <input type="hidden" name="empresa" id="filtro-empresa-id" value="{{ empresa_filtro }}">
+                        <div id="filtro-empresa-results" class="position-absolute w-100 bg-white border rounded-bottom shadow-sm"
+                             style="display: none; max-height: 200px; overflow-y: auto; z-index: 1000; top: 100%;">
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-outline-primary w-100">
+                        <i class="bi bi-funnel me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Tabla de usuarios -->
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            {% if clientes %}
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Usuario</th>
+                            <th>Empresa</th>
+                            <th>Rol</th>
+                            <th>Acceso</th>
+                            <th class="text-center">Estado</th>
+                            <th class="text-end pe-4">Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for cliente in clientes %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="rounded-circle d-flex align-items-center justify-content-center me-3 {% if cliente.rol == 'director' %}bg-success{% else %}bg-info{% endif %} bg-opacity-10"
+                                         style="width: 45px; height: 45px;">
+                                        <span class="fw-bold {% if cliente.rol == 'director' %}text-success{% else %}text-info{% endif %}">
+                                            {{ cliente.user.first_name|slice:":1"|upper }}{{ cliente.user.last_name|slice:":1"|upper }}
+                                        </span>
+                                    </div>
+                                    <div>
+                                        <div class="fw-semibold">{{ cliente.user.get_full_name|default:cliente.user.username }}</div>
+                                        <div class="text-muted small">{{ cliente.user.email }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="fw-medium">{{ cliente.empresa.nombre }}</span>
+                                <div class="text-muted small">{{ cliente.cargo|default:"-" }}</div>
+                            </td>
+                            <td>
+                                {% if cliente.rol == 'director' %}
+                                <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                                    <i class="bi bi-building me-1"></i> Director
+                                </span>
+                                {% else %}
+                                <span class="badge bg-info bg-opacity-10 text-info px-3 py-2">
+                                    <i class="bi bi-person-workspace me-1"></i> Residente
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td>
+                                {% if cliente.rol == 'director' %}
+                                <span class="text-muted small">
+                                    <i class="bi bi-collection me-1"></i>
+                                    Todas las obras de {{ cliente.empresa.nombre|truncatechars:20 }}
+                                </span>
+                                {% else %}
+                                <span class="text-muted small">
+                                    <i class="bi bi-pin-map me-1"></i>
+                                    {{ cliente.obras_asignadas.count }} obra{{ cliente.obras_asignadas.count|pluralize:"s" }} asignada{{ cliente.obras_asignadas.count|pluralize:"s" }}
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-center">
+                                {% if cliente.user.is_active %}
+                                <span class="badge bg-success bg-opacity-10 text-success">
+                                    <i class="bi bi-check-circle me-1"></i> Activo
+                                </span>
+                                {% else %}
+                                <span class="badge bg-danger bg-opacity-10 text-danger">
+                                    <i class="bi bi-x-circle me-1"></i> Inactivo
+                                </span>
+                                {% endif %}
+                            </td>
+                            <td class="text-end pe-4">
+                                <div class="btn-group">
+                                    <a href="{% url 'detalle_usuario_cliente' cliente.pk %}"
+                                       class="btn btn-sm btn-outline-secondary" title="Ver detalle">
+                                        <i class="bi bi-eye"></i>
+                                    </a>
+                                    <a href="{% url 'editar_usuario_cliente' cliente.pk %}"
+                                       class="btn btn-sm btn-outline-primary" title="Editar">
+                                        <i class="bi bi-pencil"></i>
+                                    </a>
+                                    <button type="button" class="btn btn-sm btn-outline-{% if cliente.user.is_active %}warning{% else %}success{% endif %}"
+                                            onclick="toggleEstado({{ cliente.pk }}, this)"
+                                            title="{% if cliente.user.is_active %}Desactivar{% else %}Activar{% endif %}">
+                                        <i class="bi bi-{% if cliente.user.is_active %}pause{% else %}play{% endif %}-circle"></i>
+                                    </button>
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="text-center py-5">
+                <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>
+                <h5 class="mt-3 text-muted">No se encontraron usuarios</h5>
+                <p class="text-muted">
+                    {% if busqueda or rol_filtro or empresa_filtro %}
+                    Prueba con otros filtros de busqueda
+                    {% else %}
+                    Crea el primer usuario cliente para comenzar
+                    {% endif %}
+                </p>
+                {% if not busqueda and not rol_filtro and not empresa_filtro %}
+                <a href="{% url 'crear_usuario_cliente' %}" class="btn btn-primary mt-2">
+                    <i class="bi bi-person-plus me-2"></i> Crear Usuario
+                </a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+// ========== TOGGLE ESTADO ==========
+function toggleEstado(clienteId, btn) {
+    if (!confirm('¿Está seguro de cambiar el estado de este usuario?')) {
+        return;
+    }
+
+    fetch(`/usuarios/${clienteId}/toggle-estado/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo cambiar el estado'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al procesar la solicitud');
+    });
+}
+
+// ========== AUTOCOMPLETADO DE EMPRESA EN FILTROS ==========
+document.addEventListener('DOMContentLoaded', function() {
+    const empresaSearch = document.getElementById('filtro-empresa-search');
+    const empresaId = document.getElementById('filtro-empresa-id');
+    const empresaResults = document.getElementById('filtro-empresa-results');
+
+    // Lista de empresas
+    const empresas = [
+        { id: '', nombre: 'Todas las empresas', codigo: '' },
+        {% for empresa in empresas %}
+        { id: '{{ empresa.pk }}', nombre: "{{ empresa.nombre|escapejs }}", codigo: "{{ empresa.codigo|escapejs }}" },
+        {% endfor %}
+    ];
+
+    let selectedIndex = -1;
+
+    // Filtrar empresas
+    function filterEmpresas(query) {
+        if (!query || query.length < 1) {
+            return empresas.slice(0, 12);
+        }
+        const q = query.toLowerCase();
+        return empresas.filter(e =>
+            e.nombre.toLowerCase().includes(q) ||
+            e.codigo.toLowerCase().includes(q)
+        ).slice(0, 12);
+    }
+
+    // Renderizar resultados
+    function renderResults(results) {
+        if (results.length === 0) {
+            empresaResults.innerHTML = '<div class="p-2 text-muted text-center small">No se encontraron empresas</div>';
+            empresaResults.style.display = 'block';
+            return;
+        }
+
+        let html = '';
+        results.forEach((empresa, index) => {
+            const isAll = empresa.id === '';
+            html += `
+                <div class="filtro-empresa-option p-2 px-3 ${index === selectedIndex ? 'bg-primary text-white' : ''}"
+                     data-id="${empresa.id}"
+                     data-nombre="${isAll ? '' : empresa.nombre}"
+                     data-display="${empresa.nombre}"
+                     style="cursor: pointer;">
+                    <div class="${isAll ? 'text-muted fst-italic' : 'fw-medium'}">${empresa.nombre}</div>
+                    ${!isAll ? `<small class="${index === selectedIndex ? 'text-white-50' : 'text-muted'}">${empresa.codigo}</small>` : ''}
+                </div>
+            `;
+        });
+        empresaResults.innerHTML = html;
+        empresaResults.style.display = 'block';
+
+        // Eventos
+        document.querySelectorAll('.filtro-empresa-option').forEach(option => {
+            option.addEventListener('click', function() {
+                selectEmpresa(this.dataset.id, this.dataset.nombre, this.dataset.display);
+            });
+            option.addEventListener('mouseenter', function() {
+                document.querySelectorAll('.filtro-empresa-option').forEach(o => {
+                    o.classList.remove('bg-primary', 'text-white');
+                    const small = o.querySelector('small');
+                    if (small) {
+                        small.classList.remove('text-white-50');
+                        small.classList.add('text-muted');
+                    }
+                });
+                this.classList.add('bg-primary', 'text-white');
+                const small = this.querySelector('small');
+                if (small) {
+                    small.classList.remove('text-muted');
+                    small.classList.add('text-white-50');
+                }
+            });
+        });
+    }
+
+    // Seleccionar empresa
+    function selectEmpresa(id, nombre, display) {
+        empresaSearch.value = nombre;
+        empresaId.value = id;
+        empresaResults.style.display = 'none';
+        selectedIndex = -1;
+    }
+
+    // Eventos
+    empresaSearch.addEventListener('input', function() {
+        selectedIndex = -1;
+        renderResults(filterEmpresas(this.value));
+        // Limpiar si no coincide
+        const found = empresas.find(e => e.nombre === this.value);
+        if (!found) {
+            empresaId.value = '';
+        }
+    });
+
+    empresaSearch.addEventListener('focus', function() {
+        renderResults(filterEmpresas(this.value));
+    });
+
+    empresaSearch.addEventListener('keydown', function(e) {
+        const options = document.querySelectorAll('.filtro-empresa-option');
+        if (options.length === 0) return;
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            selectedIndex = Math.min(selectedIndex + 1, options.length - 1);
+            updateSelection(options);
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            selectedIndex = Math.max(selectedIndex - 1, 0);
+            updateSelection(options);
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            if (selectedIndex >= 0 && options[selectedIndex]) {
+                const opt = options[selectedIndex];
+                selectEmpresa(opt.dataset.id, opt.dataset.nombre, opt.dataset.display);
+            }
+        } else if (e.key === 'Escape') {
+            empresaResults.style.display = 'none';
+        }
+    });
+
+    function updateSelection(options) {
+        options.forEach((opt, idx) => {
+            const small = opt.querySelector('small');
+            if (idx === selectedIndex) {
+                opt.classList.add('bg-primary', 'text-white');
+                if (small) {
+                    small.classList.remove('text-muted');
+                    small.classList.add('text-white-50');
+                }
+                opt.scrollIntoView({ block: 'nearest' });
+            } else {
+                opt.classList.remove('bg-primary', 'text-white');
+                if (small) {
+                    small.classList.remove('text-white-50');
+                    small.classList.add('text-muted');
+                }
+            }
+        });
+    }
+
+    // Cerrar al hacer clic fuera
+    document.addEventListener('click', function(e) {
+        if (!document.getElementById('filtro-empresa-autocomplete').contains(e.target)) {
+            empresaResults.style.display = 'none';
+        }
+    });
+});
+</script>
+{% endblock %}
+{% endblock %}

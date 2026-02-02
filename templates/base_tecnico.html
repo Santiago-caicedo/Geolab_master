@@ -136,6 +136,57 @@
             border-top: 1px solid var(--border-color);
             background-color: white;
         }
+
+        /* --- SIDEBAR COLAPSABLE --- */
+        .sidebar-collapsed .sidebar {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-collapsed .main-content {
+            margin-left: 0;
+        }
+
+        .btn-toggle-sidebar {
+            width: 40px;
+            height: 40px;
+            border-radius: 8px;
+            border: 1px solid var(--border-color);
+            background: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            transition: all 0.2s;
+            color: var(--text-main);
+        }
+
+        .btn-toggle-sidebar:hover {
+            background: var(--bg-body);
+            border-color: var(--brand-blue);
+            color: var(--brand-blue);
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                transform: translateX(-100%);
+            }
+            .main-content {
+                margin-left: 0;
+            }
+            body.sidebar-visible .sidebar {
+                transform: translateX(0);
+            }
+            body.sidebar-visible::before {
+                content: '';
+                position: fixed;
+                top: 0;
+                left: 0;
+                right: 0;
+                bottom: 0;
+                background: rgba(0,0,0,0.5);
+                z-index: 999;
+            }
+        }
     </style>
     {% block extra_css %}{% endblock %}
 </head>
@@ -146,13 +197,18 @@
     <div class="main-content">
 
         <header class="top-navbar">
-            <div>
-                <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
-                    Panel de Laboratorio
-                </h5>
-                <small class="text-muted">
-                    {% now "l, d F Y" %}
-                </small>
+            <div class="d-flex align-items-center gap-3">
+                <button class="btn-toggle-sidebar" onclick="toggleSidebar()" title="Ocultar/Mostrar menu">
+                    <i class="bi bi-list" id="sidebar-toggle-icon"></i>
+                </button>
+                <div>
+                    <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
+                        Panel de Laboratorio
+                    </h5>
+                    <small class="text-muted">
+                        {% now "l, d F Y" %}
+                    </small>
+                </div>
             </div>
 
             <div class="d-flex align-items-center gap-4">
@@ -188,10 +244,59 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
 
     <script>
+        // Tooltips de Bootstrap
         var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'))
         var tooltipList = tooltipTriggerList.map(function (tooltipTriggerEl) {
             return new bootstrap.Tooltip(tooltipTriggerEl)
         })
+
+        // Toggle Sidebar
+        function toggleSidebar() {
+            const body = document.body;
+            const icon = document.getElementById('sidebar-toggle-icon');
+            const isMobile = window.innerWidth <= 768;
+
+            if (isMobile) {
+                body.classList.toggle('sidebar-visible');
+            } else {
+                body.classList.toggle('sidebar-collapsed');
+                localStorage.setItem('sidebarCollapsed', body.classList.contains('sidebar-collapsed'));
+            }
+
+            // Cambiar icono
+            if (body.classList.contains('sidebar-collapsed')) {
+                icon.classList.remove('bi-list');
+                icon.classList.add('bi-layout-sidebar');
+            } else {
+                icon.classList.remove('bi-layout-sidebar');
+                icon.classList.add('bi-list');
+            }
+        }
+
+        // Restaurar estado del sidebar
+        document.addEventListener('DOMContentLoaded', function() {
+            const isCollapsed = localStorage.getItem('sidebarCollapsed') === 'true';
+            const isMobile = window.innerWidth <= 768;
+            const icon = document.getElementById('sidebar-toggle-icon');
+
+            if (!isMobile && isCollapsed) {
+                document.body.classList.add('sidebar-collapsed');
+                icon.classList.remove('bi-list');
+                icon.classList.add('bi-layout-sidebar');
+            }
+        });
+
+        // Cerrar sidebar en movil al hacer click fuera
+        document.addEventListener('click', function(e) {
+            const isMobile = window.innerWidth <= 768;
+            if (isMobile && document.body.classList.contains('sidebar-visible')) {
+                const sidebar = document.querySelector('.sidebar');
+                const toggleBtn = document.querySelector('.btn-toggle-sidebar');
+                if (!sidebar.contains(e.target) && !toggleBtn.contains(e.target)) {
+                    document.body.classList.remove('sidebar-visible');
+                }
+            }
+        });
     </script>
     {% block extra_js %}{% endblock %}
 </body>

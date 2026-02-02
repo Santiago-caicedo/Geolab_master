@@ -1,5 +1,5 @@
 from django.contrib import admin
-from .models import RemisionMuestras, Muestra
+from .models import RemisionMuestras, Muestra, Notificacion
 
 
 class MuestraInline(admin.TabularInline):
@@ -85,3 +85,31 @@ class MuestraAdmin(admin.ModelAdmin):
     ]
     list_filter = ['tipo_muestra', 'remision__obra']
     search_fields = ['remision__orden_trabajo', 'localizacion']
+
+
+@admin.register(Notificacion)
+class NotificacionAdmin(admin.ModelAdmin):
+    list_display = [
+        'titulo',
+        'tipo',
+        'destinatario',
+        'solo_staff',
+        'leida',
+        'fecha_creacion',
+    ]
+    list_filter = ['tipo', 'solo_staff', 'leida', 'fecha_creacion']
+    search_fields = ['titulo', 'mensaje', 'destinatario__username']
+    readonly_fields = ['fecha_creacion', 'fecha_lectura']
+    raw_id_fields = ['destinatario', 'remision']
+
+    fieldsets = (
+        ('Contenido', {
+            'fields': ('tipo', 'titulo', 'mensaje')
+        }),
+        ('Destinatario', {
+            'fields': ('destinatario', 'solo_staff', 'remision')
+        }),
+        ('Estado', {
+            'fields': ('leida', 'fecha_creacion', 'fecha_lectura')
+        }),
+    )

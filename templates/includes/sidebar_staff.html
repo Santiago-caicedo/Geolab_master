@@ -16,7 +16,7 @@
             <i class="bi bi-briefcase"></i> Directorio Empresas
         </a>
 
-        <a href="#" class="nav-link">
+        <a href="{% url 'cargar_informe' %}" class="nav-link {% if 'cargar-informe' in request.path %}active{% endif %}">
             <i class="bi bi-cloud-arrow-up-fill"></i> Cargar Informe
         </a>
 
@@ -34,11 +34,11 @@
 
 
         <div class="nav-section">ADMINISTRACIÓN</div>
-        
-        <a href="/admin/users/clienteexterno/" class="nav-link" target="_blank">
+
+        <a href="{% url 'lista_usuarios_cliente' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
             <i class="bi bi-people"></i> Usuarios y Accesos
         </a>
-        
+
         <a href="/admin/" class="nav-link" target="_blank">
             <i class="bi bi-gear-wide-connected"></i> Configuración Avanzada
         </a>

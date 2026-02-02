@@ -1,0 +1,289 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}{{ cliente.user.get_full_name }} - Geolab{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Encabezado -->
+    <div class="mb-4">
+        <nav aria-label="breadcrumb">
+            <ol class="breadcrumb mb-2">
+                <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Inicio</a></li>
+                <li class="breadcrumb-item"><a href="{% url 'lista_usuarios_cliente' %}" class="text-decoration-none">Usuarios</a></li>
+                <li class="breadcrumb-item active">{{ cliente.user.get_full_name }}</li>
+            </ol>
+        </nav>
+    </div>
+
+    <div class="row">
+        <!-- Columna principal -->
+        <div class="col-lg-8">
+            <!-- Tarjeta de perfil -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-body p-4">
+                    <div class="d-flex align-items-start">
+                        <div class="rounded-circle d-flex align-items-center justify-content-center me-4 {% if cliente.rol == 'director' %}bg-success{% else %}bg-info{% endif %} bg-opacity-10"
+                             style="width: 80px; height: 80px; min-width: 80px;">
+                            <span class="fs-2 fw-bold {% if cliente.rol == 'director' %}text-success{% else %}text-info{% endif %}">
+                                {{ cliente.user.first_name|slice:":1"|upper }}{{ cliente.user.last_name|slice:":1"|upper }}
+                            </span>
+                        </div>
+                        <div class="flex-grow-1">
+                            <div class="d-flex justify-content-between align-items-start">
+                                <div>
+                                    <h3 class="fw-bold mb-1">{{ cliente.user.get_full_name }}</h3>
+                                    <p class="text-muted mb-2">{{ cliente.cargo|default:"Sin cargo definido" }}</p>
+                                    <div class="d-flex gap-2 flex-wrap">
+                                        {% if cliente.rol == 'director' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                                            <i class="bi bi-building me-1"></i> Director
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-info bg-opacity-10 text-info px-3 py-2">
+                                            <i class="bi bi-person-workspace me-1"></i> Residente
+                                        </span>
+                                        {% endif %}
+                                        {% if cliente.user.is_active %}
+                                        <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                                            <i class="bi bi-check-circle me-1"></i> Activo
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger px-3 py-2">
+                                            <i class="bi bi-x-circle me-1"></i> Inactivo
+                                        </span>
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                <a href="{% url 'editar_usuario_cliente' cliente.pk %}" class="btn btn-outline-primary">
+                                    <i class="bi bi-pencil me-2"></i> Editar
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Informacion de contacto -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h5 class="mb-0 fw-semibold">
+                        <i class="bi bi-person-lines-fill me-2 text-primary"></i>
+                        Informacion de Contacto
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row g-4">
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-light p-2 me-3">
+                                    <i class="bi bi-envelope text-primary"></i>
+                                </div>
+                                <div>
+                                    <small class="text-muted d-block">Correo electronico</small>
+                                    <span class="fw-medium">{{ cliente.user.email }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-light p-2 me-3">
+                                    <i class="bi bi-telephone text-primary"></i>
+                                </div>
+                                <div>
+                                    <small class="text-muted d-block">Telefono</small>
+                                    <span class="fw-medium">{{ cliente.telefono|default:"No registrado" }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-light p-2 me-3">
+                                    <i class="bi bi-person-badge text-primary"></i>
+                                </div>
+                                <div>
+                                    <small class="text-muted d-block">Usuario</small>
+                                    <span class="fw-medium">{{ cliente.user.username }}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="d-flex align-items-center">
+                                <div class="rounded-circle bg-light p-2 me-3">
+                                    <i class="bi bi-building text-primary"></i>
+                                </div>
+                                <div>
+                                    <small class="text-muted d-block">Empresa</small>
+                                    <span class="fw-medium">{{ cliente.empresa.nombre }}</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Obras con acceso -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="mb-0 fw-semibold">
+                        <i class="bi bi-pin-map me-2 text-primary"></i>
+                        Obras con Acceso
+                    </h5>
+                    <span class="badge bg-primary">{{ obras_acceso.count }} obra{{ obras_acceso.count|pluralize:"s" }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if obras_acceso %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4">Obra</th>
+                                    <th>Codigo</th>
+                                    <th class="text-center">Tipo de Acceso</th>
+                                    <th class="text-end pe-4">Acciones</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for obra in obras_acceso %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="fw-medium">{{ obra.nombre }}</div>
+                                    </td>
+                                    <td>
+                                        <span class="text-muted">{{ obra.codigo_obra }}</span>
+                                    </td>
+                                    <td class="text-center">
+                                        {% if cliente.rol == 'director' %}
+                                        <span class="badge bg-success bg-opacity-10 text-success">
+                                            Por ser Director
+                                        </span>
+                                        {% else %}
+                                        <span class="badge bg-info bg-opacity-10 text-info">
+                                            Asignacion directa
+                                        </span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-end pe-4">
+                                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-outline-primary">
+                                            <i class="bi bi-eye me-1"></i> Ver Obra
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-building-x text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-3 mb-0">Este usuario no tiene acceso a ninguna obra</p>
+                        {% if cliente.rol == 'residente' %}
+                        <a href="{% url 'editar_usuario_cliente' cliente.pk %}" class="btn btn-outline-primary btn-sm mt-3">
+                            <i class="bi bi-plus-circle me-1"></i> Asignar Obras
+                        </a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna lateral -->
+        <div class="col-lg-4">
+            <!-- Datos de la cuenta -->
+            <div class="card border-0 shadow-sm mb-4">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="bi bi-clock-history me-2 text-primary"></i>
+                        Datos de la Cuenta
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td class="text-muted ps-0">Fecha de creacion</td>
+                            <td class="text-end pe-0">{{ cliente.user.date_joined|date:"d/m/Y" }}</td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted ps-0">Ultimo acceso</td>
+                            <td class="text-end pe-0">
+                                {% if cliente.user.last_login %}
+                                {{ cliente.user.last_login|date:"d/m/Y H:i" }}
+                                {% else %}
+                                <span class="text-muted">Nunca</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        <tr>
+                            <td class="text-muted ps-0">Estado</td>
+                            <td class="text-end pe-0">
+                                {% if cliente.user.is_active %}
+                                <span class="text-success"><i class="bi bi-check-circle me-1"></i> Activo</span>
+                                {% else %}
+                                <span class="text-danger"><i class="bi bi-x-circle me-1"></i> Inactivo</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                    </table>
+                </div>
+            </div>
+
+            <!-- Acciones rapidas -->
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-bottom py-3">
+                    <h6 class="mb-0 fw-semibold">
+                        <i class="bi bi-lightning me-2 text-primary"></i>
+                        Acciones Rapidas
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <div class="d-grid gap-2">
+                        <a href="{% url 'editar_usuario_cliente' cliente.pk %}" class="btn btn-outline-primary">
+                            <i class="bi bi-pencil me-2"></i> Editar Usuario
+                        </a>
+                        <button type="button" class="btn btn-outline-{% if cliente.user.is_active %}warning{% else %}success{% endif %}"
+                                onclick="toggleEstado({{ cliente.pk }})">
+                            <i class="bi bi-{% if cliente.user.is_active %}pause{% else %}play{% endif %}-circle me-2"></i>
+                            {% if cliente.user.is_active %}Desactivar{% else %}Activar{% endif %} Usuario
+                        </button>
+                        <a href="{% url 'lista_usuarios_cliente' %}" class="btn btn-outline-secondary">
+                            <i class="bi bi-arrow-left me-2"></i> Volver a Lista
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+function toggleEstado(clienteId) {
+    const action = '{% if cliente.user.is_active %}desactivar{% else %}activar{% endif %}';
+    if (!confirm(`¿Está seguro de ${action} este usuario?`)) {
+        return;
+    }
+
+    fetch(`/usuarios/${clienteId}/toggle-estado/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}',
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            location.reload();
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo cambiar el estado'));
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('Error al procesar la solicitud');
+    });
+}
+</script>
+{% endblock %}

@@ -22,6 +22,9 @@ urlpatterns = [
     # y te mandará al login automáticamente.
     path('', include('core.urls')),
 
+    # Módulo de Usuarios (gestión de clientes)
+    path('', include('users.urls')),
+
     # Módulo de Remisiones de Muestras
     path('', include('solicitudes.urls')),
 

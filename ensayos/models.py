@@ -1,7 +1,7 @@
 from django.db import models
 from datetime import timedelta
 from math import pi
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 
 class HojaTrabajo(models.Model):
@@ -377,7 +377,3 @@ class ResultadoMuestra(models.Model):
             self.hoja_trabajo.actualizar_estado()
             return True
         return False
-
-
-# Importar Decimal InvalidOperation para el manejo de errores
-from decimal import InvalidOperation

@@ -1,92 +1,229 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi Portal - {{ perfil.empresa.nombre }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .obra-card {
+        transition: all 0.2s ease;
+        border: 1px solid var(--border-color);
+        cursor: pointer;
+    }
+    .obra-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 10px 40px rgba(0,0,0,0.12) !important;
+        border-color: var(--brand-blue);
+    }
+    .obra-card .card-icon {
+        width: 50px;
+        height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.5rem;
+    }
+    .stats-card {
+        border-left: 4px solid var(--brand-blue);
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-end mb-4">
-    <div>
-        <h4 class="fw-bold text-dark mb-1">Hola, {{ user.first_name }} 👋</h4>
-        <p class="text-muted mb-0">Bienvenido al portal de <strong class="text-primary">{{ perfil.empresa.nombre }}</strong>.</p>
+<div class="container-fluid">
+    <!-- Encabezado de bienvenida -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: var(--text-main);">
+                        Hola, {{ user.first_name|default:user.username }}
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Bienvenido al portal de <strong class="text-primary">{{ perfil.empresa.nombre }}</strong>
+                    </p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    {% if perfil.rol == 'director' %}
+                    <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
+                        <i class="bi bi-building me-1"></i> Director
+                    </span>
+                    {% else %}
+                    <span class="badge bg-info bg-opacity-10 text-info px-3 py-2">
+                        <i class="bi bi-person-workspace me-1"></i> Residente
+                    </span>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
-    <span class="badge bg-soft-blue text-primary px-3 py-2">
-        Rol: {{ perfil.get_rol_display }}
-    </span>
-</div>
 
-<div class="card card-custom mb-5 border-0 shadow-sm" style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);">
-    <div class="card-body p-4">
-        <form method="get" class="d-flex gap-2">
-            <input type="text" name="q" class="form-control form-control-lg border-0 shadow-sm" 
-                   placeholder="🔍 Buscar por nombre de obra, código o informe..." value="{{ query|default:'' }}">
-            <button type="submit" class="btn btn-primary btn-lg px-4 shadow-sm">Buscar</button>
-        </form>
+    <!-- Estadísticas rápidas -->
+    <div class="row g-3 mb-4">
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm stats-card h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-primary bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-building text-primary fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-primary">{{ mis_obras.count }}</div>
+                        <div class="text-muted small">Obra{{ mis_obras.count|pluralize:"s" }} disponible{{ mis_obras.count|pluralize:"s" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm stats-card h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-file-earmark-pdf text-danger fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-danger">{{ total_informes }}</div>
+                        <div class="text-muted small">Informe{{ total_informes|pluralize:"s" }} disponible{{ total_informes|pluralize:"s" }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="card border-0 shadow-sm stats-card h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="rounded-circle bg-success bg-opacity-10 p-3 me-3">
+                        <i class="bi bi-briefcase text-success fs-4"></i>
+                    </div>
+                    <div>
+                        <div class="fs-5 fw-bold text-success">{{ perfil.empresa.nombre|truncatechars:20 }}</div>
+                        <div class="text-muted small">Tu empresa</div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-</div>
 
-<div class="card card-custom">
-    <div class="card-header bg-white py-3 border-0">
-        <h5 class="fw-bold mb-0">📄 Resultados Recientes</h5>
+    <!-- Título de sección -->
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fw-bold mb-0">
+            <i class="bi bi-buildings me-2 text-primary"></i>
+            Mis Obras
+        </h4>
+        <small class="text-muted">
+            {% if perfil.rol == 'director' %}
+            Todas las obras de tu empresa
+            {% else %}
+            Obras asignadas a tu perfil
+            {% endif %}
+        </small>
     </div>
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
-                <tr>
-                    <th class="ps-4">Documento</th>
-                    <th>Obra / Proyecto</th>
-                    <th class="text-end pe-4">Descarga</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for informe in page_obj %}
-                <tr>
-                    <td class="ps-4 py-3">
-                        <div class="d-flex align-items-center gap-3">
-                            <div class="bg-danger bg-opacity-10 text-danger rounded p-2">
-                                <i class="bi bi-file-earmark-pdf fs-5"></i>
+
+    <!-- Grid de tarjetas de obras -->
+    {% if mis_obras %}
+    <div class="row g-4 mb-5">
+        {% for obra in mis_obras %}
+        <div class="col-md-6 col-lg-4">
+            <a href="{% url 'informes_obra_cliente' obra.pk %}" class="text-decoration-none">
+                <div class="card obra-card border-0 shadow-sm h-100">
+                    <div class="card-body p-4">
+                        <div class="d-flex align-items-start mb-3">
+                            <div class="card-icon bg-primary bg-opacity-10 text-primary me-3">
+                                <i class="bi bi-building"></i>
                             </div>
-                            <div>
-                                <div class="fw-bold text-dark">{{ informe.titulo }}</div>
-                                <small class="text-muted">{{ informe.fecha_creacion|date:"d M, Y" }}</small>
+                            <div class="flex-grow-1 min-width-0">
+                                <h5 class="fw-bold mb-1 text-dark text-truncate" title="{{ obra.nombre }}">
+                                    {{ obra.nombre }}
+                                </h5>
+                                <span class="badge bg-light text-secondary border">
+                                    {{ obra.codigo_obra }}
+                                </span>
                             </div>
                         </div>
-                    </td>
-                    <td>
-                        <div class="fw-medium">{{ informe.obra.nombre }}</div>
-                        <small class="badge bg-light text-secondary border">{{ informe.obra.codigo_obra }}</small>
-                    </td>
-                    <td class="text-end pe-4">
-                        {% if informe.archivo %}
-                            <a href="{{ informe.archivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill">
-                                Descargar
-                            </a>
-                        {% else %}
-                            <span class="text-muted small">No disponible</span>
-                        {% endif %}
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="3" class="text-center py-5 text-muted">
-                        No se encontraron informes.
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                        <hr class="my-3">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center text-muted">
+                                <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>
+                                <span>{{ obra.num_informes }} informe{{ obra.num_informes|pluralize:"s" }}</span>
+                            </div>
+                            <span class="text-primary fw-medium small">
+                                Ver informes <i class="bi bi-arrow-right ms-1"></i>
+                            </span>
+                        </div>
+                    </div>
+                </div>
+            </a>
+        </div>
+        {% endfor %}
     </div>
-    
-    <div class="card-footer bg-white border-0 py-3">
-        {% if page_obj.has_other_pages %}
-        <nav>
-            <ul class="pagination justify-content-center mb-0">
-                {% if page_obj.has_previous %}
-                    <li class="page-item"><a class="page-link border-0" href="?page={{ page_obj.previous_page_number }}">&laquo; Anterior</a></li>
-                {% endif %}
-                <li class="page-item disabled"><span class="page-link border-0 text-dark fw-bold">Página {{ page_obj.number }}</span></li>
-                {% if page_obj.has_next %}
-                    <li class="page-item"><a class="page-link border-0" href="?page={{ page_obj.next_page_number }}">Siguiente &raquo;</a></li>
-                {% endif %}
-            </ul>
-        </nav>
-        {% endif %}
+    {% else %}
+    <div class="card border-0 shadow-sm">
+        <div class="card-body text-center py-5">
+            <i class="bi bi-building-x text-muted" style="font-size: 4rem;"></i>
+            <h5 class="mt-3 text-muted">No tienes obras asignadas</h5>
+            <p class="text-muted mb-0">
+                Contacta con Geolab para que te asignen acceso a tus obras.
+            </p>
+        </div>
     </div>
+    {% endif %}
+
+    <!-- Últimos informes (vista rápida) -->
+    {% if ultimos_informes %}
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h4 class="fw-bold mb-0">
+            <i class="bi bi-clock-history me-2 text-primary"></i>
+            Ultimos Informes
+        </h4>
+    </div>
+    <div class="card border-0 shadow-sm">
+        <div class="card-body p-0">
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-4">Documento</th>
+                            <th>Obra</th>
+                            <th>Fecha</th>
+                            <th class="text-end pe-4">Accion</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for informe in ultimos_informes %}
+                        <tr>
+                            <td class="ps-4">
+                                <div class="d-flex align-items-center">
+                                    <div class="bg-danger bg-opacity-10 text-danger rounded p-2 me-3">
+                                        <i class="bi bi-file-earmark-pdf"></i>
+                                    </div>
+                                    <div class="text-truncate" style="max-width: 300px;">
+                                        <div class="fw-medium text-dark">{{ informe.titulo }}</div>
+                                    </div>
+                                </div>
+                            </td>
+                            <td>
+                                <span class="badge bg-light text-secondary border">
+                                    {{ informe.obra.codigo_obra }}
+                                </span>
+                            </td>
+                            <td class="text-muted">
+                                {{ informe.fecha_creacion|date:"d/m/Y" }}
+                            </td>
+                            <td class="text-end pe-4">
+                                {% if informe.archivo %}
+                                <a href="{{ informe.archivo.url }}" target="_blank"
+                                   class="btn btn-sm btn-outline-primary">
+                                    <i class="bi bi-download me-1"></i> Descargar
+                                </a>
+                                {% else %}
+                                <span class="text-muted small">No disponible</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

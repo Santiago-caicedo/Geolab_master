@@ -1,175 +1,603 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<div class="mb-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none">Empresas</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' remision.obra.constructora.pk %}" class="text-decoration-none">{{ remision.obra.constructora.nombre }}</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'detalle_obra' remision.obra.pk %}" class="text-decoration-none">{{ remision.obra.nombre }}</a></li>
-            <li class="breadcrumb-item active">Remisión {{ remision.orden_trabajo }}</li>
-        </ol>
-    </nav>
-</div>
+{% block title %}Remisión {{ remision.orden_trabajo }} - {{ remision.obra.nombre }}{% endblock %}
 
-<!-- Header -->
-<div class="card card-custom mb-4">
-    <div class="card-body">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-            <div>
-                <div class="d-flex align-items-center gap-3 mb-2">
-                    <h4 class="mb-0 fw-bold">Remisión de Muestras</h4>
-                    {% if remision.estado == 'completada' %}
-                        <span class="badge bg-success">Completada</span>
-                    {% elif remision.estado == 'enviada' %}
-                        <span class="badge bg-warning text-dark">Pendiente</span>
-                    {% elif remision.estado == 'vencida' %}
-                        <span class="badge bg-danger">Vencida</span>
-                    {% else %}
-                        <span class="badge bg-secondary">{{ remision.get_estado_display }}</span>
-                    {% endif %}
-                </div>
-                <p class="text-muted mb-0">
-                    {{ remision.codigo_formato }} | v{{ remision.version_formato }}
-                </p>
-            </div>
-            <div class="text-end">
-                <div class="orden-trabajo" style="color: #dc2626; font-weight: 700; font-size: 1.5rem;">
-                    OT: {{ remision.orden_trabajo }}
-                </div>
-                <small class="text-muted">Orden de Trabajo</small>
-            </div>
+{% block extra_css %}
+<style>
+    .formato-header {
+        background: linear-gradient(135deg, #1c2e4a 0%, #2d4a6f 100%);
+        color: white;
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    .formato-header .logo-section {
+        background: rgba(255,255,255,0.1);
+        padding: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+    .formato-header .logo-section img {
+        height: 50px;
+    }
+    .formato-header .title-section {
+        padding: 1.5rem;
+    }
+    .formato-header .title-section h2 {
+        font-size: 1.3rem;
+        font-weight: 700;
+        margin-bottom: 0.25rem;
+    }
+    .formato-header .codigo-section {
+        background: rgba(0,0,0,0.2);
+        padding: 1.5rem;
+        text-align: center;
+    }
+    .formato-header .codigo-section .codigo {
+        font-size: 0.75rem;
+        opacity: 0.8;
+    }
+    .formato-header .codigo-section .version {
+        font-size: 0.7rem;
+        opacity: 0.6;
+    }
+
+    .orden-trabajo-badge {
+        background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+        color: white;
+        padding: 1rem 1.5rem;
+        border-radius: 10px;
+        text-align: center;
+        box-shadow: 0 4px 15px rgba(220, 38, 38, 0.3);
+    }
+    .orden-trabajo-badge .numero {
+        font-size: 2rem;
+        font-weight: 800;
+        line-height: 1;
+    }
+    .orden-trabajo-badge .label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        opacity: 0.9;
+    }
+
+    .stats-bar {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+        gap: 1rem;
+        padding: 1rem;
+        background: #f8fafc;
+        border-radius: 10px;
+        margin-bottom: 1.5rem;
+    }
+    .stat-item {
+        text-align: center;
+        padding: 0.75rem;
+        background: white;
+        border-radius: 8px;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+    }
+    .stat-item .stat-value {
+        font-size: 1.5rem;
+        font-weight: 700;
+        color: #1c2e4a;
+    }
+    .stat-item .stat-label {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .stat-item.highlight {
+        background: linear-gradient(135deg, #008ed6 0%, #0077b6 100%);
+    }
+    .stat-item.highlight .stat-value,
+    .stat-item.highlight .stat-label {
+        color: white;
+    }
+
+    .estado-completada {
+        background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .estado-pendiente {
+        background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+    .estado-vencida {
+        background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+        color: white;
+        padding: 0.5rem 1rem;
+        border-radius: 20px;
+        font-weight: 600;
+        font-size: 0.85rem;
+    }
+
+    .info-card {
+        border: none;
+        border-radius: 12px;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+        overflow: hidden;
+    }
+    .info-card .card-header {
+        background: #f1f5f9;
+        border-bottom: 2px solid #e2e8f0;
+        padding: 0.875rem 1.25rem;
+    }
+    .info-card .card-header h6 {
+        color: #334155;
+        font-weight: 700;
+        font-size: 0.9rem;
+    }
+    .info-card .card-header h6 i {
+        color: #008ed6;
+    }
+
+    .data-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1rem;
+    }
+    .data-item {
+        padding: 0.75rem;
+        background: #f8fafc;
+        border-radius: 8px;
+        border-left: 3px solid #008ed6;
+    }
+    .data-item .data-label {
+        font-size: 0.7rem;
+        color: #64748b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        margin-bottom: 0.25rem;
+    }
+    .data-item .data-value {
+        font-weight: 600;
+        color: #1e293b;
+    }
+
+    .table-muestras {
+        margin-bottom: 0;
+        font-size: 0.9rem;
+    }
+    .table-muestras thead tr {
+        background-color: #1c2e4a !important;
+    }
+    .table-muestras thead th {
+        background-color: #1c2e4a !important;
+        color: #ffffff !important;
+        font-weight: 700 !important;
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        padding: 1rem 0.75rem;
+        border: none !important;
+        white-space: nowrap;
+    }
+    .table-muestras tbody tr {
+        transition: background 0.15s ease;
+    }
+    .table-muestras tbody tr:hover {
+        background: #dbeafe !important;
+    }
+    .table-muestras tbody td {
+        padding: 0.875rem 0.75rem;
+        vertical-align: middle;
+        border-color: #e2e8f0;
+    }
+    .table-muestras tbody tr:nth-child(even) {
+        background-color: #f8fafc;
+    }
+    .table-muestras tbody tr:nth-child(even):hover {
+        background: #dbeafe !important;
+    }
+    .table-muestras tfoot {
+        background: #f1f5f9;
+        font-weight: 600;
+    }
+    .table-muestras tfoot td {
+        border-top: 3px solid #1c2e4a;
+        padding: 1rem 0.75rem;
+    }
+
+    .muestras-card {
+        border: 2px solid #1c2e4a;
+        border-radius: 12px;
+        overflow: hidden;
+        box-shadow: 0 4px 20px rgba(28, 46, 74, 0.15);
+    }
+    .muestras-card .card-header {
+        background: linear-gradient(135deg, #1c2e4a 0%, #2d4a6f 100%);
+        color: white;
+        padding: 1rem 1.25rem;
+        border-bottom: none;
+    }
+    .muestras-card .card-header h5 {
+        color: white;
+        font-weight: 700;
+        margin: 0;
+    }
+    .muestras-card .card-header .badge {
+        background: rgba(255,255,255,0.2);
+        color: white;
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+    }
+
+    .badge-tipo {
+        background: linear-gradient(135deg, #008ed6 0%, #0077b6 100%);
+        color: white;
+        padding: 0.35rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+    }
+    .badge-cantidad {
+        background: #1c2e4a;
+        color: white;
+        padding: 0.3rem 0.6rem;
+        border-radius: 6px;
+        font-size: 0.8rem;
+        font-weight: 700;
+    }
+    .badge-ensayo {
+        background: #e2e8f0;
+        color: #475569;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.7rem;
+        font-weight: 500;
+        margin-right: 0.25rem;
+    }
+    .badge-edad {
+        background: #fef3c7;
+        color: #92400e;
+        padding: 0.3rem 0.5rem;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+
+    .custodia-card {
+        border: 2px solid #e2e8f0;
+        border-radius: 12px;
+        overflow: hidden;
+        transition: border-color 0.2s ease;
+    }
+    .custodia-card:hover {
+        border-color: #008ed6;
+    }
+    .custodia-card .card-header {
+        padding: 1rem 1.25rem;
+    }
+    .custodia-card.cliente .card-header {
+        background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%);
+        border-bottom: 2px solid #bae6fd;
+    }
+    .custodia-card.laboratorio .card-header {
+        background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%);
+        border-bottom: 2px solid #bbf7d0;
+    }
+
+    .manifiesto-card {
+        background: linear-gradient(135deg, #1c2e4a 0%, #334155 100%);
+        color: white;
+        border-radius: 12px;
+    }
+    .manifiesto-card .card-header {
+        background: rgba(255,255,255,0.1);
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .manifiesto-card .card-header h6 {
+        color: white;
+    }
+    .manifiesto-card .info-row {
+        padding: 0.5rem 0;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
+    }
+    .manifiesto-card .info-row:last-child {
+        border-bottom: none;
+    }
+    .manifiesto-card .info-label {
+        font-size: 0.7rem;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        opacity: 0.7;
+    }
+    .manifiesto-card .info-value {
+        font-weight: 600;
+    }
+    .manifiesto-card .firma-digital {
+        background: rgba(16, 185, 129, 0.2);
+        border: 1px solid rgba(16, 185, 129, 0.3);
+        border-radius: 8px;
+        padding: 0.75rem;
+        margin-top: 1rem;
+    }
+    .manifiesto-card .firma-digital i {
+        color: #10b981;
+    }
+
+    .timeline-card .timeline-item {
+        position: relative;
+        padding-left: 1.5rem;
+        padding-bottom: 1rem;
+        border-left: 2px solid #e2e8f0;
+        margin-left: 0.5rem;
+    }
+    .timeline-card .timeline-item:last-child {
+        border-left-color: transparent;
+        padding-bottom: 0;
+    }
+    .timeline-card .timeline-item::before {
+        content: '';
+        position: absolute;
+        left: -6px;
+        top: 0;
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        background: #008ed6;
+        border: 2px solid white;
+        box-shadow: 0 0 0 2px #008ed6;
+    }
+    .timeline-card .timeline-item.completed::before {
+        background: #10b981;
+        box-shadow: 0 0 0 2px #10b981;
+    }
+    .timeline-card .timeline-date {
+        font-size: 0.75rem;
+        color: #64748b;
+    }
+    .timeline-card .timeline-title {
+        font-weight: 600;
+        color: #1e293b;
+        font-size: 0.9rem;
+    }
+
+    .btn-action {
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        font-weight: 600;
+        font-size: 0.85rem;
+        transition: all 0.2s ease;
+    }
+    .btn-action:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    }
+
+    @media print {
+        .no-print { display: none !important; }
+        .formato-header { background: #1c2e4a !important; -webkit-print-color-adjust: exact; }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Breadcrumb -->
+<nav aria-label="breadcrumb" class="mb-4 no-print">
+    <ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none">Empresas</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' remision.obra.constructora.pk %}" class="text-decoration-none">{{ remision.obra.constructora.nombre|truncatewords:3 }}</a></li>
+        <li class="breadcrumb-item"><a href="{% url 'detalle_obra' remision.obra.pk %}" class="text-decoration-none">{{ remision.obra.nombre|truncatewords:4 }}</a></li>
+        <li class="breadcrumb-item active">Remisión #{{ remision.orden_trabajo }}</li>
+    </ol>
+</nav>
+
+<!-- Header del Formato -->
+<div class="formato-header mb-4">
+    <div class="row g-0 align-items-center">
+        <div class="col-auto logo-section d-none d-md-flex">
+            <img src="{% load static %}{% static 'img/geolab-logo.png' %}" alt="Geolab" onerror="this.style.display='none'">
+        </div>
+        <div class="col title-section">
+            <h2>REMISIÓN DE MUESTRAS DE CONCRETOS Y MORTEROS</h2>
+            <p class="mb-0 opacity-75">{{ remision.obra.constructora.nombre }} - {{ remision.obra.nombre }}</p>
+        </div>
+        <div class="col-auto codigo-section d-none d-sm-block">
+            <div class="codigo">{{ remision.codigo_formato }}</div>
+            <div class="version">Versión {{ remision.version_formato }}</div>
         </div>
     </div>
 </div>
 
+<!-- Barra Superior: Estado + OT -->
+<div class="d-flex justify-content-between align-items-center flex-wrap gap-3 mb-4">
+    <div class="d-flex align-items-center gap-3">
+        {% if remision.estado == 'completada' %}
+            <span class="estado-completada"><i class="bi bi-check-circle-fill me-1"></i> Completada</span>
+        {% elif remision.estado == 'enviada' %}
+            <span class="estado-pendiente"><i class="bi bi-clock-fill me-1"></i> Pendiente</span>
+        {% elif remision.estado == 'vencida' %}
+            <span class="estado-vencida"><i class="bi bi-exclamation-circle-fill me-1"></i> Vencida</span>
+        {% else %}
+            <span class="badge bg-secondary">{{ remision.get_estado_display }}</span>
+        {% endif %}
+
+        <a href="{% url 'detalle_obra' remision.obra.pk %}" class="btn btn-outline-secondary btn-sm no-print">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Obra
+        </a>
+    </div>
+
+    <div class="orden-trabajo-badge">
+        <div class="label">Orden de Trabajo</div>
+        <div class="numero">{{ remision.orden_trabajo }}</div>
+    </div>
+</div>
+
+<!-- Barra de Estadísticas -->
+<div class="stats-bar">
+    <div class="stat-item highlight">
+        <div class="stat-value">{{ remision.total_cantidad }}</div>
+        <div class="stat-label">Cilindros Total</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ muestras.count }}</div>
+        <div class="stat-label">Filas</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ remision.cliente_fecha|date:"d/m"|default:"-" }}</div>
+        <div class="stat-label">Fecha Entrega</div>
+    </div>
+    <div class="stat-item">
+        <div class="stat-value">{{ remision.obra.codigo_obra }}</div>
+        <div class="stat-label">Código Obra</div>
+    </div>
+</div>
+
+<!-- TABLA DE MUESTRAS - PROTAGONISTA -->
+<div class="card muestras-card mb-4">
+    <div class="card-header d-flex justify-content-between align-items-center">
+        <h5><i class="bi bi-grid-3x3 me-2"></i>Relación de Muestras</h5>
+        <span class="badge rounded-pill">{{ muestras.count }} registro{{ muestras.count|pluralize:"s" }} &bull; {{ remision.total_cantidad }} cilindros</span>
+    </div>
+    <div class="card-body p-0">
+        {% if muestras %}
+        <div class="table-responsive">
+            <table class="table table-muestras">
+                <thead>
+                    <tr>
+                        <th class="text-center" style="width: 70px;">No.</th>
+                        <th class="text-center" style="width: 70px;">Cant.</th>
+                        <th>Tipo Muestra</th>
+                        <th class="text-center">Ø / Long.</th>
+                        <th>Ensayos Solicitados</th>
+                        <th>Localización en Obra</th>
+                        <th class="text-center">Fecha Toma</th>
+                        <th class="text-center">Edad (días)</th>
+                        <th class="text-center">F'c</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for m in muestras %}
+                    <tr>
+                        <td class="text-center"><strong class="fs-6">{{ m.numero_muestra }}</strong></td>
+                        <td class="text-center"><span class="badge-cantidad">{{ m.cantidad }}</span></td>
+                        <td><span class="badge-tipo">{{ m.get_tipo_muestra_display }}</span></td>
+                        <td class="text-center">{{ m.diametro_longitud|default:"-" }}</td>
+                        <td>
+                            {% for e in m.ensayos_list %}
+                                <span class="badge-ensayo">{{ e }}</span>
+                            {% empty %}
+                                <span class="text-muted">-</span>
+                            {% endfor %}
+                        </td>
+                        <td>
+                            <span title="{{ m.localizacion }}">{{ m.localizacion|truncatewords:5 }}</span>
+                        </td>
+                        <td class="text-center">{{ m.fecha_toma|date:"d/m/Y" }}</td>
+                        <td class="text-center"><span class="badge-edad">{{ m.edad_ensayo_dias }} días</span></td>
+                        <td class="text-center"><strong>{{ m.fc_resistencia|default:"-" }}</strong></td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td class="text-end fw-bold">TOTAL:</td>
+                        <td class="text-center"><span class="badge-cantidad" style="background:#dc2626; font-size: 1rem;">{{ remision.total_cantidad }}</span></td>
+                        <td colspan="7" class="text-muted">{{ muestras.count }} fila{{ muestras.count|pluralize:"s" }} registrada{{ muestras.count|pluralize:"s" }} en esta remisión</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+        {% else %}
+        <div class="text-center py-5">
+            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+            <p class="text-muted mt-3 mb-0">No hay muestras registradas</p>
+        </div>
+        {% endif %}
+    </div>
+</div>
+
 <div class="row g-4">
-    <!-- Columna principal -->
+    <!-- Columna Principal -->
     <div class="col-lg-8">
-        <!-- Info del proyecto -->
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Datos del Proyecto</h6>
+        <!-- Datos del Proyecto -->
+        <div class="card info-card mb-4">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-building me-2"></i>Datos del Proyecto</h6>
             </div>
             <div class="card-body">
-                <div class="row g-3">
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Empresa</small>
-                        <strong>{{ remision.obra.constructora.nombre }}</strong>
+                <div class="data-grid">
+                    <div class="data-item">
+                        <div class="data-label">Empresa / Cliente</div>
+                        <div class="data-value">{{ remision.obra.constructora.nombre }}</div>
                     </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Obra</small>
-                        <strong>{{ remision.obra.nombre }}</strong>
+                    <div class="data-item">
+                        <div class="data-label">Nombre de la Obra</div>
+                        <div class="data-value">{{ remision.obra.nombre }}</div>
                     </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">C.C.</small>
-                        <span>{{ remision.cc|default:"-" }}</span>
+                    <div class="data-item">
+                        <div class="data-label">Centro de Costos (C.C.)</div>
+                        <div class="data-value">{{ remision.cc|default:"No especificado" }}</div>
                     </div>
-                    <div class="col-md-6">
-                        <small class="text-muted d-block">Código Obra</small>
-                        <span class="badge bg-soft-blue badge-soft font-monospace">{{ remision.obra.codigo_obra }}</span>
+                    <div class="data-item">
+                        <div class="data-label">Código de Obra (C.O.)</div>
+                        <div class="data-value"><code class="fs-6">{{ remision.obra.codigo_obra }}</code></div>
                     </div>
                 </div>
-            </div>
-        </div>
-
-        <!-- Tabla de Muestras -->
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3 me-2"></i>Muestras Registradas</h6>
-                <span class="badge bg-primary">{{ muestras.count }} muestras</span>
-            </div>
-            <div class="card-body p-0">
-                {% if muestras %}
-                <div class="table-responsive">
-                    <table class="table table-hover mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th>No.</th>
-                                <th>Tipo</th>
-                                <th>Ø/L</th>
-                                <th>Ensayos</th>
-                                <th>Localización</th>
-                                <th>Fecha Toma</th>
-                                <th>Edad</th>
-                                <th>F'c</th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for m in muestras %}
-                            <tr>
-                                <td><strong>{{ m.numero_muestra }}</strong></td>
-                                <td>
-                                    <span class="badge bg-soft-blue badge-soft">{{ m.get_tipo_muestra_display }}</span>
-                                </td>
-                                <td>{{ m.diametro_longitud|default:"-" }}</td>
-                                <td>
-                                    {% for e in m.ensayos_list %}
-                                        <span class="badge bg-light text-dark">{{ e }}</span>
-                                    {% empty %}
-                                        -
-                                    {% endfor %}
-                                </td>
-                                <td>{{ m.localizacion|truncatewords:5 }}</td>
-                                <td>{{ m.fecha_toma|date:"d/m/Y" }}</td>
-                                <td>{{ m.edad_ensayo_dias }} días</td>
-                                <td>{{ m.fc_resistencia|default:"-" }}</td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% else %}
-                <div class="text-center py-5 text-muted">
-                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
-                    No hay muestras registradas aún
-                </div>
-                {% endif %}
             </div>
         </div>
 
         <!-- Cadena de Custodia -->
-        <div class="row g-4">
+        <div class="row g-4 mb-4">
+            <!-- Entrega del Cliente -->
             <div class="col-md-6">
-                <div class="card card-custom h-100">
-                    <div class="card-header bg-white py-3">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-person-check me-2"></i>Firma del Cliente</h6>
+                <div class="card custodia-card cliente h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-person-check me-2 text-primary"></i>Entrega del Cliente</h6>
                     </div>
                     <div class="card-body">
                         {% if remision.estado == 'completada' %}
-                        <div class="row g-2">
+                        <div class="row g-3">
                             <div class="col-6">
-                                <small class="text-muted d-block">Fecha</small>
-                                {{ remision.cliente_fecha|date:"d/m/Y"|default:"-" }}
+                                <div class="data-label" style="font-size:0.7rem;color:#64748b;text-transform:uppercase;">Fecha</div>
+                                <div class="fw-semibold">{{ remision.cliente_fecha|date:"d/m/Y"|default:"-" }}</div>
                             </div>
                             <div class="col-6">
-                                <small class="text-muted d-block">Cantidad</small>
-                                {{ remision.cliente_cantidad|default:"-" }}
+                                <div class="data-label" style="font-size:0.7rem;color:#64748b;text-transform:uppercase;">Cantidad</div>
+                                <div class="fw-semibold">{{ remision.cliente_cantidad|default:"-" }}</div>
                             </div>
                             <div class="col-12">
-                                <small class="text-muted d-block">Estado</small>
-                                {{ remision.cliente_estado|default:"-" }}
+                                <div class="data-label" style="font-size:0.7rem;color:#64748b;text-transform:uppercase;">Estado de Muestras</div>
+                                <div class="fw-semibold">{{ remision.cliente_estado|default:"-" }}</div>
                             </div>
                             <div class="col-12">
-                                <small class="text-muted d-block">Firma</small>
-                                <strong>{{ remision.cliente_firma_nombre|default:"-" }}</strong>
+                                <div class="data-label" style="font-size:0.7rem;color:#64748b;text-transform:uppercase;">Entregado por</div>
+                                <div class="fw-bold text-primary">{{ remision.cliente_firma_nombre|default:"-" }}</div>
                             </div>
+                            {% if remision.cliente_observaciones %}
                             <div class="col-12">
-                                <small class="text-muted d-block">Observaciones</small>
-                                {{ remision.cliente_observaciones|default:"-" }}
+                                <div class="data-label" style="font-size:0.7rem;color:#64748b;text-transform:uppercase;">Observaciones</div>
+                                <div class="small text-muted">{{ remision.cliente_observaciones }}</div>
                             </div>
+                            {% endif %}
                         </div>
                         {% else %}
-                        <p class="text-muted text-center mb-0 py-3">Pendiente de respuesta</p>
+                        <div class="text-center py-4">
+                            <i class="bi bi-hourglass-split text-warning" style="font-size: 2rem;"></i>
+                            <p class="text-muted mt-2 mb-0">Pendiente de respuesta</p>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
             </div>
 
+            <!-- Recepción en Laboratorio -->
             <div class="col-md-6">
-                <div class="card card-custom h-100">
-                    <div class="card-header bg-white py-3">
-                        <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Recibido en Laboratorio</h6>
+                <div class="card custodia-card laboratorio h-100">
+                    <div class="card-header">
+                        <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2 text-success"></i>Recibido en Laboratorio</h6>
                     </div>
                     <div class="card-body">
                         {% if user.es_geolab and remision.estado == 'completada' %}
@@ -177,40 +605,43 @@
                             {% csrf_token %}
                             <div class="row g-2">
                                 <div class="col-6">
-                                    <label class="form-label small">Fecha</label>
+                                    <label class="form-label small fw-semibold">Fecha</label>
                                     {{ form_recepcion.lab_fecha }}
                                 </div>
                                 <div class="col-6">
-                                    <label class="form-label small">Cantidad</label>
+                                    <label class="form-label small fw-semibold">Cantidad</label>
                                     {{ form_recepcion.lab_cantidad }}
                                 </div>
                                 <div class="col-12">
-                                    <label class="form-label small">Estado</label>
+                                    <label class="form-label small fw-semibold">Estado</label>
                                     {{ form_recepcion.lab_estado }}
                                 </div>
                                 <div class="col-12">
-                                    <label class="form-label small">Recibido por</label>
+                                    <label class="form-label small fw-semibold">Recibido por</label>
                                     {{ form_recepcion.lab_firma_nombre }}
                                 </div>
                                 <div class="col-12">
-                                    <label class="form-label small">Observaciones</label>
+                                    <label class="form-label small fw-semibold">Observaciones</label>
                                     {{ form_recepcion.lab_observaciones }}
                                 </div>
-                                <div class="col-12 mt-2">
-                                    <button type="submit" class="btn btn-primary btn-sm">
-                                        <i class="bi bi-check-lg me-1"></i> Guardar
+                                <div class="col-12 mt-3">
+                                    <button type="submit" class="btn btn-success btn-sm btn-action w-100">
+                                        <i class="bi bi-check-lg me-1"></i> Guardar Recepción
                                     </button>
                                 </div>
                             </div>
                         </form>
                         {% else %}
-                        <p class="text-muted text-center mb-0 py-3">
+                        <div class="text-center py-4">
                             {% if remision.lab_firma_nombre %}
-                                Recibido por: {{ remision.lab_firma_nombre }}
+                                <i class="bi bi-check-circle-fill text-success" style="font-size: 2rem;"></i>
+                                <p class="mt-2 mb-0"><strong>{{ remision.lab_firma_nombre }}</strong></p>
+                                <small class="text-muted">{{ remision.lab_fecha|date:"d/m/Y" }}</small>
                             {% else %}
-                                Pendiente de recepción
+                                <i class="bi bi-clock text-muted" style="font-size: 2rem;"></i>
+                                <p class="text-muted mt-2 mb-0">Pendiente de recepción</p>
                             {% endif %}
-                        </p>
+                        </div>
                         {% endif %}
                     </div>
                 </div>
@@ -220,98 +651,103 @@
 
     <!-- Sidebar -->
     <div class="col-lg-4">
-        <!-- Link de acceso -->
-        {% if user.es_geolab and remision.estado == 'enviada' %}
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-link-45deg me-2"></i>Link de Acceso</h6>
-            </div>
-            <div class="card-body">
-                <p class="small text-muted mb-2">Comparta este link con el cliente:</p>
-                <div class="input-group">
-                    <input type="text" class="form-control form-control-sm" id="link-remision"
-                           value="{{ request.scheme }}://{{ request.get_host }}{% url 'responder_remision' remision.token_acceso %}" readonly>
-                    <button class="btn btn-outline-primary btn-sm" onclick="copiarLink()">
-                        <i class="bi bi-clipboard"></i>
-                    </button>
-                </div>
-                <small class="text-muted d-block mt-2">
-                    Enviado a: {{ remision.email_destinatario }}
-                </small>
-            </div>
-        </div>
-        {% endif %}
-
-        <!-- Manifiesto -->
+        <!-- Manifiesto Digital -->
         {% if remision.estado == 'completada' %}
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3">
+        <div class="card manifiesto-card mb-4">
+            <div class="card-header py-3">
                 <h6 class="mb-0 fw-bold"><i class="bi bi-shield-check me-2"></i>Manifiesto Digital</h6>
             </div>
             <div class="card-body">
-                <div class="mb-3">
-                    <small class="text-muted d-block">Firmante</small>
-                    <strong>{{ remision.firmante_nombre }}</strong>
+                <div class="info-row">
+                    <div class="info-label">Firmante</div>
+                    <div class="info-value">{{ remision.firmante_nombre }}</div>
                 </div>
-                <div class="mb-3">
-                    <small class="text-muted d-block">Cédula</small>
-                    {{ remision.firmante_cedula }}
+                {% if remision.firmante_cedula %}
+                <div class="info-row">
+                    <div class="info-label">Cédula</div>
+                    <div class="info-value">{{ remision.firmante_cedula }}</div>
                 </div>
-                <div class="mb-3">
-                    <small class="text-muted d-block">Cargo</small>
-                    {{ remision.firmante_cargo }}
+                {% endif %}
+                <div class="info-row">
+                    <div class="info-label">Cargo</div>
+                    <div class="info-value">{{ remision.firmante_cargo }}</div>
                 </div>
-                <div class="mb-3">
-                    <small class="text-muted d-block">Contacto</small>
-                    {{ remision.firmante_email }}<br>
-                    {{ remision.firmante_telefono|default:"" }}
+                <div class="info-row">
+                    <div class="info-label">Contacto</div>
+                    <div class="info-value">
+                        {{ remision.firmante_email }}
+                        {% if remision.firmante_telefono %}<br><small class="opacity-75">{{ remision.firmante_telefono }}</small>{% endif %}
+                    </div>
                 </div>
-                <hr>
-                <div class="small text-muted">
-                    <div><i class="bi bi-calendar me-1"></i> {{ remision.firma_fecha|date:"d/m/Y H:i" }}</div>
-                    <div><i class="bi bi-geo-alt me-1"></i> IP: {{ remision.firma_ip_address }}</div>
+
+                <div class="firma-digital">
+                    <div class="d-flex align-items-center mb-2">
+                        <i class="bi bi-patch-check-fill me-2"></i>
+                        <span class="fw-semibold small">Firma Verificada</span>
+                    </div>
+                    <div class="small opacity-75">
+                        <div><i class="bi bi-calendar3 me-1"></i> {{ remision.firma_fecha|date:"d/m/Y H:i" }}</div>
+                        <div><i class="bi bi-geo-alt me-1"></i> IP: {{ remision.firma_ip_address }}</div>
+                    </div>
                 </div>
             </div>
         </div>
         {% endif %}
 
-        <!-- Fechas -->
-        <div class="card card-custom">
-            <div class="card-header bg-white py-3">
-                <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2"></i>Historial</h6>
+        <!-- Timeline / Historial -->
+        <div class="card info-card timeline-card">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Historial</h6>
             </div>
             <div class="card-body">
-                <div class="mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Creada:</span>
-                    <span>{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                <div class="timeline-item {% if remision.estado == 'completada' %}completed{% endif %}">
+                    <div class="timeline-title">Creación</div>
+                    <div class="timeline-date">{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</div>
+                    <div class="small text-muted">Por: {{ remision.solicitado_por.get_full_name|default:remision.solicitado_por.username }}</div>
                 </div>
+
                 {% if remision.fecha_envio %}
-                <div class="mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Enviada:</span>
-                    <span>{{ remision.fecha_envio|date:"d/m/Y H:i" }}</span>
+                <div class="timeline-item {% if remision.estado == 'completada' %}completed{% endif %}">
+                    <div class="timeline-title">Enviada</div>
+                    <div class="timeline-date">{{ remision.fecha_envio|date:"d/m/Y H:i" }}</div>
                 </div>
                 {% endif %}
+
                 {% if remision.fecha_respuesta %}
-                <div class="mb-2 d-flex justify-content-between">
-                    <span class="text-muted">Respondida:</span>
-                    <span>{{ remision.fecha_respuesta|date:"d/m/Y H:i" }}</span>
+                <div class="timeline-item completed">
+                    <div class="timeline-title">Completada</div>
+                    <div class="timeline-date">{{ remision.fecha_respuesta|date:"d/m/Y H:i" }}</div>
                 </div>
                 {% endif %}
-                <div class="d-flex justify-content-between">
-                    <span class="text-muted">Solicitada por:</span>
-                    <span>{{ remision.solicitado_por.get_full_name|default:remision.solicitado_por.username }}</span>
+
+                {% if remision.lab_fecha %}
+                <div class="timeline-item completed">
+                    <div class="timeline-title">Recibida en Lab</div>
+                    <div class="timeline-date">{{ remision.lab_fecha|date:"d/m/Y" }}</div>
+                    <div class="small text-muted">Por: {{ remision.lab_firma_nombre }}</div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <!-- Acciones Rápidas -->
+        {% if user.es_geolab %}
+        <div class="card info-card mt-4 no-print">
+            <div class="card-header">
+                <h6 class="mb-0"><i class="bi bi-lightning me-2"></i>Acciones</h6>
+            </div>
+            <div class="card-body">
+                <div class="d-grid gap-2">
+                    <button onclick="window.print()" class="btn btn-outline-secondary btn-sm">
+                        <i class="bi bi-printer me-1"></i> Imprimir
+                    </button>
+                    <a href="{% url 'lista_remisiones_obra' remision.obra.pk %}" class="btn btn-outline-primary btn-sm">
+                        <i class="bi bi-list-ul me-1"></i> Ver todas las remisiones
+                    </a>
                 </div>
             </div>
         </div>
+        {% endif %}
     </div>
 </div>
-
-<script>
-function copiarLink() {
-    const input = document.getElementById('link-remision');
-    input.select();
-    document.execCommand('copy');
-    alert('Link copiado al portapapeles');
-}
-</script>
 {% endblock %}

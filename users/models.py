@@ -38,6 +38,13 @@ class UsuarioBase(AbstractUser):
             return self.perfil_geolab.area in ['admin', 'lab', 'recepcion']
         return self.es_geolab
 
+    @property
+    def es_remitente(self):
+        """Verifica si el usuario es remitente (solo crea remisiones)"""
+        if self.es_cliente and hasattr(self, 'perfil_cliente'):
+            return self.perfil_cliente.rol == 'remitente'
+        return False
+
 # 3. PERFIL INTERNO (Tu equipo)
 class FuncionarioGeolab(models.Model):
     AREAS = [
@@ -58,6 +65,7 @@ class ClienteExterno(models.Model):
     ROLES = [
         ('director', 'Director (Ve toda la constructora)'),
         ('residente', 'Residente (Ve solo obras asignadas)'),
+        ('remitente', 'Remitente (Solo crea remisiones)'),
     ]
     user = models.OneToOneField(UsuarioBase, on_delete=models.CASCADE, related_name='perfil_cliente')
     
@@ -73,3 +81,17 @@ class ClienteExterno(models.Model):
 
     def __str__(self):
         return f"[{self.empresa.nombre}] {self.user.get_full_name()} ({self.rol})"
+
+    @property
+    def obras_accesibles(self):
+        """
+        Retorna las obras a las que el cliente tiene acceso según su rol.
+        - Director: todas las obras de su empresa
+        - Residente/Remitente: solo las obras asignadas
+        """
+        from core.models import Obra
+        if self.rol == 'director':
+            return Obra.objects.filter(constructora=self.empresa).order_by('nombre')
+        else:
+            # Residente y Remitente usan obras asignadas
+            return self.obras_asignadas.all().order_by('nombre')

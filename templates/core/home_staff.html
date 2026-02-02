@@ -1,59 +1,422 @@
 {% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Panel de Control - Geolab{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border: none;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        overflow: hidden;
+    }
+    .stat-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+    }
+    .stat-card .stat-icon {
+        width: 56px;
+        height: 56px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.5rem;
+    }
+    .quick-action {
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 1.25rem;
+        text-align: center;
+        transition: all 0.2s ease;
+        text-decoration: none;
+        display: block;
+        height: 100%;
+    }
+    .quick-action:hover {
+        border-color: var(--brand-blue);
+        background: rgba(0, 142, 214, 0.03);
+        transform: translateY(-2px);
+    }
+    .quick-action .action-icon {
+        width: 48px;
+        height: 48px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border-radius: 12px;
+        font-size: 1.3rem;
+        margin: 0 auto 0.75rem;
+    }
+    .activity-item {
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid var(--border-color);
+        transition: background 0.15s;
+    }
+    .activity-item:hover {
+        background: #f8fafc;
+    }
+    .activity-item:last-child {
+        border-bottom: none;
+    }
+    .badge-estado {
+        padding: 0.35em 0.7em;
+        border-radius: 6px;
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    .badge-enviada { background-color: #fef3c7; color: #92400e; }
+    .badge-completada { background-color: #d1fae5; color: #065f46; }
+    .badge-borrador { background-color: #e5e7eb; color: #374151; }
+    .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+    }
+    .section-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-main);
+        margin: 0;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row mb-4">
-    <div class="col-12">
-        <h3 class="fw-bold text-dark">Panel de Control Geolab</h3>
-        <p class="text-muted">Resumen de actividad global del laboratorio.</p>
-    </div>
-</div>
-
-<div class="row g-3 mb-4">
-    <div class="col-md-4">
-        <div class="card-custom p-4 bg-primary text-white">
-            <h2 class="fw-bold">{{ total_informes }}</h2>
-            <span>Informes Totales</span>
+<div class="container-fluid">
+    <!-- Encabezado de bienvenida -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1" style="color: var(--text-main);">
+                        Panel de Control
+                    </h2>
+                    <p class="text-muted mb-0">
+                        Bienvenido, <strong class="text-primary">{{ user.first_name|default:user.username }}</strong>.
+                        Resumen de actividad del laboratorio.
+                    </p>
+                </div>
+                <div class="d-flex align-items-center gap-2">
+                    <span class="badge px-3 py-2" style="background-color: rgba(0, 142, 214, 0.1); color: #008ed6;">
+                        <i class="bi bi-shield-check me-1"></i> Staff Geolab
+                    </span>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <div class="card-custom p-4 bg-white border-start border-5 border-success">
-            <h2 class="fw-bold text-success">{{ obras_activas }}</h2>
-            <span class="text-muted">Obras Registradas</span>
+
+    <!-- Tarjetas de estadisticas -->
+    <div class="row g-3 mb-4">
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon bg-primary bg-opacity-10 text-primary me-3">
+                        <i class="bi bi-briefcase"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-primary">{{ total_empresas }}</div>
+                        <div class="text-muted small">Empresas</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon bg-success bg-opacity-10 text-success me-3">
+                        <i class="bi bi-buildings"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-success">{{ total_obras }}</div>
+                        <div class="text-muted small">Obras</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon bg-danger bg-opacity-10 text-danger me-3">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-danger">{{ total_informes }}</div>
+                        <div class="text-muted small">Informes</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center">
+                    <div class="stat-icon bg-warning bg-opacity-10 text-warning me-3">
+                        <i class="bi bi-hourglass-split"></i>
+                    </div>
+                    <div>
+                        <div class="fs-3 fw-bold text-warning">{{ remisiones_pendientes }}</div>
+                        <div class="text-muted small">Pendientes</div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
-    <div class="col-md-4">
-        <button class="btn btn-warning w-100 h-100 fw-bold shadow-sm d-flex flex-column justify-content-center align-items-center gap-2">
-            <i class="bi bi-cloud-upload fs-1"></i>
-            CARGAR NUEVO INFORME
-        </button>
-    </div>
-</div>
 
-<div class="card card-custom">
-    <div class="card-header bg-white py-3">
-        <h6 class="mb-0 fw-bold">Últimos Informes Cargados (Global)</h6>
+    <!-- Acciones rapidas -->
+    <div class="row g-3 mb-4">
+        <div class="col-12">
+            <div class="section-header">
+                <h5 class="section-title">
+                    <i class="bi bi-lightning-charge text-warning"></i>
+                    Acciones Rapidas
+                </h5>
+            </div>
+        </div>
+        <div class="col-6 col-lg">
+            <a href="{% url 'lista_constructoras' %}" class="quick-action bg-white">
+                <div class="action-icon bg-primary bg-opacity-10 text-primary">
+                    <i class="bi bi-briefcase"></i>
+                </div>
+                <div class="fw-semibold text-dark small">Directorio Empresas</div>
+            </a>
+        </div>
+        <div class="col-6 col-lg">
+            <a href="{% url 'cargar_informe' %}" class="quick-action bg-white">
+                <div class="action-icon bg-danger bg-opacity-10 text-danger">
+                    <i class="bi bi-cloud-arrow-up"></i>
+                </div>
+                <div class="fw-semibold text-dark small">Cargar Informe</div>
+            </a>
+        </div>
+        <div class="col-6 col-lg">
+            <a href="{% url 'lista_remisiones' %}" class="quick-action bg-white">
+                <div class="action-icon bg-info bg-opacity-10 text-info">
+                    <i class="bi bi-file-earmark-medical"></i>
+                </div>
+                <div class="fw-semibold text-dark small">Remisiones</div>
+                {% if remisiones_pendientes > 0 %}
+                <span class="badge bg-warning text-dark mt-2">{{ remisiones_pendientes }} pendiente{{ remisiones_pendientes|pluralize:"s" }}</span>
+                {% endif %}
+            </a>
+        </div>
+        <div class="col-6 col-lg">
+            <a href="{% url 'muestras_para_hoy' %}" class="quick-action bg-white">
+                <div class="action-icon bg-success bg-opacity-10 text-success">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <div class="fw-semibold text-dark small">Ensayos del Dia</div>
+                {% if ensayos_hoy > 0 %}
+                <span class="badge bg-success mt-2">{{ ensayos_hoy }} muestra{{ ensayos_hoy|pluralize:"s" }}</span>
+                {% endif %}
+            </a>
+        </div>
+        <div class="col-6 col-lg">
+            <a href="{% url 'lista_usuarios_cliente' %}" class="quick-action bg-white">
+                <div class="action-icon bg-secondary bg-opacity-10 text-secondary">
+                    <i class="bi bi-people"></i>
+                </div>
+                <div class="fw-semibold text-dark small">Usuarios</div>
+            </a>
+        </div>
     </div>
-    <div class="table-responsive">
-        <table class="table align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Empresa</th>
-                    <th>Obra</th>
-                    <th>Informe</th>
-                    <th>Fecha</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for informe in ultimos_informes %}
-                <tr>
-                    <td><span class="badge bg-dark">{{ informe.obra.constructora.codigo }}</span> {{ informe.obra.constructora.nombre }}</td>
-                    <td>{{ informe.obra.nombre }}</td>
-                    <td>{{ informe.titulo }}</td>
-                    <td>{{ informe.fecha_creacion|date:"d/m/Y H:i" }}</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+
+    <!-- Contenido principal en dos columnas -->
+    <div class="row g-4">
+        <!-- Columna izquierda: Ultimos informes -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <div class="section-header mb-0">
+                        <h5 class="section-title">
+                            <i class="bi bi-clock-history text-primary"></i>
+                            Ultimos Informes
+                        </h5>
+                        <a href="{% url 'lista_constructoras' %}" class="btn btn-sm btn-outline-primary">
+                            Ver todos <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if ultimos_informes %}
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4 border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Documento</th>
+                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Empresa / Obra</th>
+                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Fecha</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for informe in ultimos_informes %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-danger bg-opacity-10 text-danger rounded p-2 me-3">
+                                                <i class="bi bi-file-earmark-pdf"></i>
+                                            </div>
+                                            <div class="text-truncate" style="max-width: 200px;">
+                                                <div class="fw-medium text-dark small" title="{{ informe.titulo }}">{{ informe.titulo|truncatechars:35 }}</div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="small">
+                                            <span class="badge bg-dark me-1" style="font-size: 0.65rem;">{{ informe.obra.constructora.codigo }}</span>
+                                            <span class="text-muted">{{ informe.obra.constructora.nombre|truncatechars:15 }}</span>
+                                        </div>
+                                        <div class="text-muted" style="font-size: 0.75rem;">{{ informe.obra.nombre|truncatechars:25 }}</div>
+                                    </td>
+                                    <td class="text-muted small">
+                                        {{ informe.fecha_creacion|date:"d/m/Y" }}
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-2 mb-0">No hay informes recientes</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Columna derecha: Remisiones recientes -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm h-100">
+                <div class="card-header bg-white border-0 py-3">
+                    <div class="section-header mb-0">
+                        <h5 class="section-title">
+                            <i class="bi bi-file-earmark-medical text-info"></i>
+                            Remisiones Recientes
+                        </h5>
+                        <a href="{% url 'lista_remisiones' %}" class="btn btn-sm btn-outline-info">
+                            Ver todas <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    {% if ultimas_remisiones %}
+                    {% for remision in ultimas_remisiones %}
+                    <a href="{{ remision.get_absolute_url }}" class="activity-item d-block text-decoration-none">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1 min-width-0">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <span class="fw-semibold text-dark small">Remision #{{ remision.orden_trabajo }}</span>
+                                    <span class="badge-estado badge-{{ remision.estado }}">{{ remision.get_estado_display }}</span>
+                                </div>
+                                <div class="text-muted small text-truncate">
+                                    <i class="bi bi-building me-1"></i>
+                                    {{ remision.obra.nombre|truncatechars:30 }}
+                                </div>
+                                <div class="text-muted" style="font-size: 0.7rem;">
+                                    {{ remision.obra.constructora.nombre }}
+                                </div>
+                            </div>
+                            <div class="text-end">
+                                <div class="text-muted" style="font-size: 0.7rem;">
+                                    {{ remision.fecha_creacion|date:"d/m/Y" }}
+                                </div>
+                                {% if remision.muestras.count > 0 %}
+                                <div class="text-muted" style="font-size: 0.7rem;">
+                                    <i class="bi bi-box-seam me-1"></i>{{ remision.muestras.count }} muestra{{ remision.muestras.count|pluralize:"s" }}
+                                </div>
+                                {% endif %}
+                            </div>
+                        </div>
+                    </a>
+                    {% endfor %}
+                    {% else %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-2 mb-0">No hay remisiones recientes</p>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
     </div>
+
+    <!-- Obras con actividad reciente -->
+    {% if obras_activas %}
+    <div class="row g-4 mt-2">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <div class="section-header mb-0">
+                        <h5 class="section-title">
+                            <i class="bi bi-graph-up-arrow text-success"></i>
+                            Obras con Actividad Reciente
+                        </h5>
+                        <span class="text-muted small">Ultimos 30 dias</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mb-0">
+                            <thead class="bg-light">
+                                <tr>
+                                    <th class="ps-4 border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Obra</th>
+                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Empresa</th>
+                                    <th class="border-0 text-center" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Informes</th>
+                                    <th class="border-0 text-center" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Remisiones</th>
+                                    <th class="border-0 pe-4"></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for obra in obras_activas %}
+                                <tr>
+                                    <td class="ps-4">
+                                        <div class="d-flex align-items-center">
+                                            <div class="bg-success bg-opacity-10 text-success rounded p-2 me-3">
+                                                <i class="bi bi-building"></i>
+                                            </div>
+                                            <div>
+                                                <div class="fw-medium text-dark">{{ obra.nombre|truncatechars:35 }}</div>
+                                                <span class="badge bg-light text-secondary border" style="font-size: 0.65rem;">{{ obra.codigo_obra }}</span>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td class="text-muted small">{{ obra.constructora.nombre|truncatechars:20 }}</td>
+                                    <td class="text-center">
+                                        {% if obra.informes_recientes > 0 %}
+                                        <span class="badge bg-danger bg-opacity-10 text-danger">{{ obra.informes_recientes }}</span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="text-center">
+                                        {% if obra.remisiones_recientes > 0 %}
+                                        <span class="badge bg-info bg-opacity-10 text-info">{{ obra.remisiones_recientes }}</span>
+                                        {% else %}
+                                        <span class="text-muted">-</span>
+                                        {% endif %}
+                                    </td>
+                                    <td class="pe-4 text-end">
+                                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-outline-secondary">
+                                            <i class="bi bi-eye"></i>
+                                        </a>
+                                    </td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    {% endif %}
 </div>
 {% endblock %}

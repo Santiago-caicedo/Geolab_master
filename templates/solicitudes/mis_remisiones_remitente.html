@@ -1,0 +1,201 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mis Remisiones{% endblock %}
+
+{% block extra_css %}
+<style>
+    .filter-card {
+        border: none;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+    }
+    .remision-row {
+        transition: all 0.2s ease;
+        border-left: 3px solid transparent;
+    }
+    .remision-row:hover {
+        background-color: #f8fafc;
+        border-left-color: var(--brand-blue);
+    }
+    .badge-estado {
+        font-weight: 500;
+        padding: 0.4em 0.8em;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Panel</a></li>
+            <li class="breadcrumb-item active">Mis Remisiones</li>
+        </ol>
+    </nav>
+
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">Mis Remisiones</h2>
+            <p class="text-muted mb-0">Historial de remisiones de muestras enviadas</p>
+        </div>
+        <div class="badge bg-primary bg-opacity-10 text-primary fs-6 px-3 py-2">
+            <i class="bi bi-file-earmark-text me-1"></i>
+            {{ total_remisiones }} remision{{ total_remisiones|pluralize:"es" }}
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="card filter-card shadow-sm mb-4">
+        <div class="card-body">
+            <form method="get" class="row g-3 align-items-end">
+                <div class="col-md-4">
+                    <label class="form-label small fw-semibold">
+                        <i class="bi bi-search me-1"></i> Buscar
+                    </label>
+                    <input type="text" name="q" class="form-control" placeholder="No. de remision..." value="{{ query|default:'' }}">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">
+                        <i class="bi bi-building me-1"></i> Obra
+                    </label>
+                    <select name="obra" class="form-select">
+                        <option value="">Todas las obras</option>
+                        {% for obra in mis_obras %}
+                        <option value="{{ obra.pk }}" {% if obra_filtro == obra.pk|stringformat:"i" %}selected{% endif %}>{{ obra.nombre }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label small fw-semibold">
+                        <i class="bi bi-funnel me-1"></i> Estado
+                    </label>
+                    <select name="estado" class="form-select">
+                        <option value="">Todos</option>
+                        <option value="enviada" {% if estado_filtro == 'enviada' %}selected{% endif %}>Pendiente</option>
+                        <option value="completada" {% if estado_filtro == 'completada' %}selected{% endif %}>Completada</option>
+                    </select>
+                </div>
+                <div class="col-md-2">
+                    <button type="submit" class="btn btn-primary w-100">
+                        <i class="bi bi-filter me-1"></i> Filtrar
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Lista de remisiones -->
+    <div class="card border-0 shadow-sm">
+        <div class="table-responsive">
+            <table class="table table-hover mb-0">
+                <thead class="table-light">
+                    <tr>
+                        <th class="ps-4">Remision</th>
+                        <th>Obra</th>
+                        <th>Muestras</th>
+                        <th>Fecha</th>
+                        <th>Estado</th>
+                        <th class="text-end pe-4">Acciones</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for remision in page_obj %}
+                    <tr class="remision-row">
+                        <td class="ps-4">
+                            <div class="fw-semibold">#{{ remision.orden_trabajo }}</div>
+                        </td>
+                        <td>
+                            <span class="text-truncate d-inline-block" style="max-width: 200px;">
+                                {{ remision.obra.nombre }}
+                            </span>
+                            <small class="text-muted d-block">{{ remision.obra.codigo_obra }}</small>
+                        </td>
+                        <td>
+                            <span class="badge bg-secondary bg-opacity-10 text-secondary">
+                                {{ remision.total_muestras }} muestra{{ remision.total_muestras|pluralize:"s" }}
+                            </span>
+                        </td>
+                        <td>
+                            <div>{{ remision.fecha_creacion|date:"d/m/Y" }}</div>
+                            <small class="text-muted">{{ remision.fecha_creacion|time:"H:i" }}</small>
+                        </td>
+                        <td>
+                            {% if remision.estado == 'enviada' %}
+                            <span class="badge badge-estado bg-warning text-dark">
+                                <i class="bi bi-clock me-1"></i> Pendiente
+                            </span>
+                            {% elif remision.estado == 'completada' %}
+                            <span class="badge badge-estado bg-success">
+                                <i class="bi bi-check-lg me-1"></i> Completada
+                            </span>
+                            {% else %}
+                            <span class="badge badge-estado bg-secondary">
+                                {{ remision.get_estado_display }}
+                            </span>
+                            {% endif %}
+                        </td>
+                        <td class="text-end pe-4">
+                            <a href="{% url 'detalle_remision_remitente' remision.pk %}" class="btn btn-sm btn-outline-primary">
+                                <i class="bi bi-eye me-1"></i> Ver
+                            </a>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr>
+                        <td colspan="6" class="text-center py-5">
+                            <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                            <p class="text-muted mt-2 mb-0">No se encontraron remisiones</p>
+                            {% if query or obra_filtro or estado_filtro %}
+                            <small class="text-muted">Intenta ajustar los filtros de busqueda.</small>
+                            {% else %}
+                            <small class="text-muted">Crea tu primera remision desde una de tus obras asignadas.</small>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+
+        <!-- Paginacion -->
+        {% if page_obj.has_other_pages %}
+        <div class="card-footer bg-white border-0 py-3">
+            <nav aria-label="Paginacion">
+                <ul class="pagination justify-content-center mb-0">
+                    {% if page_obj.has_previous %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if obra_filtro %}&obra={{ obra_filtro }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">
+                            <i class="bi bi-chevron-left"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+
+                    {% for num in page_obj.paginator.page_range %}
+                        {% if page_obj.number == num %}
+                        <li class="page-item active">
+                            <span class="page-link">{{ num }}</span>
+                        </li>
+                        {% elif num > page_obj.number|add:'-3' and num < page_obj.number|add:'3' %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ num }}{% if query %}&q={{ query }}{% endif %}{% if obra_filtro %}&obra={{ obra_filtro }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">{{ num }}</a>
+                        </li>
+                        {% endif %}
+                    {% endfor %}
+
+                    {% if page_obj.has_next %}
+                    <li class="page-item">
+                        <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if obra_filtro %}&obra={{ obra_filtro }}{% endif %}{% if estado_filtro %}&estado={{ estado_filtro }}{% endif %}">
+                            <i class="bi bi-chevron-right"></i>
+                        </a>
+                    </li>
+                    {% endif %}
+                </ul>
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+</div>
+{% endblock %}

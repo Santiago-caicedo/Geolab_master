@@ -1,0 +1,210 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Mi Panel - Remitente{% endblock %}
+
+{% block extra_css %}
+<style>
+    .stat-card {
+        border: none;
+        border-radius: 16px;
+        transition: transform 0.2s ease, box-shadow 0.2s ease;
+    }
+    .stat-card:hover {
+        transform: translateY(-4px);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.1);
+    }
+    .stat-icon {
+        width: 56px;
+        height: 56px;
+        border-radius: 14px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.5rem;
+    }
+    .obra-card {
+        border: none;
+        border-radius: 12px;
+        transition: all 0.2s ease;
+        background: white;
+    }
+    .obra-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 16px rgba(0,0,0,0.08);
+    }
+    .section-title {
+        font-weight: 700;
+        color: var(--sidebar-bg);
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    .remision-item {
+        border-left: 3px solid transparent;
+        transition: all 0.2s;
+    }
+    .remision-item:hover {
+        border-left-color: var(--brand-blue);
+        background: #f8fafc;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Encabezado -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <div>
+            <h2 class="fw-bold mb-1">Bienvenido, {{ user.first_name }}</h2>
+            <p class="text-muted mb-0">Panel de Remision de Muestras</p>
+        </div>
+        <div class="text-end d-none d-md-block">
+            <small class="text-muted">{{ user.perfil_cliente.empresa.nombre }}</small>
+        </div>
+    </div>
+
+    <!-- Tarjetas de estadisticas -->
+    <div class="row g-4 mb-4">
+        <div class="col-sm-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);">
+                        <i class="bi bi-building text-primary"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Obras Asignadas</div>
+                        <div class="fw-bold fs-4">{{ mis_obras.count }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #dcfce7 0%, #bbf7d0 100%);">
+                        <i class="bi bi-file-earmark-check text-success"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Remisiones Enviadas</div>
+                        <div class="fw-bold fs-4">{{ total_remisiones }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);">
+                        <i class="bi bi-clock-history text-warning"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Pendientes</div>
+                        <div class="fw-bold fs-4">{{ remisiones_pendientes }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-sm-6 col-lg-3">
+            <div class="card stat-card shadow-sm h-100">
+                <div class="card-body d-flex align-items-center gap-3">
+                    <div class="stat-icon" style="background: linear-gradient(135deg, #e0e7ff 0%, #c7d2fe 100%);">
+                        <i class="bi bi-check2-circle text-indigo"></i>
+                    </div>
+                    <div>
+                        <div class="text-muted small">Completadas</div>
+                        <div class="fw-bold fs-4">{{ remisiones_completadas }}</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Obras asignadas -->
+        <div class="col-lg-7">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3">
+                    <h5 class="section-title mb-0">
+                        <i class="bi bi-buildings text-primary"></i>
+                        Mis Obras
+                    </h5>
+                </div>
+                <div class="card-body p-0">
+                    {% for obra in mis_obras %}
+                    <div class="d-flex align-items-center justify-content-between p-3 border-bottom obra-card">
+                        <div class="d-flex align-items-center gap-3">
+                            <div class="rounded-circle d-flex align-items-center justify-content-center"
+                                 style="width: 48px; height: 48px; background: linear-gradient(135deg, var(--sidebar-bg) 0%, #374151 100%);">
+                                <i class="bi bi-building text-white"></i>
+                            </div>
+                            <div>
+                                <div class="fw-semibold">{{ obra.nombre }}</div>
+                                <small class="text-muted">{{ obra.codigo_obra }}</small>
+                            </div>
+                        </div>
+                        <a href="{% url 'crear_remision_cliente' obra.pk %}" class="btn btn-primary btn-sm">
+                            <i class="bi bi-plus-lg me-1"></i> Nueva Remision
+                        </a>
+                    </div>
+                    {% empty %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-2 mb-0">No tienes obras asignadas</p>
+                        <small class="text-muted">Contacta al administrador para que te asigne obras.</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+
+        <!-- Ultimas remisiones -->
+        <div class="col-lg-5">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-white border-0 py-3 d-flex justify-content-between align-items-center">
+                    <h5 class="section-title mb-0">
+                        <i class="bi bi-file-text text-success"></i>
+                        Mis Ultimas Remisiones
+                    </h5>
+                    {% if ultimas_remisiones %}
+                    <a href="{% url 'mis_remisiones_remitente' %}" class="btn btn-sm btn-outline-primary">
+                        Ver todas
+                    </a>
+                    {% endif %}
+                </div>
+                <div class="card-body p-0">
+                    {% for remision in ultimas_remisiones %}
+                    <a href="{% url 'detalle_remision_remitente' remision.pk %}" class="d-block text-decoration-none remision-item p-3 border-bottom">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="fw-semibold text-dark">Remision #{{ remision.orden_trabajo }}</div>
+                                <small class="text-muted">{{ remision.obra.nombre }}</small>
+                            </div>
+                            <div class="text-end">
+                                {% if remision.estado == 'enviada' %}
+                                <span class="badge bg-warning text-dark">Pendiente</span>
+                                {% elif remision.estado == 'completada' %}
+                                <span class="badge bg-success">Completada</span>
+                                {% else %}
+                                <span class="badge bg-secondary">{{ remision.get_estado_display }}</span>
+                                {% endif %}
+                            </div>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            <i class="bi bi-calendar3 me-1"></i>
+                            {{ remision.fecha_creacion|date:"d/m/Y H:i" }}
+                        </small>
+                    </a>
+                    {% empty %}
+                    <div class="text-center py-5">
+                        <i class="bi bi-file-earmark-plus text-muted" style="font-size: 3rem;"></i>
+                        <p class="text-muted mt-2 mb-0">Aun no has creado remisiones</p>
+                        <small class="text-muted">Selecciona una obra para crear tu primera remision.</small>
+                    </div>
+                    {% endfor %}
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

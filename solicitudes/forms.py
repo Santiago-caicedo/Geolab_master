@@ -172,11 +172,45 @@ MuestraFormSet = inlineformset_factory(
     RemisionMuestras,
     Muestra,
     form=MuestraForm,
-    extra=1,
+    extra=1,        # 1 fila inicial vacía
     can_delete=True,
-    min_num=1,
-    validate_min=True,
+    min_num=0,      # Sin mínimo (la validación se hace en la vista)
+    validate_min=False,
 )
+
+
+class CrearRemisionClienteForm(forms.ModelForm):
+    """
+    Formulario para que el Remitente cree una remision con cadena de custodia.
+    Los campos de firma se auto-completan desde el usuario logueado.
+    """
+    class Meta:
+        model = RemisionMuestras
+        fields = [
+            'cliente_fecha',
+            'cliente_estado',
+            'cliente_firma_nombre',
+            'cliente_observaciones',
+        ]
+        widgets = {
+            'cliente_fecha': forms.DateInput(attrs={
+                'class': 'form-control',
+                'type': 'date',
+            }),
+            'cliente_estado': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Ej: Bueno',
+            }),
+            'cliente_firma_nombre': forms.TextInput(attrs={
+                'class': 'form-control',
+                'placeholder': 'Nombre de quien entrega',
+            }),
+            'cliente_observaciones': forms.Textarea(attrs={
+                'class': 'form-control',
+                'rows': 2,
+                'placeholder': 'Observaciones adicionales...',
+            }),
+        }
 
 
 class RecepcionLabForm(forms.ModelForm):

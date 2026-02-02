@@ -1,0 +1,299 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Cargar Informe - {{ obra.nombre }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .upload-card {
+        border: none;
+        border-radius: 16px;
+        overflow: hidden;
+    }
+    .upload-header {
+        background: linear-gradient(135deg, var(--sidebar-bg) 0%, #0f172a 100%);
+        color: white;
+        padding: 2rem;
+    }
+    .upload-icon {
+        width: 70px;
+        height: 70px;
+        background: rgba(255,255,255,0.1);
+        border-radius: 16px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 2rem;
+        margin-bottom: 1rem;
+    }
+    .file-input-wrapper {
+        position: relative;
+        border: 2px dashed var(--border-color);
+        border-radius: 12px;
+        padding: 2rem;
+        text-align: center;
+        transition: all 0.2s;
+        background: #f8fafc;
+    }
+    .file-input-wrapper:hover {
+        border-color: var(--brand-blue);
+        background: rgba(0, 142, 214, 0.03);
+    }
+    .file-input-wrapper.dragover {
+        border-color: var(--brand-blue);
+        background: rgba(0, 142, 214, 0.05);
+    }
+    .file-input-wrapper input[type="file"] {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        opacity: 0;
+        cursor: pointer;
+    }
+    .file-preview {
+        display: none;
+        padding: 1rem;
+        background: #ecfdf5;
+        border-radius: 8px;
+        margin-top: 1rem;
+    }
+    .file-preview.show {
+        display: flex;
+    }
+    .obra-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        background: rgba(255,255,255,0.15);
+        padding: 0.5rem 1rem;
+        border-radius: 8px;
+        margin-top: 0.5rem;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Panel</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="text-decoration-none">{{ obra.constructora.nombre }}</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'detalle_obra' obra.pk %}" class="text-decoration-none">{{ obra.nombre }}</a></li>
+            <li class="breadcrumb-item active">Cargar Informe</li>
+        </ol>
+    </nav>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8 col-xl-6">
+            <div class="card upload-card shadow-lg">
+                <!-- Header -->
+                <div class="upload-header">
+                    <div class="upload-icon">
+                        <i class="bi bi-cloud-arrow-up"></i>
+                    </div>
+                    <h3 class="fw-bold mb-2">Cargar Informe</h3>
+                    <div class="obra-badge">
+                        <i class="bi bi-building"></i>
+                        <span>{{ obra.nombre }}</span>
+                        <span class="badge bg-light text-dark">{{ obra.codigo_obra }}</span>
+                    </div>
+                    <p class="mb-0 mt-2 opacity-75 small">
+                        {{ obra.constructora.nombre }}
+                    </p>
+                </div>
+
+                <!-- Form -->
+                <div class="card-body p-4">
+                    <form method="post" enctype="multipart/form-data" id="uploadForm">
+                        {% csrf_token %}
+
+                        {% if form.errors %}
+                        <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <div>
+                                Por favor corrige los errores marcados.
+                                {% for field in form %}
+                                    {% for error in field.errors %}
+                                        <div class="small">{{ field.label }}: {{ error }}</div>
+                                    {% endfor %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                        {% endif %}
+
+                        <!-- Obra destino (oculto pero mostrando info) -->
+                        <input type="hidden" name="obra" value="{{ obra.pk }}">
+
+                        <!-- Titulo del informe (auto-completado desde el archivo) -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-tag me-1 text-primary"></i>
+                                Titulo del Informe
+                            </label>
+                            {{ form.titulo }}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Se completa automaticamente con el nombre del archivo PDF.
+                            </div>
+                        </div>
+
+                        <!-- Archivo PDF -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold">
+                                <i class="bi bi-file-earmark-pdf me-1 text-danger"></i>
+                                Archivo PDF
+                            </label>
+                            <div class="file-input-wrapper" id="dropZone">
+                                <i class="bi bi-cloud-upload text-muted" style="font-size: 2.5rem;"></i>
+                                <p class="mb-1 mt-2 fw-medium">Arrastra tu archivo aqui</p>
+                                <p class="text-muted small mb-0">o haz clic para seleccionar</p>
+                                {{ form.archivo }}
+                            </div>
+                            <div class="file-preview" id="filePreview">
+                                <i class="bi bi-file-earmark-pdf text-danger me-2" style="font-size: 1.5rem;"></i>
+                                <div class="flex-grow-1">
+                                    <div class="fw-medium" id="fileName">documento.pdf</div>
+                                    <small class="text-muted" id="fileSize">0 KB</small>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
+                                    <i class="bi bi-x-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Botones -->
+                        <div class="d-flex gap-3 pt-3">
+                            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-light flex-fill">
+                                <i class="bi bi-arrow-left me-1"></i> Cancelar
+                            </a>
+                            <button type="submit" class="btn btn-primary flex-fill" id="submitBtn">
+                                <i class="bi bi-cloud-upload me-1"></i> Cargar Informe
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Informes existentes -->
+            <div class="card border-0 shadow-sm mt-4">
+                <div class="card-body">
+                    <h6 class="fw-bold mb-3">
+                        <i class="bi bi-folder2-open text-primary me-2"></i>
+                        Informes en esta obra
+                    </h6>
+                    <div class="d-flex align-items-center justify-content-between">
+                        <span class="text-muted">
+                            {{ obra.informes.count }} informe{{ obra.informes.count|pluralize:"s" }} cargado{{ obra.informes.count|pluralize:"s" }}
+                        </span>
+                        <a href="{% url 'lista_informes_obra' obra.pk %}" class="btn btn-sm btn-outline-primary">
+                            Ver todos <i class="bi bi-arrow-right ms-1"></i>
+                        </a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.querySelector('input[type="file"]');
+    const filePreview = document.getElementById('filePreview');
+    const fileName = document.getElementById('fileName');
+    const fileSize = document.getElementById('fileSize');
+
+    // Drag and drop
+    ['dragenter', 'dragover'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.add('dragover');
+        });
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+        dropZone.addEventListener(eventName, (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('dragover');
+        });
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length) {
+            const file = files[0];
+            if (validatePDF(file)) {
+                fileInput.files = files;
+                showFilePreview(file);
+            }
+        }
+    });
+
+    // File input change
+    fileInput.addEventListener('change', function() {
+        if (this.files.length) {
+            const file = this.files[0];
+            if (validatePDF(file)) {
+                showFilePreview(file);
+            } else {
+                this.value = ''; // Limpiar input
+            }
+        }
+    });
+
+    function validatePDF(file) {
+        const validTypes = ['application/pdf'];
+        const validExtension = file.name.toLowerCase().endsWith('.pdf');
+
+        if (!validExtension || !validTypes.includes(file.type)) {
+            alert('Solo se permiten archivos PDF.');
+            return false;
+        }
+        return true;
+    }
+
+    function getFileNameWithoutExtension(filename) {
+        // Remover la extension .pdf del nombre
+        return filename.replace(/\.pdf$/i, '');
+    }
+
+    function showFilePreview(file) {
+        fileName.textContent = file.name;
+        fileSize.textContent = formatFileSize(file.size);
+        filePreview.classList.add('show');
+        dropZone.style.display = 'none';
+
+        // Auto-completar titulo con el nombre del archivo (sin extension)
+        const tituloInput = document.querySelector('input[name="titulo"]');
+        tituloInput.value = getFileNameWithoutExtension(file.name);
+    }
+
+    function clearFile() {
+        fileInput.value = '';
+        filePreview.classList.remove('show');
+        dropZone.style.display = 'block';
+
+        // Limpiar tambien el titulo
+        document.querySelector('input[name="titulo"]').value = '';
+    }
+
+    function formatFileSize(bytes) {
+        if (bytes === 0) return '0 Bytes';
+        const k = 1024;
+        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+
+    // Form submission feedback
+    document.getElementById('uploadForm').addEventListener('submit', function() {
+        const btn = document.getElementById('submitBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cargando...';
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,252 @@
+{% extends 'base.html' %}
+{% load static %}
+
+{% block title %}Remision #{{ remision.orden_trabajo }} - {{ remision.obra.nombre }}{% endblock %}
+
+{% block extra_css %}
+<style>
+    .card-custom {
+        border: none;
+        border-radius: 12px;
+    }
+    .badge-soft {
+        font-weight: 500;
+    }
+    .bg-soft-blue {
+        background-color: rgba(0, 142, 214, 0.1);
+        color: var(--brand-blue);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Breadcrumb -->
+    <nav aria-label="breadcrumb" class="mb-3">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Panel</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'mis_remisiones_remitente' %}" class="text-decoration-none">Mis Remisiones</a></li>
+            <li class="breadcrumb-item active">Remision #{{ remision.orden_trabajo }}</li>
+        </ol>
+    </nav>
+
+    <!-- Header -->
+    <div class="card card-custom shadow-sm mb-4">
+        <div class="card-body">
+            <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                <div>
+                    <div class="d-flex align-items-center gap-3 mb-2">
+                        <h4 class="mb-0 fw-bold">Remision de Muestras</h4>
+                        {% if remision.estado == 'completada' %}
+                            <span class="badge bg-success">Completada</span>
+                        {% elif remision.estado == 'enviada' %}
+                            <span class="badge bg-warning text-dark">Pendiente</span>
+                        {% else %}
+                            <span class="badge bg-secondary">{{ remision.get_estado_display }}</span>
+                        {% endif %}
+                    </div>
+                    <p class="text-muted mb-0">
+                        {{ remision.codigo_formato }} | v{{ remision.version_formato }}
+                    </p>
+                </div>
+                <div class="text-end">
+                    <div style="color: #dc2626; font-weight: 700; font-size: 1.5rem;">
+                        #{{ remision.orden_trabajo }}
+                    </div>
+                    <small class="text-muted">Numero de Remision</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Columna principal -->
+        <div class="col-lg-8">
+            <!-- Info del proyecto -->
+            <div class="card card-custom shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-building me-2"></i>Datos del Proyecto</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Empresa</small>
+                            <strong>{{ remision.obra.constructora.nombre }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Obra</small>
+                            <strong>{{ remision.obra.nombre }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">C.C.</small>
+                            <span>{{ remision.cc|default:"-" }}</span>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Codigo Obra</small>
+                            <span class="badge bg-soft-blue badge-soft font-monospace">{{ remision.obra.codigo_obra }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Tabla de Muestras -->
+            <div class="card card-custom shadow-sm mb-4">
+                <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-grid-3x3 me-2"></i>Muestras Registradas</h6>
+                    <span class="badge bg-primary">{{ muestras.count }} muestra{{ muestras.count|pluralize:"s" }}</span>
+                </div>
+                <div class="card-body p-0">
+                    {% if muestras %}
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>No.</th>
+                                    <th>Cant.</th>
+                                    <th>Tipo</th>
+                                    <th>Dim.</th>
+                                    <th>Ensayos</th>
+                                    <th>Localizacion</th>
+                                    <th>Fecha Toma</th>
+                                    <th>Edad</th>
+                                    <th>F'c</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {% for m in muestras %}
+                                <tr>
+                                    <td><strong>{{ m.numero_muestra }}</strong></td>
+                                    <td>{{ m.cantidad }}</td>
+                                    <td>
+                                        <span class="badge bg-soft-blue badge-soft">{{ m.get_tipo_muestra_display }}</span>
+                                    </td>
+                                    <td>{{ m.diametro_longitud|default:"-" }}</td>
+                                    <td>
+                                        {% for e in m.ensayos_list %}
+                                            <span class="badge bg-light text-dark">{{ e }}</span>
+                                        {% empty %}
+                                            -
+                                        {% endfor %}
+                                    </td>
+                                    <td>{{ m.localizacion }}</td>
+                                    <td>{{ m.fecha_toma|date:"d/m/Y" }}</td>
+                                    <td>{{ m.edad_ensayo_dias }} dias</td>
+                                    <td>{{ m.fc_resistencia|default:"-" }}</td>
+                                </tr>
+                                {% endfor %}
+                            </tbody>
+                            <tfoot class="table-light">
+                                <tr>
+                                    <td class="text-end fw-bold">Total:</td>
+                                    <td><strong class="text-primary">{{ remision.total_cantidad }}</strong></td>
+                                    <td colspan="7" class="text-muted small">({{ muestras.count }} filas)</td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
+                    {% else %}
+                    <div class="text-center py-5 text-muted">
+                        <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                        No hay muestras registradas
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Cadena de Custodia - Solo lectura -->
+            <div class="card card-custom shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-person-check me-2"></i>Cadena de Custodia</h6>
+                </div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Fecha de Entrega</small>
+                            {{ remision.cliente_fecha|date:"d/m/Y"|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Cantidad Entregada</small>
+                            {{ remision.cliente_cantidad|default:"-" }}
+                        </div>
+                        <div class="col-md-4">
+                            <small class="text-muted d-block">Estado</small>
+                            {{ remision.cliente_estado|default:"-" }}
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Entregado por</small>
+                            <strong>{{ remision.cliente_firma_nombre|default:"-" }}</strong>
+                        </div>
+                        <div class="col-md-6">
+                            <small class="text-muted d-block">Observaciones</small>
+                            {{ remision.cliente_observaciones|default:"-" }}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="col-lg-4">
+            <!-- Datos del Firmante -->
+            <div class="card card-custom shadow-sm mb-4">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-pen me-2"></i>Firma Digital</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Nombre</small>
+                        <strong>{{ remision.firmante_nombre|default:"-" }}</strong>
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Cargo</small>
+                        {{ remision.firmante_cargo|default:"-" }}
+                    </div>
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Email</small>
+                        {{ remision.firmante_email|default:"-" }}
+                    </div>
+                    {% if remision.firma_fecha %}
+                    <hr>
+                    <div class="small text-muted">
+                        <i class="bi bi-check-circle text-success me-1"></i>
+                        Firmado el {{ remision.firma_fecha|date:"d/m/Y" }} a las {{ remision.firma_fecha|time:"H:i" }}
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Fechas -->
+            <div class="card card-custom shadow-sm">
+                <div class="card-header bg-white py-3">
+                    <h6 class="mb-0 fw-bold"><i class="bi bi-clock-history me-2"></i>Historial</h6>
+                </div>
+                <div class="card-body">
+                    <div class="mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Creada:</span>
+                        <span>{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% if remision.fecha_envio %}
+                    <div class="mb-2 d-flex justify-content-between">
+                        <span class="text-muted">Enviada:</span>
+                        <span>{{ remision.fecha_envio|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                    {% if remision.fecha_respuesta %}
+                    <div class="d-flex justify-content-between">
+                        <span class="text-muted">Procesada:</span>
+                        <span>{{ remision.fecha_respuesta|date:"d/m/Y H:i" }}</span>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Boton volver -->
+    <div class="mt-4">
+        <a href="{% url 'mis_remisiones_remitente' %}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left me-1"></i> Volver a Mis Remisiones
+        </a>
+    </div>
+</div>
+{% endblock %}
