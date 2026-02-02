@@ -10,7 +10,7 @@ from .models import Informe, Obra
 
 @login_required
 def dashboard_router(request):
-    """Redirige al dashboard correcto segun el tipo de usuario"""
+    """Redirige al dashboard correcto según el tipo de usuario"""
     if request.user.es_geolab:
         # Verificar si es tecnico de laboratorio
         if request.user.es_tecnico_laboratorio:
