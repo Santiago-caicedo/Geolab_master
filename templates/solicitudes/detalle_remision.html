@@ -484,7 +484,7 @@
                         <td class="text-center"><strong class="fs-6">{{ m.numero_muestra }}</strong></td>
                         <td class="text-center"><span class="badge-cantidad">{{ m.cantidad }}</span></td>
                         <td><span class="badge-tipo">{{ m.get_tipo_muestra_display }}</span></td>
-                        <td class="text-center">{{ m.diametro_longitud|default:"-" }}</td>
+                        <td class="text-center">{% if m.diametro_longitud %}{{ m.diametro_longitud }} {{ m.unidad_diametro }}{% else %}-{% endif %}</td>
                         <td>
                             {% for e in m.ensayos_list %}
                                 <span class="badge-ensayo">{{ e }}</span>

@@ -120,7 +120,7 @@
                                     <td>
                                         <span class="badge bg-soft-blue badge-soft">{{ m.get_tipo_muestra_display }}</span>
                                     </td>
-                                    <td>{{ m.diametro_longitud|default:"-" }}</td>
+                                    <td>{% if m.diametro_longitud %}{{ m.diametro_longitud }} {{ m.unidad_diametro }}{% else %}-{% endif %}</td>
                                     <td>
                                         {% for e in m.ensayos_list %}
                                             <span class="badge bg-light text-dark">{{ e }}</span>

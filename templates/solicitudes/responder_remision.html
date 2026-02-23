@@ -485,6 +485,7 @@
                         <th style="width: 50px;">Cant.</th>
                         <th style="width: 120px;">Tipo</th>
                         <th style="width: 65px;">Ø/Long</th>
+                        <th style="width: 70px;">Unid.</th>
                         <th style="width: 35px; text-align: center;">Flex</th>
                         <th style="width: 35px; text-align: center;">Comp</th>
                         <th style="width: 35px; text-align: center;">Abs</th>
@@ -504,6 +505,7 @@
                         <td>{{ muestra_form.cantidad }}</td>
                         <td>{{ muestra_form.tipo_muestra }}</td>
                         <td>{{ muestra_form.diametro_longitud }}</td>
+                        <td>{{ muestra_form.unidad_diametro }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_flexion }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_compresion }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_absorcion }}</td>
@@ -881,7 +883,7 @@
                         <div class="col-6">
                             <div class="muestra-field">
                                 <label>Diametro/Long.</label>
-                                <div class="form-control-plaintext">${getValue('diametro_longitud') || '-'}</div>
+                                <div class="form-control-plaintext">${getValue('diametro_longitud') ? getValue('diametro_longitud') + ' ' + getSelectText('unidad_diametro') : '-'}</div>
                             </div>
                         </div>
                         <div class="col-12">

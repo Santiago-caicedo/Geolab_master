@@ -151,7 +151,7 @@
                             {% endif %}
                         </td>
                         <td class="text-center">{{ resultado.muestra.edad_ensayo_dias }}d</td>
-                        <td class="text-center">{{ resultado.muestra.diametro_longitud|default:"-" }}</td>
+                        <td class="text-center">{% if resultado.muestra.diametro_longitud %}{{ resultado.muestra.diametro_longitud }} {{ resultado.muestra.unidad_diametro }}{% else %}-{% endif %}</td>
                         <td class="text-center">{{ resultado.muestra.fc_resistencia|default:"-" }}</td>
 
                         <!-- Datos editables (laboratorio) -->

@@ -171,10 +171,22 @@ class Muestra(models.Model):
     )
 
     # Dimensiones
+    UNIDAD_DIAMETRO_CHOICES = [
+        ('mm', 'mm'),
+        ('cm', 'cm'),
+        ('pulg', 'pulg'),
+    ]
+
     diametro_longitud = models.CharField(
         max_length=50,
         blank=True,
-        verbose_name='Diámetro o Longitud (cm)'
+        verbose_name='Diámetro o Longitud'
+    )
+    unidad_diametro = models.CharField(
+        max_length=10,
+        choices=UNIDAD_DIAMETRO_CHOICES,
+        default='cm',
+        verbose_name='Unidad'
     )
 
     # Ensayos a realizar (checkboxes - pueden ser múltiples)

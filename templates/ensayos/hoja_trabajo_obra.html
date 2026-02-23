@@ -755,7 +755,7 @@
                             <td class="fw-medium">{{ item.muestra.edad_ensayo_dias }}</td>
 
                             <!-- Diametro teorico -->
-                            <td>{{ item.muestra.diametro_longitud|default:"-" }}</td>
+                            <td>{% if item.muestra.diametro_longitud %}{{ item.muestra.diametro_longitud }} {{ item.muestra.unidad_diametro }}{% else %}-{% endif %}</td>
 
                             <!-- F'c -->
                             <td class="fw-medium">{{ item.muestra.fc_resistencia|default:"-" }}</td>
