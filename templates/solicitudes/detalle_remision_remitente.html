@@ -54,6 +54,11 @@
                         #{{ remision.orden_trabajo }}
                     </div>
                     <small class="text-muted">Numero de Remision</small>
+                    <div class="mt-2">
+                        <a href="{% url 'descargar_pdf_remision' remision.pk %}" class="btn btn-sm btn-primary">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Descargar PDF
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

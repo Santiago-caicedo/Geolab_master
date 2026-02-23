@@ -1,0 +1,468 @@
+{% load static %}
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>Remisión No. {{ remision.orden_trabajo }} - {{ remision.obra.nombre }}</title>
+    <style>
+        @page {
+            size: letter landscape;
+            margin: 1.2cm 1.5cm;
+        }
+
+        body {
+            font-family: Helvetica, Arial, sans-serif;
+            font-size: 8pt;
+            color: #1a1a1a;
+            margin: 0;
+            padding: 0;
+        }
+
+        /* ===== HEADER ===== */
+        .header-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1.5px solid #1c2e4a;
+            margin-bottom: 10px;
+        }
+
+        .header-table td {
+            vertical-align: middle;
+            padding: 4px 8px;
+        }
+
+        .header-logo {
+            width: 100px;
+            border-right: 1.5px solid #1c2e4a;
+            text-align: center;
+            padding: 6px;
+        }
+
+        .header-logo img {
+            width: 85px;
+        }
+
+        .header-title {
+            text-align: center;
+            font-size: 11pt;
+            font-weight: bold;
+            color: #1c2e4a;
+        }
+
+        .header-title small {
+            display: block;
+            font-size: 7.5pt;
+            font-weight: normal;
+            color: #555;
+            margin-top: 2px;
+        }
+
+        .header-meta {
+            width: 140px;
+            border-left: 1.5px solid #1c2e4a;
+            font-size: 7pt;
+        }
+
+        .header-meta table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .header-meta table td {
+            padding: 2px 4px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .header-meta table tr:last-child td {
+            border-bottom: none;
+        }
+
+        .header-meta .label {
+            font-weight: bold;
+            color: #1c2e4a;
+            width: 55px;
+        }
+
+        /* ===== SECCIONES ===== */
+        .section {
+            margin-bottom: 8px;
+        }
+
+        .section-title {
+            background-color: #1c2e4a;
+            color: #fff;
+            font-size: 7.5pt;
+            font-weight: bold;
+            padding: 3px 8px;
+            margin-bottom: 0;
+            letter-spacing: 0.5px;
+            text-transform: uppercase;
+        }
+
+        /* ===== INFO GRID ===== */
+        .info-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+        .info-table td {
+            padding: 3px 6px;
+            border: 1px solid #ccc;
+            font-size: 7.5pt;
+        }
+
+        .info-table .label {
+            font-weight: bold;
+            color: #1c2e4a;
+            background-color: #f0f4f8;
+            width: 120px;
+            white-space: nowrap;
+        }
+
+        .info-table .value {
+            color: #333;
+        }
+
+        /* ===== TABLA MUESTRAS ===== */
+        .muestras-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #999;
+            border-top: none;
+        }
+
+        .muestras-table th {
+            background-color: #e8edf3;
+            color: #1c2e4a;
+            font-size: 7pt;
+            font-weight: bold;
+            padding: 4px 5px;
+            border: 1px solid #999;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .muestras-table td {
+            padding: 3px 5px;
+            border: 1px solid #bbb;
+            font-size: 7.5pt;
+            text-align: center;
+        }
+
+        .muestras-table tr:nth-child(even) {
+            background-color: #f8f9fb;
+        }
+
+        .muestras-table .col-loc {
+            text-align: left;
+            max-width: 150px;
+        }
+
+        .muestras-table .col-ensayos {
+            text-align: left;
+            font-size: 7pt;
+        }
+
+        .muestras-table tfoot td {
+            background-color: #e8edf3;
+            font-weight: bold;
+            border-top: 2px solid #999;
+        }
+
+        /* ===== CADENA DE CUSTODIA ===== */
+        .custodia-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+        .custodia-table th {
+            background-color: #f0f4f8;
+            font-size: 7pt;
+            font-weight: bold;
+            padding: 3px 6px;
+            border: 1px solid #ccc;
+            text-align: center;
+            color: #1c2e4a;
+        }
+
+        .custodia-table td {
+            padding: 3px 6px;
+            border: 1px solid #ccc;
+            font-size: 7.5pt;
+            text-align: center;
+        }
+
+        /* ===== FIRMAS ===== */
+        .firmas-table {
+            width: 100%;
+            border-collapse: collapse;
+            border: 1px solid #ccc;
+            border-top: none;
+        }
+
+        .firmas-table td {
+            padding: 6px 8px;
+            border: 1px solid #ccc;
+            text-align: center;
+            vertical-align: bottom;
+            height: 40px;
+            font-size: 7.5pt;
+        }
+
+        .firmas-table .firma-label {
+            font-size: 6.5pt;
+            color: #666;
+            text-transform: uppercase;
+            padding-top: 2px;
+        }
+
+        .firmas-table .firma-nombre {
+            font-weight: bold;
+            color: #1c2e4a;
+            border-bottom: 1px solid #333;
+            padding-bottom: 2px;
+        }
+
+        /* ===== FOOTER ===== */
+        .footer {
+            margin-top: 8px;
+            font-size: 6.5pt;
+            color: #888;
+            text-align: center;
+            border-top: 1px solid #ddd;
+            padding-top: 4px;
+        }
+
+        .estado-badge {
+            display: inline-block;
+            padding: 1px 8px;
+            border-radius: 3px;
+            font-size: 7pt;
+            font-weight: bold;
+            color: #fff;
+        }
+
+        .estado-completada { background-color: #16a34a; }
+        .estado-enviada { background-color: #f59e0b; color: #1a1a1a; }
+        .estado-borrador { background-color: #94a3b8; }
+        .estado-vencida { background-color: #dc2626; }
+    </style>
+</head>
+<body>
+
+    <!-- ===== ENCABEZADO ===== -->
+    <table class="header-table">
+        <tr>
+            <td class="header-logo">
+                <img src="{{ logo_path }}" alt="Geolab">
+            </td>
+            <td class="header-title">
+                GEOLAB S.A.S<br>
+                REMISIÓN DE MUESTRAS DE CONCRETO Y MATERIALES
+                <small>Laboratorio de Suelos y Materiales de Construcción</small>
+            </td>
+            <td class="header-meta">
+                <table>
+                    <tr>
+                        <td class="label">Código:</td>
+                        <td>{{ remision.codigo_formato }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Versión:</td>
+                        <td>{{ remision.version_formato }}</td>
+                    </tr>
+                    <tr>
+                        <td class="label">Remisión:</td>
+                        <td><strong>No. {{ remision.orden_trabajo }}</strong></td>
+                    </tr>
+                    <tr>
+                        <td class="label">Estado:</td>
+                        <td>
+                            <span class="estado-badge estado-{{ remision.estado }}">
+                                {{ remision.get_estado_display }}
+                            </span>
+                        </td>
+                    </tr>
+                </table>
+            </td>
+        </tr>
+    </table>
+
+    <!-- ===== DATOS DEL PROYECTO ===== -->
+    <div class="section">
+        <div class="section-title">1. Datos del Proyecto</div>
+        <table class="info-table">
+            <tr>
+                <td class="label">Empresa / Cliente</td>
+                <td class="value">{{ remision.obra.constructora.nombre }}</td>
+                <td class="label">Código Obra</td>
+                <td class="value">{{ remision.obra.codigo_obra|default:"-" }}</td>
+            </tr>
+            <tr>
+                <td class="label">Nombre de Obra</td>
+                <td class="value">{{ remision.obra.nombre }}</td>
+                <td class="label">Centro de Costos</td>
+                <td class="value">{{ remision.cc|default:"-" }}</td>
+            </tr>
+            <tr>
+                <td class="label">Solicitado por</td>
+                <td class="value">{{ remision.solicitado_por.get_full_name|default:remision.solicitado_por.username }}</td>
+                <td class="label">Fecha de Creación</td>
+                <td class="value">{{ remision.fecha_creacion|date:"d/m/Y H:i" }}</td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ===== REGISTRO DE MUESTRAS ===== -->
+    <div class="section">
+        <div class="section-title">2. Registro de Muestras</div>
+        <table class="muestras-table">
+            <thead>
+                <tr>
+                    <th style="width:35px;">No.</th>
+                    <th style="width:35px;">Cant.</th>
+                    <th style="width:70px;">Tipo Muestra</th>
+                    <th style="width:55px;">Ø / Long.</th>
+                    <th>Ensayos Solicitados</th>
+                    <th>Localización en Obra</th>
+                    <th style="width:60px;">Fecha Toma</th>
+                    <th style="width:40px;">Edad (d)</th>
+                    <th style="width:45px;">F'c</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for m in muestras %}
+                <tr>
+                    <td><strong>{{ m.numero_muestra }}</strong></td>
+                    <td>{{ m.cantidad }}</td>
+                    <td>{{ m.get_tipo_muestra_display }}</td>
+                    <td>{% if m.diametro_longitud %}{{ m.diametro_longitud }} {{ m.unidad_diametro }}{% else %}-{% endif %}</td>
+                    <td class="col-ensayos">
+                        {% for e in m.ensayos_list %}{{ e }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
+                    </td>
+                    <td class="col-loc">{{ m.localizacion }}</td>
+                    <td>{{ m.fecha_toma|date:"d/m/Y" }}</td>
+                    <td>{{ m.edad_ensayo_dias }}</td>
+                    <td>{{ m.fc_resistencia|default:"-" }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr>
+                    <td colspan="1">TOTAL</td>
+                    <td>{{ remision.total_cantidad }}</td>
+                    <td colspan="7" style="text-align:left;">{{ muestras|length }} registro{{ muestras|length|pluralize:"s" }}</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <!-- ===== CADENA DE CUSTODIA ===== -->
+    <div class="section">
+        <div class="section-title">3. Cadena de Custodia</div>
+        <table class="custodia-table">
+            <thead>
+                <tr>
+                    <th style="width:100px;"></th>
+                    <th>Fecha</th>
+                    <th>Cantidad</th>
+                    <th>Estado de Muestras</th>
+                    <th>Responsable</th>
+                    <th>Observaciones</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td style="font-weight:bold; background-color:#f0f4f8;">Entrega Cliente</td>
+                    <td>{{ remision.cliente_fecha|date:"d/m/Y"|default:"-" }}</td>
+                    <td>{{ remision.cliente_cantidad|default:"-" }}</td>
+                    <td>{{ remision.cliente_estado|default:"-" }}</td>
+                    <td>{{ remision.cliente_firma_nombre|default:"-" }}</td>
+                    <td style="text-align:left;">{{ remision.cliente_observaciones|default:"-" }}</td>
+                </tr>
+                <tr>
+                    <td style="font-weight:bold; background-color:#f0f4f8;">Recepción Lab</td>
+                    <td>{{ remision.lab_fecha|date:"d/m/Y"|default:"-" }}</td>
+                    <td>{{ remision.lab_cantidad|default:"-" }}</td>
+                    <td>{{ remision.lab_estado|default:"-" }}</td>
+                    <td>{{ remision.lab_firma_nombre|default:"-" }}</td>
+                    <td style="text-align:left;">{{ remision.lab_observaciones|default:"-" }}</td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+
+    <!-- ===== FIRMAS ===== -->
+    <div class="section">
+        <div class="section-title">4. Firmas</div>
+        <table class="firmas-table">
+            <tr>
+                <td style="width:33%;">
+                    {% if remision.firmante_nombre %}
+                        <div class="firma-nombre">{{ remision.firmante_nombre }}</div>
+                        <div class="firma-label">C.C. {{ remision.firmante_cedula|default:"" }}</div>
+                    {% else %}
+                        <br><br>
+                    {% endif %}
+                    <div class="firma-label">Entrega - Cliente</div>
+                </td>
+                <td style="width:33%;">
+                    {% if remision.lab_firma_nombre %}
+                        <div class="firma-nombre">{{ remision.lab_firma_nombre }}</div>
+                    {% else %}
+                        <br><br>
+                    {% endif %}
+                    <div class="firma-label">Recibe - Laboratorio</div>
+                </td>
+                <td style="width:34%;">
+                    {% if remision.revisado_por %}
+                        <div class="firma-nombre">{{ remision.revisado_por }}</div>
+                    {% else %}
+                        <br><br>
+                    {% endif %}
+                    <div class="firma-label">Revisado por - Geolab</div>
+                </td>
+            </tr>
+        </table>
+    </div>
+
+    <!-- ===== MANIFIESTO ===== -->
+    {% if remision.firmante_nombre %}
+    <div class="section">
+        <div class="section-title">5. Manifiesto Digital</div>
+        <table class="info-table">
+            <tr>
+                <td class="label">Firmante</td>
+                <td class="value">{{ remision.firmante_nombre }}</td>
+                <td class="label">Cédula</td>
+                <td class="value">{{ remision.firmante_cedula }}</td>
+            </tr>
+            <tr>
+                <td class="label">Cargo</td>
+                <td class="value">{{ remision.firmante_cargo|default:"-" }}</td>
+                <td class="label">Contacto</td>
+                <td class="value">{{ remision.firmante_email }} {{ remision.firmante_telefono }}</td>
+            </tr>
+            <tr>
+                <td class="label">Fecha Firma</td>
+                <td class="value">{{ remision.firma_fecha|date:"d/m/Y H:i"|default:"-" }}</td>
+                <td class="label">IP</td>
+                <td class="value">{{ remision.firma_ip_address|default:"-" }}</td>
+            </tr>
+        </table>
+    </div>
+    {% endif %}
+
+    <!-- ===== FOOTER ===== -->
+    <div class="footer">
+        GEOLAB S.A.S &mdash; Laboratorio de Suelos y Materiales de Construcción &mdash;
+        Documento generado el {{ fecha_generacion|date:"d/m/Y H:i" }}
+        &mdash; {{ remision.codigo_formato }} v{{ remision.version_formato }}
+    </div>
+
+</body>
+</html>

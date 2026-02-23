@@ -7,6 +7,7 @@ urlpatterns = [
     path('obras/<int:obra_pk>/nueva-remision/', views.crear_remision, name='crear_remision'),
     path('obras/<int:obra_pk>/remisiones/', views.lista_remisiones_obra, name='lista_remisiones_obra'),
     path('remisiones/<int:pk>/', views.detalle_remision, name='detalle_remision'),
+    path('remisiones/<int:pk>/pdf/', views.descargar_pdf_remision, name='descargar_pdf_remision'),
 
     # ==========================================
     # REMITENTE (usuario logueado con rol remitente)

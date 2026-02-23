@@ -5,9 +5,10 @@ from django.core.mail import send_mail
 from django.template.loader import render_to_string
 from django.utils import timezone
 from django.conf import settings
-from django.http import Http404, JsonResponse
+from django.http import Http404, JsonResponse, HttpResponse
 from django.db import models, transaction
 import logging
+import os
 
 from .models import RemisionMuestras, Muestra
 from .forms import (
@@ -349,6 +350,50 @@ def detalle_remision(request, pk):
         'form_recepcion': form_recepcion,
     }
     return render(request, 'solicitudes/detalle_remision.html', context)
+
+
+@login_required
+def descargar_pdf_remision(request, pk):
+    """
+    Genera y descarga un PDF con la información completa de la remisión.
+    """
+    from weasyprint import HTML
+
+    remision = get_object_or_404(RemisionMuestras, pk=pk)
+
+    # Verificar permisos (misma lógica que detalle_remision)
+    if not request.user.es_geolab:
+        if hasattr(request.user, 'perfil_cliente'):
+            perfil = request.user.perfil_cliente
+            if perfil.rol == 'director':
+                if remision.obra.constructora != perfil.empresa:
+                    raise Http404
+            else:
+                if remision.obra not in perfil.obras_asignadas.all():
+                    raise Http404
+        else:
+            raise Http404
+
+    muestras = remision.muestras.all()
+    logo_file = os.path.join(settings.BASE_DIR, 'static', 'img', 'geolab-logo.png')
+    logo_path = 'file:///' + logo_file.replace('\\', '/')
+
+    context = {
+        'remision': remision,
+        'muestras': muestras,
+        'logo_path': logo_path,
+        'fecha_generacion': timezone.now(),
+    }
+
+    html_string = render_to_string('solicitudes/pdf_remision.html', context)
+    base_url = 'file:///' + str(settings.BASE_DIR).replace('\\', '/') + '/'
+    pdf = HTML(string=html_string, base_url=base_url).write_pdf()
+
+    response = HttpResponse(pdf, content_type='application/pdf')
+    filename = f"Remision_{remision.orden_trabajo}_{remision.obra.codigo_obra or remision.obra.pk}.pdf"
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+
+    return response
 
 
 @login_required
