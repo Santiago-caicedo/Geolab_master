@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Estructura de Gobierno ANC</title>
+    <style>
+        /* ESTILOS GENERALES */
+        :root {
+            --primary-color: #0056b3; /* Azul Nuclear */
+            --secondary-color: #00a8e8; /* Cyan Energía */
+            --text-color: #333;
+            --bg-color: #f4f7f6;
+            --card-bg: #ffffff;
+            --line-color: #cbd5e0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            margin: 0;
+            padding: 20px;
+        }
+
+        .org-chart {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            max-width: 1200px;
+        }
+
+        /* CAJAS (TARJETAS) */
+        .card {
+            background: var(--card-bg);
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+            padding: 20px 25px;
+            text-align: center;
+            position: relative;
+            transition: transform 0.3s ease;
+            z-index: 2;
+            min-width: 220px;
+        }
+
+        .card h3 {
+            margin: 0;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            font-weight: 700;
+        }
+
+        .card p {
+            margin: 5px 0 0;
+            font-size: 0.9rem;
+            color: #666;
+        }
+
+        .card .role {
+            font-size: 0.85rem;
+            color: var(--secondary-color);
+            font-weight: 600;
+            margin-top: 5px;
+            display: block;
+        }
+
+        /* NIVELES */
+        .level-1 {
+            margin-bottom: 50px;
+        }
+
+        .level-1 .card {
+            border-top: 5px solid var(--primary-color);
+            transform: scale(1.1); /* Destacar la Junta */
+        }
+
+        .level-2-container {
+            display: flex;
+            justify-content: center;
+            gap: 80px; /* Separación entre Consejo y Ejecutivos */
+            margin-bottom: 50px;
+            position: relative;
+            width: 100%;
+        }
+
+        /* CONECTOR NIVEL 1 A 2 */
+        .level-1::after {
+            content: '';
+            position: absolute;
+            top: 100%;
+            left: 50%;
+            width: 2px;
+            height: 50px; /* Altura de la línea */
+            background-color: var(--line-color);
+            z-index: 1;
+        }
+        
+        .org-chart > .level-1 { position: relative; }
+
+        /* Estilo especial para Consejo Consultivo (Dotted line) */
+        .card.consultivo {
+            border: 2px dashed var(--line-color);
+            background-color: #fcfcfc;
+        }
+        
+        .card.consultivo h3 { color: #555; }
+
+        /* Estilo especial para VP/Dirección */
+        .card.executive {
+            border-top: 5px solid var(--secondary-color);
+            min-width: 300px;
+        }
+
+        /* NIVEL 3 (COMITÉS) */
+        .level-3-container {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            position: relative;
+            padding-top: 30px;
+        }
+
+        .level-3-container::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 2px;
+            height: 30px;
+            background-color: var(--line-color);
+        }
+
+        /* LÍNEA HORIZONTAL CONECTORA DE COMITÉS */
+        .level-3-container::after {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 12%; /* Ajustar según ancho */
+            right: 12%;
+            height: 2px;
+            background-color: var(--line-color);
+            z-index: 1;
+        }
+
+        .committee-wrapper {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+            flex: 1;
+        }
+
+        .committee-wrapper::before {
+            content: '';
+            position: absolute;
+            top: -30px; /* Conecta con la línea horizontal */
+            left: 50%;
+            width: 2px;
+            height: 30px;
+            background-color: var(--line-color);
+        }
+
+        .card.committee {
+            width: 200px;
+            font-size: 0.9rem;
+            border-bottom: 4px solid #ddd;
+        }
+
+        .card.committee.highlight {
+            border-bottom: 4px solid #e91e63; /* Destacar Regulatorio */
+            background-color: #fff5f8;
+        }
+        
+        .card.committee.highlight h3 {
+            color: #c2185b;
+        }
+
+        /* TAG VIP */
+        .vip-tag {
+            background-color: #e91e63;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.7rem;
+            position: absolute;
+            top: -10px;
+            right: -5px;
+            font-weight: bold;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        /* RESPONSIVE LIGERO PARA PANTALLAS PEQUEÑAS */
+        @media (max-width: 900px) {
+            .level-3-container { flex-wrap: wrap; }
+            .level-3-container::after { display: none; }
+            .committee-wrapper::before { display: none; }
+            .level-2-container { flex-direction: column; align-items: center; gap: 20px; }
+            .level-1::after { display: none; }
+        }
+
+    </style>
+</head>
+<body>
+
+    <div class="org-chart">
+        
+        <div class="level-1">
+            <div class="card">
+                <h3>Junta Directiva</h3>
+                <p>Órgano Supremo (Voz y Voto)</p>
+                <span class="role">Fundadores</span>
+            </div>
+        </div>
+
+        <div class="level-2-container">
+            
+            <div class="card consultivo">
+                <h3>Consejo Consultivo</h3>
+                <p>Validación y Prestigio</p>
+                <span class="role">Expertos Senior</span>
+                <div style="font-size: 0.8rem; margin-top:5px; color:#888;"></div>
+            </div>
+
+            <div class="card executive">
+                <h3>Dirección Ejecutiva</h3>
+                <p>Estrategia, Tecnología y Operación</p>
+                <span class="role">Gestión Central</span>
+                <div style="position: absolute; bottom: -50px; left: 50%; width: 2px; height: 50px; background: #cbd5e0;"></div>
+            </div>
+
+        </div>
+
+        <div class="level-3-container">
+            
+            <div class="committee-wrapper">
+                <div class="card committee">
+                    <h3>Científico y Técnico</h3>
+                    <p>Rigor Académico</p>
+                </div>
+            </div>
+
+            <div class="committee-wrapper">
+                <div class="card committee highlight">
+                    <div class="vip-tag">NUEVO</div>
+                    <h3>Asuntos Regulatorios</h3>
+                    <p>Relacionamiento Gobierno</p>
+                    
+                </div>
+            </div>
+
+            <div class="committee-wrapper">
+                <div class="card committee">
+                    <h3>Divulgación</h3>
+                    <p>Webinars, Prensa, Visitas a Colegios y Semilleros.</p>
+                </div>
+            </div>
+
+            <div class="committee-wrapper">
+                <div class="card committee">
+                    <h3>Desarrollo y Alianzas</h3>
+                    <p>Sostenibilidad y Ventas</p>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+
+</body>
+</html>
