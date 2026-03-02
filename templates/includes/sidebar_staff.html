@@ -33,6 +33,12 @@
         </a>
 
 
+        <div class="nav-section">CALIDAD</div>
+
+        <a href="{% url 'explorador_calidad' %}" class="nav-link {% if 'calidad' in request.path %}active{% endif %}">
+            <i class="bi bi-clipboard2-check"></i> Sistema de Calidad
+        </a>
+
         <div class="nav-section">ADMINISTRACIÓN</div>
 
         <a href="{% url 'lista_usuarios_cliente' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">

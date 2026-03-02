@@ -53,6 +53,7 @@ INSTALLED_APPS = [
     'core',
     'solicitudes',
     'ensayos',
+    'calidad',
 ]
 
 MIDDLEWARE = [

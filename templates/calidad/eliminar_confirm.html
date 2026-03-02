@@ -1,0 +1,39 @@
+{% extends 'base.html' %}
+
+{% block title %}Confirmar Eliminacion - Sistema de Calidad{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <div class="row justify-content-center">
+        <div class="col-lg-5 col-xl-4">
+            <div class="card card-custom border-0 shadow-sm mt-4">
+                <div class="card-body p-4 text-center">
+                    <div class="rounded-circle bg-danger bg-opacity-10 text-danger d-inline-flex align-items-center justify-content-center mb-3"
+                         style="width: 64px; height: 64px; font-size: 1.8rem;">
+                        <i class="bi bi-exclamation-triangle"></i>
+                    </div>
+                    <h5 class="fw-bold mb-2">Confirmar Eliminacion</h5>
+                    <p class="text-muted">
+                        Estas a punto de eliminar {{ tipo|default:"el elemento" }}:
+                    </p>
+                    <p class="fw-semibold">{{ nombre }}</p>
+
+                    <form method="post" class="d-flex gap-3 mt-4">
+                        {% csrf_token %}
+                        {% if url_cancelar %}
+                        <a href="{% url 'contenido_carpeta' url_cancelar %}" class="btn btn-light flex-fill">Cancelar</a>
+                        {% elif area_pk %}
+                        <a href="{% url 'contenido_area_raiz' area_pk %}" class="btn btn-light flex-fill">Cancelar</a>
+                        {% else %}
+                        <a href="{% url 'explorador_calidad' %}" class="btn btn-light flex-fill">Cancelar</a>
+                        {% endif %}
+                        <button type="submit" class="btn btn-danger flex-fill">
+                            <i class="bi bi-trash me-1"></i> Eliminar
+                        </button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

@@ -34,6 +34,12 @@
             <i class="bi bi-clock-history"></i> Muestras Pendientes
         </a>
 
+        <div class="nav-section">CALIDAD</div>
+
+        <a href="{% url 'explorador_calidad' %}" class="nav-link {% if 'calidad' in request.path %}active{% endif %}">
+            <i class="bi bi-clipboard2-check"></i> Sistema de Calidad
+        </a>
+
         <div class="flex-grow-1"></div>
 
         <!-- Resumen rapido del dia -->

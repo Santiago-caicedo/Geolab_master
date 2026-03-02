@@ -30,6 +30,9 @@ urlpatterns = [
 
     # Módulo de Ensayos de Laboratorio (F-GT-05)
     path('', include('ensayos.urls')),
+
+    # Módulo de Sistema de Calidad
+    path('', include('calidad.urls')),
 ]
 
 if settings.DEBUG:
