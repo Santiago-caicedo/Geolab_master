@@ -18,7 +18,9 @@
       "Bash(cmd.exe /c \"python manage.py check\")",
       "Bash(git add:*)",
       "Bash(git commit:*)",
-      "Bash(git push:*)"
+      "Bash(git push:*)",
+      "Bash(du:*)",
+      "Bash(do echo:*)"
     ]
   }
 }
