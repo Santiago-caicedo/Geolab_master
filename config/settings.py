@@ -140,8 +140,6 @@ STATICFILES_DIRS = [
     BASE_DIR / "static",
 ]
 
-STATIC_ROOT = BASE_DIR / "staticfiles"
-
 # 2. Lógica Inteligente: ¿Estoy en Producción (AWS)?
 if not DEBUG:  # <--- ESTA ES LA CLAVE
     # Si DEBUG es Falso (Servidor), usamos S3
@@ -177,6 +175,7 @@ else:
     # Si DEBUG es Verdadero (Tu PC), usamos almacenamiento local normal
     STATIC_URL = '/static/'
     MEDIA_URL = '/media/'
+    STATIC_ROOT = BASE_DIR / "staticfiles"
 
 MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
 
