@@ -1,0 +1,115 @@
+{% extends 'base.html' %}
+{% block title %}Catálogo de Servicios{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-list-check me-2"></i>Catálogo de Servicios</h3>
+    <div>
+        <a href="{% url 'crear_categoria_facturacion' %}" class="btn btn-outline-primary btn-sm">
+            <i class="bi bi-folder-plus"></i> Nueva Categoría
+        </a>
+        <a href="{% url 'crear_servicio_facturacion' %}" class="btn btn-primary btn-sm">
+            <i class="bi bi-plus-circle"></i> Nuevo Servicio
+        </a>
+    </div>
+</div>
+
+<!-- Buscador -->
+<form method="get" class="mb-4">
+    <div class="input-group">
+        <input type="text" name="q" class="form-control" placeholder="Buscar por código, nombre o norma..." value="{{ q }}">
+        <button class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
+        {% if q %}<a href="{% url 'catalogo_servicios' %}" class="btn btn-outline-secondary">Limpiar</a>{% endif %}
+    </div>
+</form>
+
+{% if servicios_filtrados %}
+<!-- Resultados de búsqueda -->
+<div class="card border-0 shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Resultados para "{{ q }}" ({{ servicios_filtrados|length }})</h5>
+    </div>
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th>Código</th>
+                    <th>Servicio</th>
+                    <th>Categoría</th>
+                    <th>Norma</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in servicios_filtrados %}
+                <tr>
+                    <td><span class="badge bg-secondary">{{ s.codigo }}</span></td>
+                    <td>{{ s.nombre }}</td>
+                    <td>{{ s.categoria.nombre }}</td>
+                    <td><small class="text-muted">{{ s.norma|default:"-" }}</small></td>
+                    <td>
+                        <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="btn btn-sm btn-outline-primary">
+                            <i class="bi bi-pencil"></i>
+                        </a>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% else %}
+<!-- Vista por categoría -->
+{% for cat in categorias %}
+<div class="card border-0 shadow-sm mb-3">
+    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+        <h5 class="mb-0">
+            <span class="badge bg-primary me-2">{{ cat.codigo }}</span>
+            {{ cat.nombre }}
+            {% if cat.es_transporte %}<small class="text-warning">(Transporte - IVA especial)</small>{% endif %}
+        </h5>
+        <a href="{% url 'editar_categoria_facturacion' cat.pk %}" class="btn btn-sm btn-outline-secondary">
+            <i class="bi bi-pencil"></i> Editar
+        </a>
+    </div>
+    {% if cat.servicios.all %}
+    <div class="table-responsive">
+        <table class="table table-sm table-hover mb-0">
+            <thead class="table-light">
+                <tr>
+                    <th style="width:100px">Código</th>
+                    <th>Servicio</th>
+                    <th>Norma</th>
+                    <th style="width:100px"></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for s in cat.servicios.all %}
+                <tr>
+                    <td><code>{{ s.codigo }}</code></td>
+                    <td>{{ s.nombre }}</td>
+                    <td><small class="text-muted">{{ s.norma|default:"-" }}</small></td>
+                    <td>
+                        <div class="btn-group btn-group-sm">
+                            <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="btn btn-outline-primary" title="Editar">
+                                <i class="bi bi-pencil"></i>
+                            </a>
+                            <a href="{% url 'eliminar_servicio_facturacion' s.pk %}" class="btn btn-outline-danger" title="Eliminar">
+                                <i class="bi bi-trash"></i>
+                            </a>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+    {% else %}
+    <div class="card-body text-muted">Sin servicios en esta categoría.</div>
+    {% endif %}
+</div>
+{% empty %}
+<div class="alert alert-info">No hay categorías de servicio. Cree la primera.</div>
+{% endfor %}
+{% endif %}
+{% endblock %}

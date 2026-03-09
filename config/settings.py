@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'solicitudes',
     'ensayos',
     'calidad',
+    'facturacion',
 ]
 
 MIDDLEWARE = [

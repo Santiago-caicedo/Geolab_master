@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+{% block title %}Repositorio de Facturas{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-archive me-2"></i>Repositorio de Facturas</h3>
+    <a href="{% url 'dashboard_facturacion' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Dashboard
+    </a>
+</div>
+
+<div class="row g-3">
+    {% for c in constructoras %}
+    <div class="col-md-6 col-lg-4">
+        <a href="{% url 'repositorio_obras_cliente' c.pk %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 card-hover">
+                <div class="card-body">
+                    <h5 class="card-title text-dark">{{ c.nombre }}</h5>
+                    <p class="text-muted small mb-2">{{ c.codigo }}{% if c.nit %} &middot; NIT: {{ c.nit }}{% endif %}</p>
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-primary">{{ c.total_facturas }} factura{{ c.total_facturas|pluralize:"s" }}</span>
+                        {% if c.total_facturado %}
+                        <span class="badge bg-success">${{ c.total_facturado|floatformat:0 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">No hay facturas generadas aún.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+    transition: all 0.2s;
+}
+</style>
+{% endblock %}

@@ -1,0 +1,262 @@
+{% extends 'base.html' %}
+{% block title %}Registrar Servicio{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h3><i class="bi bi-plus-circle me-2"></i>Registrar Servicios</h3>
+    <a href="{% url 'dashboard_facturacion' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</div>
+
+<div class="card border-0 shadow-sm">
+    <div class="card-body">
+        <!-- Paso 1: Selección -->
+        <div class="row g-3 mb-4">
+            <div class="col-md-4">
+                <label class="form-label fw-bold">1. Constructora</label>
+                <select id="select-constructora" class="form-select">
+                    <option value="">-- Seleccionar --</option>
+                    {% for c in constructoras %}
+                    <option value="{{ c.pk }}">{{ c.nombre }} ({{ c.codigo }})</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">2. Obra</label>
+                <select id="select-obra" class="form-select" disabled>
+                    <option value="">-- Primero seleccione constructora --</option>
+                </select>
+            </div>
+            <div class="col-md-4">
+                <label class="form-label fw-bold">3. Fecha de realización</label>
+                <input type="date" id="input-fecha" class="form-control" value="{{ fecha_hoy }}">
+            </div>
+        </div>
+
+        <hr>
+
+        <!-- Líneas de servicio -->
+        <h5 class="mb-3">Servicios realizados</h5>
+        <div class="table-responsive">
+            <table class="table table-sm" id="tabla-servicios">
+                <thead class="table-light">
+                    <tr>
+                        <th style="width:300px">Servicio</th>
+                        <th style="width:150px">Nº Informe</th>
+                        <th style="width:80px">Cantidad</th>
+                        <th style="width:120px">Precio Unit.</th>
+                        <th style="width:120px">Subtotal</th>
+                        <th style="width:50px"></th>
+                    </tr>
+                </thead>
+                <tbody id="lineas-servicio">
+                    <!-- Se agregan dinámicamente -->
+                </tbody>
+                <tfoot>
+                    <tr>
+                        <td colspan="6">
+                            <button type="button" class="btn btn-outline-primary btn-sm" id="btn-agregar-linea">
+                                <i class="bi bi-plus"></i> Agregar línea
+                            </button>
+                        </td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+
+        <div class="d-flex justify-content-end mt-3">
+            <button type="button" class="btn btn-primary btn-lg" id="btn-guardar" disabled>
+                <i class="bi bi-check-circle"></i> Guardar Registros
+            </button>
+        </div>
+    </div>
+</div>
+
+<!-- Alerta resultado -->
+<div id="resultado-alert" class="mt-3" style="display:none;"></div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
+<script>
+const serviciosData = [
+    {% for s in servicios %}
+    {id: {{ s.pk }}, codigo: "{{ s.codigo }}", nombre: "{{ s.nombre }}", categoria: "{{ s.categoria.nombre }}"},
+    {% endfor %}
+];
+
+const selectConstructora = document.getElementById('select-constructora');
+const selectObra = document.getElementById('select-obra');
+const inputFecha = document.getElementById('input-fecha');
+const tbody = document.getElementById('lineas-servicio');
+const btnAgregar = document.getElementById('btn-agregar-linea');
+const btnGuardar = document.getElementById('btn-guardar');
+let obraSeleccionada = null;
+
+// Tom Select en constructora
+const tsConstructora = new TomSelect('#select-constructora', {
+    placeholder: 'Buscar constructora...',
+    onChange: function(value) {
+        tsObra.clear();
+        tsObra.clearOptions();
+        tsObra.addOption({value: '', text: '-- Seleccionar obra --'});
+        if (!value) return;
+        fetch(`{% url 'api_get_obras_facturacion' %}?constructora_id=${value}`)
+            .then(r => r.json())
+            .then(data => {
+                data.obras.forEach(o => {
+                    tsObra.addOption({value: o.id, text: `${o.codigo_obra} - ${o.nombre}`});
+                });
+            });
+    }
+});
+
+// Tom Select en obra
+const tsObra = new TomSelect('#select-obra', {
+    placeholder: 'Buscar obra...',
+    onChange: function(value) {
+        obraSeleccionada = value;
+        btnGuardar.disabled = !obraSeleccionada;
+        document.querySelectorAll('.linea-servicio').forEach(actualizarPrecioLinea);
+    }
+});
+
+function crearLinea() {
+    const idx = tbody.children.length;
+    const tr = document.createElement('tr');
+    tr.className = 'linea-servicio';
+    tr.innerHTML = `
+        <td>
+            <select class="form-select form-select-sm sel-servicio" data-idx="${idx}">
+                <option value="">-- Seleccionar servicio --</option>
+                ${serviciosData.map(s => `<option value="${s.id}">[${s.codigo}] ${s.nombre}</option>`).join('')}
+            </select>
+        </td>
+        <td><input type="text" class="form-control form-control-sm inp-informe" placeholder="Nº Informe"></td>
+        <td><input type="number" class="form-control form-control-sm text-center inp-cantidad" value="1" min="1"></td>
+        <td><span class="precio-unit text-muted">-</span></td>
+        <td><span class="subtotal fw-bold">-</span></td>
+        <td><button type="button" class="btn btn-sm btn-outline-danger btn-quitar"><i class="bi bi-x"></i></button></td>
+    `;
+    tbody.appendChild(tr);
+
+    // Tom Select en el selector de servicio de esta línea
+    const selServicio = tr.querySelector('.sel-servicio');
+    const tsServicio = new TomSelect(selServicio, {
+        placeholder: 'Buscar servicio...',
+        onChange: function() { actualizarPrecioLinea(tr); }
+    });
+
+    tr.querySelector('.inp-cantidad').addEventListener('change', function() { actualizarSubtotal(tr); });
+    tr.querySelector('.btn-quitar').addEventListener('click', function() {
+        tsServicio.destroy();
+        tr.remove();
+    });
+}
+
+function actualizarPrecioLinea(tr) {
+    const servicioId = tr.querySelector('.sel-servicio').value;
+    const precioSpan = tr.querySelector('.precio-unit');
+    const subtotalSpan = tr.querySelector('.subtotal');
+
+    if (!servicioId || !obraSeleccionada) {
+        precioSpan.textContent = '-';
+        subtotalSpan.textContent = '-';
+        return;
+    }
+
+    fetch(`{% url 'api_get_precio' %}?obra_id=${obraSeleccionada}&tiposervicio_id=${servicioId}`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.precio) {
+                precioSpan.textContent = '$' + parseFloat(data.precio).toLocaleString();
+                precioSpan.dataset.precio = data.precio;
+                actualizarSubtotal(tr);
+            } else {
+                precioSpan.textContent = 'Sin precio';
+                precioSpan.dataset.precio = '';
+                subtotalSpan.textContent = '-';
+            }
+        });
+}
+
+function actualizarSubtotal(tr) {
+    const precio = parseFloat(tr.querySelector('.precio-unit').dataset.precio || 0);
+    const cantidad = parseInt(tr.querySelector('.inp-cantidad').value) || 1;
+    const sub = precio * cantidad;
+    tr.querySelector('.subtotal').textContent = sub > 0 ? '$' + sub.toLocaleString() : '-';
+}
+
+// Guardar
+btnGuardar.addEventListener('click', function() {
+    const fecha = inputFecha.value;
+    if (!obraSeleccionada || !fecha) {
+        alert('Seleccione obra y fecha.');
+        return;
+    }
+
+    const servicios = [];
+    let valido = true;
+    document.querySelectorAll('.linea-servicio').forEach(tr => {
+        const tipo = tr.querySelector('.sel-servicio').value;
+        const informe = tr.querySelector('.inp-informe').value.trim();
+        const cantidad = parseInt(tr.querySelector('.inp-cantidad').value) || 1;
+        if (!tipo || !informe) { valido = false; return; }
+        servicios.push({ tipo_servicio_id: tipo, numero_informe: informe, cantidad: cantidad });
+    });
+
+    if (!valido || servicios.length === 0) {
+        alert('Complete todos los campos de servicio o agregue al menos una línea.');
+        return;
+    }
+
+    btnGuardar.disabled = true;
+    btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
+
+    fetch("{% url 'crear_registro_facturacion' %}", {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'X-CSRFToken': '{{ csrf_token }}',
+        },
+        body: JSON.stringify({
+            obra_id: obraSeleccionada,
+            fecha_realizacion: fecha,
+            servicios: servicios,
+        })
+    })
+    .then(r => r.json())
+    .then(data => {
+        const alertDiv = document.getElementById('resultado-alert');
+        if (data.status === 'success') {
+            alertDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+            // Destruir Tom Select de cada línea antes de limpiar
+            tbody.querySelectorAll('.sel-servicio').forEach(sel => {
+                if (sel.tomselect) sel.tomselect.destroy();
+            });
+            tbody.innerHTML = '';
+            crearLinea();
+        } else {
+            alertDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+        }
+        alertDiv.style.display = 'block';
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Registros';
+    })
+    .catch(() => {
+        alert('Error de conexión.');
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Registros';
+    });
+});
+
+// Inicializar con una línea
+btnAgregar.addEventListener('click', crearLinea);
+crearLinea();
+</script>
+{% endblock %}

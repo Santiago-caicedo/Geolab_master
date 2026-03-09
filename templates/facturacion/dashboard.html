@@ -1,0 +1,178 @@
+{% extends 'base.html' %}
+{% block title %}Facturación - Dashboard{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2><i class="bi bi-receipt-cutoff me-2"></i>Facturación</h2>
+</div>
+
+<!-- KPIs -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-primary">{{ facturas_mes_count }}</div>
+                <small class="text-muted">Facturas este mes</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-success">${{ facturas_mes_total|floatformat:0 }}</div>
+                <small class="text-muted">Facturado este mes</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-info">{{ registros_mes }}</div>
+                <small class="text-muted">Registros este mes</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold text-warning">{{ registros_pendientes }}</div>
+                <small class="text-muted">Pendientes de facturar</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold">{{ total_constructoras }}</div>
+                <small class="text-muted">Constructoras</small>
+            </div>
+        </div>
+    </div>
+    <div class="col-md-4 col-lg-2">
+        <div class="card text-center border-0 shadow-sm">
+            <div class="card-body">
+                <div class="fs-3 fw-bold">{{ total_obras }}</div>
+                <small class="text-muted">Obras</small>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Acciones rápidas -->
+<div class="row g-3 mb-4">
+    <div class="col-md-3">
+        <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-primary w-100 py-3">
+            <i class="bi bi-plus-circle fs-4 d-block mb-1"></i>
+            Registrar Servicio
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{% url 'generar_factura' %}" class="btn btn-success w-100 py-3">
+            <i class="bi bi-file-earmark-text fs-4 d-block mb-1"></i>
+            Generar Factura
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{% url 'historico_facturacion' %}" class="btn btn-outline-secondary w-100 py-3">
+            <i class="bi bi-clock-history fs-4 d-block mb-1"></i>
+            Histórico
+        </a>
+    </div>
+    <div class="col-md-3">
+        <a href="{% url 'repositorio_clientes' %}" class="btn btn-outline-secondary w-100 py-3">
+            <i class="bi bi-archive fs-4 d-block mb-1"></i>
+            Repositorio
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <!-- Gráfica -->
+    <div class="col-lg-8">
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h5 class="mb-0">Facturación Mensual</h5>
+            </div>
+            <div class="card-body">
+                <canvas id="chartFacturacion" height="250"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <!-- Top clientes y servicios -->
+    <div class="col-lg-4">
+        <div class="card border-0 shadow-sm mb-3">
+            <div class="card-header bg-white border-0">
+                <h6 class="mb-0">Top Clientes</h6>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for c in top_clientes %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span class="text-truncate me-2">{{ c.nombre }}</span>
+                        <span class="badge bg-success">${{ c.total_facturado|floatformat:0 }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted">Sin datos aún</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+        <div class="card border-0 shadow-sm">
+            <div class="card-header bg-white border-0">
+                <h6 class="mb-0">Servicios más registrados (90 días)</h6>
+            </div>
+            <div class="card-body p-0">
+                <ul class="list-group list-group-flush">
+                    {% for s in top_servicios %}
+                    <li class="list-group-item d-flex justify-content-between">
+                        <span class="text-truncate me-2">{{ s.nombre }}</span>
+                        <span class="badge bg-primary">{{ s.total_registros }}</span>
+                    </li>
+                    {% empty %}
+                    <li class="list-group-item text-muted">Sin datos aún</li>
+                    {% endfor %}
+                </ul>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    fetch("{% url 'api_facturacion_mensual' %}")
+        .then(r => r.json())
+        .then(data => {
+            new Chart(document.getElementById('chartFacturacion'), {
+                type: 'bar',
+                data: {
+                    labels: data.labels,
+                    datasets: [{
+                        label: 'Facturación ($)',
+                        data: data.data,
+                        backgroundColor: 'rgba(0, 142, 214, 0.7)',
+                        borderColor: '#008ed6',
+                        borderWidth: 1,
+                        borderRadius: 4,
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            ticks: {
+                                callback: v => '$' + v.toLocaleString()
+                            }
+                        }
+                    }
+                }
+            });
+        });
+});
+</script>
+{% endblock %}

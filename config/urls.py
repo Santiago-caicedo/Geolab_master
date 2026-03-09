@@ -33,6 +33,9 @@ urlpatterns = [
 
     # Módulo de Sistema de Calidad
     path('', include('calidad.urls')),
+
+    # Módulo de Facturación
+    path('', include('facturacion.urls')),
 ]
 
 if settings.DEBUG:

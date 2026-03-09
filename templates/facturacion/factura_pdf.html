@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <style>
+        @page {
+            size: letter;
+            margin: 1.5cm;
+        }
+        body {
+            font-family: Arial, Helvetica, sans-serif;
+            font-size: 10px;
+            color: #333;
+            line-height: 1.4;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 2px solid #008ed6;
+            padding-bottom: 10px;
+            margin-bottom: 15px;
+        }
+        .header img {
+            height: 60px;
+        }
+        .header-info {
+            text-align: right;
+        }
+        .header-info h2 {
+            color: #008ed6;
+            margin: 0;
+            font-size: 18px;
+        }
+        .info-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        .info-box {
+            background: #f8fafc;
+            padding: 8px 12px;
+            border-radius: 4px;
+            border-left: 3px solid #008ed6;
+        }
+        .info-box strong {
+            display: block;
+            color: #008ed6;
+            font-size: 9px;
+            text-transform: uppercase;
+            margin-bottom: 2px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        th {
+            background: #1c2e4a;
+            color: white;
+            padding: 6px 8px;
+            text-align: left;
+            font-size: 9px;
+            text-transform: uppercase;
+        }
+        td {
+            padding: 5px 8px;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        tr:nth-child(even) {
+            background: #f8fafc;
+        }
+        .text-end { text-align: right; }
+        .text-center { text-align: center; }
+        .fw-bold { font-weight: bold; }
+        .section-title {
+            background: #e2e8f0;
+            padding: 5px 10px;
+            font-weight: bold;
+            font-size: 11px;
+            margin: 10px 0 5px;
+        }
+        .totales {
+            width: 300px;
+            margin-left: auto;
+        }
+        .totales td {
+            padding: 4px 8px;
+        }
+        .totales .total-final {
+            background: #008ed6;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 10px;
+            border-top: 1px solid #ccc;
+            font-size: 8px;
+            color: #999;
+            text-align: center;
+        }
+        .estado-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 9px;
+            font-weight: bold;
+        }
+        .estado-pendiente { background: #fef3c7; color: #92400e; }
+        .estado-pagada { background: #d1fae5; color: #065f46; }
+        .estado-anulada { background: #fee2e2; color: #991b1b; }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div>
+            <img src="{{ logo_path }}" alt="Geolab">
+        </div>
+        <div class="header-info">
+            <h2>FACTURA #{{ factura.pk }}</h2>
+            <span class="estado-badge estado-{{ factura.estado|lower }}">
+                {{ factura.get_estado_display }}
+            </span>
+        </div>
+    </div>
+
+    <!-- Info general -->
+    <div class="info-grid">
+        <div class="info-box">
+            <strong>Constructora</strong>
+            {{ factura.constructora.nombre }}
+            {% if factura.constructora.nit %}(NIT: {{ factura.constructora.nit }}){% endif %}
+        </div>
+        <div class="info-box">
+            <strong>Obra</strong>
+            {{ factura.obra.nombre }} ({{ factura.obra.codigo_obra }})
+        </div>
+        <div class="info-box">
+            <strong>Periodo facturado</strong>
+            {{ factura.fecha_inicio_periodo|date:"d/m/Y" }} al {{ factura.fecha_fin_periodo|date:"d/m/Y" }}
+        </div>
+        <div class="info-box">
+            <strong>Fecha de emisión</strong>
+            {{ factura.fecha_emision|date:"d/m/Y" }}
+        </div>
+    </div>
+
+    <!-- Registros normales -->
+    {% if registros_normales %}
+    <div class="section-title">SERVICIOS DE LABORATORIO</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Código</th>
+                <th>Servicio</th>
+                <th>Nº Informe</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-end">P. Unitario</th>
+                <th class="text-end">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in registros_normales %}
+            <tr>
+                <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
+                <td>{{ r.tipo_servicio.codigo }}</td>
+                <td>{{ r.tipo_servicio.nombre }}</td>
+                <td>{{ r.numero_informe }}</td>
+                <td class="text-center">{{ r.cantidad }}</td>
+                <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
+                <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Registros transporte -->
+    {% if registros_transporte %}
+    <div class="section-title">TRANSPORTE</div>
+    <table>
+        <thead>
+            <tr>
+                <th>Fecha</th>
+                <th>Servicio</th>
+                <th>Nº Informe</th>
+                <th class="text-center">Cant.</th>
+                <th class="text-end">P. Unitario</th>
+                <th class="text-end">Subtotal</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for r in registros_transporte %}
+            <tr>
+                <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
+                <td>{{ r.tipo_servicio.nombre }}</td>
+                <td>{{ r.numero_informe }}</td>
+                <td class="text-center">{{ r.cantidad }}</td>
+                <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
+                <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+
+    <!-- Totales -->
+    <table class="totales">
+        <tr>
+            <td>Subtotal:</td>
+            <td class="text-end">${{ factura.subtotal|floatformat:2 }}</td>
+        </tr>
+        <tr>
+            <td>IVA{% if factura.iva_transporte_facturado %} (incluye transporte){% endif %}:</td>
+            <td class="text-end">${{ factura.monto_iva|floatformat:2 }}</td>
+        </tr>
+        <tr class="total-final">
+            <td>TOTAL:</td>
+            <td class="text-end">${{ factura.total|floatformat:2 }}</td>
+        </tr>
+    </table>
+
+    <div class="footer">
+        Geolab S.A.S. &mdash; Laboratorio de Suelos y Materiales de Construcción
+        <br>Documento generado el {{ factura.fecha_emision|date:"d/m/Y" }}
+    </div>
+</body>
+</html>

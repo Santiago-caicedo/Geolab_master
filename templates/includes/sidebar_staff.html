@@ -33,6 +33,36 @@
         </a>
 
 
+        <div class="nav-section">FACTURACIÓN</div>
+
+        <a href="{% url 'dashboard_facturacion' %}" class="nav-link {% if 'facturacion' in request.path and 'registro' not in request.path and 'historico' not in request.path and 'generar' not in request.path and 'repositorio' not in request.path and 'catalogo' not in request.path %}active{% endif %}">
+            <i class="bi bi-receipt-cutoff"></i> Panel Facturación
+        </a>
+
+        <a href="{% url 'crear_registro_facturacion' %}" class="nav-link {% if 'registro/crear' in request.path %}active{% endif %}">
+            <i class="bi bi-plus-circle"></i> Registrar Servicio
+        </a>
+
+        <a href="{% url 'generar_factura' %}" class="nav-link {% if 'generar' in request.path or 'finalizar' in request.path %}active{% endif %}">
+            <i class="bi bi-file-earmark-text"></i> Generar Factura
+        </a>
+
+        <a href="{% url 'historico_facturacion' %}" class="nav-link {% if 'historico' in request.path %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Histórico
+        </a>
+
+        <a href="{% url 'repositorio_clientes' %}" class="nav-link {% if 'repositorio' in request.path %}active{% endif %}">
+            <i class="bi bi-archive"></i> Repositorio
+        </a>
+
+        <a href="{% url 'catalogo_servicios' %}" class="nav-link {% if 'catalogo' in request.path %}active{% endif %}">
+            <i class="bi bi-list-check"></i> Catálogo Servicios
+        </a>
+
+        <a href="{% url 'lista_impuestos' %}" class="nav-link {% if 'impuestos' in request.path %}active{% endif %}">
+            <i class="bi bi-percent"></i> Impuestos
+        </a>
+
         <div class="nav-section">CALIDAD</div>
 
         <a href="{% url 'explorador_calidad' %}" class="nav-link {% if 'calidad' in request.path %}active{% endif %}">

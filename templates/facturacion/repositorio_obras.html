@@ -1,0 +1,49 @@
+{% extends 'base.html' %}
+{% block title %}Facturas - {{ constructora.nombre }}{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3><i class="bi bi-building me-2"></i>{{ constructora.nombre }}</h3>
+        <p class="text-muted mb-0">Obras con facturas</p>
+    </div>
+    <a href="{% url 'repositorio_clientes' %}" class="btn btn-outline-secondary btn-sm">
+        <i class="bi bi-arrow-left"></i> Volver
+    </a>
+</div>
+
+<div class="row g-3">
+    {% for o in obras %}
+    <div class="col-md-6 col-lg-4">
+        <a href="{% url 'repositorio_facturas_obra' o.pk %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 card-hover">
+                <div class="card-body">
+                    <h5 class="card-title text-dark">{{ o.nombre }}</h5>
+                    <p class="text-muted small mb-2">{{ o.codigo_obra }}</p>
+                    <div class="d-flex justify-content-between">
+                        <span class="badge bg-primary">{{ o.total_facturas }} factura{{ o.total_facturas|pluralize:"s" }}</span>
+                        {% if o.total_facturado %}
+                        <span class="badge bg-success">${{ o.total_facturado|floatformat:0 }}</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </a>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info">No hay obras con facturas para esta constructora.</div>
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+    transition: all 0.2s;
+}
+</style>
+{% endblock %}
