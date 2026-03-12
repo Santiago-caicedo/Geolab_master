@@ -355,9 +355,12 @@ def detalle_remision(request, pk):
 @login_required
 def descargar_pdf_remision(request, pk):
     """
-    Genera y descarga un PDF con la información completa de la remisión.
+    Genera un PDF con la información completa de la remisión,
+    lo guarda en storage (S3 en producción) y redirige a su URL.
     """
     from weasyprint import HTML
+    from django.core.files.storage import default_storage
+    from django.core.files.base import ContentFile
 
     remision = get_object_or_404(RemisionMuestras, pk=pk)
 
@@ -374,6 +377,10 @@ def descargar_pdf_remision(request, pk):
         else:
             raise Http404
 
+    filename = f"Remision_{remision.orden_trabajo}_{remision.obra.codigo_obra or remision.obra.pk}.pdf"
+    storage_path = f"remisiones_pdf/{filename}"
+
+    # Generar el PDF siempre (refleja datos actualizados)
     muestras = remision.muestras.all()
     logo_file = os.path.join(settings.BASE_DIR, 'static', 'img', 'geolab-logo.png')
     logo_path = 'file:///' + logo_file.replace('\\', '/')
@@ -387,13 +394,15 @@ def descargar_pdf_remision(request, pk):
 
     html_string = render_to_string('solicitudes/pdf_remision.html', context)
     base_url = 'file:///' + str(settings.BASE_DIR).replace('\\', '/') + '/'
-    pdf = HTML(string=html_string, base_url=base_url).write_pdf()
+    pdf_bytes = HTML(string=html_string, base_url=base_url).write_pdf()
 
-    response = HttpResponse(pdf, content_type='application/pdf')
-    filename = f"Remision_{remision.orden_trabajo}_{remision.obra.codigo_obra or remision.obra.pk}.pdf"
-    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    # Eliminar versión anterior si existe y guardar nueva
+    if default_storage.exists(storage_path):
+        default_storage.delete(storage_path)
+    default_storage.save(storage_path, ContentFile(pdf_bytes))
 
-    return response
+    # Redirigir a la URL del archivo (S3 en prod, media local en dev)
+    return redirect(default_storage.url(storage_path))
 
 
 @login_required

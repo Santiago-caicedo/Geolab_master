@@ -896,15 +896,8 @@ def descargar_factura_pdf(request, pk):
             messages.error(request, 'No se pudo generar el PDF.')
             return redirect('repositorio_facturas_obra', obra_pk=factura.obra.pk)
 
-    from django.http import FileResponse
-    response = FileResponse(
-        factura.pdf_archivo.open('rb'),
-        content_type='application/pdf',
-    )
-    response['Content-Disposition'] = (
-        f'inline; filename="Factura_{factura.pk}_{factura.obra.codigo_obra}.pdf"'
-    )
-    return response
+    # Redirigir a la URL del archivo (S3 en prod, media local en dev)
+    return redirect(factura.pdf_archivo.url)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

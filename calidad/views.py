@@ -225,13 +225,8 @@ def descargar_documento(request, pk):
     if not documento.archivo:
         raise Http404("Archivo no encontrado.")
 
-    content_type, _ = mimetypes.guess_type(documento.archivo.name)
-    response = FileResponse(
-        documento.archivo.open('rb'),
-        content_type=content_type or 'application/octet-stream',
-    )
-    response['Content-Disposition'] = f'inline; filename="{documento.nombre}"'
-    return response
+    # Redirigir a la URL del archivo (S3 en prod, media local en dev)
+    return redirect(documento.archivo.url)
 
 
 @login_required
