@@ -21,7 +21,8 @@
       "Bash(git push:*)",
       "Bash(du:*)",
       "Bash(do echo:*)",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(pip3 list:*)"
     ]
   }
 }

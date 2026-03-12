@@ -391,7 +391,7 @@ def descargar_pdf_remision(request, pk):
 
     response = HttpResponse(pdf, content_type='application/pdf')
     filename = f"Remision_{remision.orden_trabajo}_{remision.obra.codigo_obra or remision.obra.pk}.pdf"
-    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
 
     return response
 
