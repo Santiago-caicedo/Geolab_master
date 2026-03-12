@@ -396,13 +396,29 @@ def descargar_pdf_remision(request, pk):
     base_url = 'file:///' + str(settings.BASE_DIR).replace('\\', '/') + '/'
     pdf_bytes = HTML(string=html_string, base_url=base_url).write_pdf()
 
-    # Eliminar versión anterior si existe y guardar nueva
-    if default_storage.exists(storage_path):
-        default_storage.delete(storage_path)
-    default_storage.save(storage_path, ContentFile(pdf_bytes))
+    # En producción (S3): subir y redirigir a la URL de S3
+    # En desarrollo (local): servir directamente
+    if not settings.DEBUG:
+        import boto3
+        from botocore.config import Config as BotoConfig
 
-    # Redirigir a la URL del archivo (S3 en prod, media local en dev)
-    return redirect(default_storage.url(storage_path))
+        s3 = boto3.client('s3', region_name='us-east-1')
+        bucket = settings.AWS_STORAGE_BUCKET_NAME
+        s3_key = f"geolab/media/remisiones_pdf/{filename}"
+
+        s3.put_object(
+            Bucket=bucket,
+            Key=s3_key,
+            Body=pdf_bytes,
+            ContentType='application/pdf',
+        )
+
+        pdf_url = f"https://{settings.AWS_S3_CUSTOM_DOMAIN}/{s3_key}"
+        return redirect(pdf_url)
+    else:
+        response = HttpResponse(pdf_bytes, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{filename}"'
+        return response
 
 
 @login_required
