@@ -1,5 +1,19 @@
 from django.contrib import admin
-from .models import HojaTrabajo, ResultadoMuestra
+from .models import HojaTrabajo, ResultadoMuestra, ConsecutivoInforme, InformeEnsayo
+
+
+@admin.register(ConsecutivoInforme)
+class ConsecutivoInformeAdmin(admin.ModelAdmin):
+    list_display = ['anio', 'ultimo']
+    list_editable = ['ultimo']
+
+
+@admin.register(InformeEnsayo)
+class InformeEnsayoAdmin(admin.ModelAdmin):
+    list_display = ['numero_informe', 'obra', 'tipo', 'fecha_falla', 'fecha_emision', 'ciudad']
+    list_filter = ['tipo', 'ciudad', 'fecha_emision']
+    search_fields = ['numero_informe', 'obra__nombre', 'obra__codigo_obra']
+    readonly_fields = ['fecha_emision']
 
 
 class ResultadoMuestraInline(admin.TabularInline):

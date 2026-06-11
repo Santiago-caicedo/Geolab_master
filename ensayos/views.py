@@ -1,15 +1,17 @@
 from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
-from django.http import JsonResponse
+from django.http import JsonResponse, HttpResponse, Http404
 from django.core.paginator import Paginator
+from django.core.files.base import ContentFile
 from django.db.models import Q, F, Value, ExpressionWrapper, DateField
 from django.db.models.functions import Coalesce
 from django.utils import timezone
-from datetime import timedelta
+from datetime import datetime, timedelta
 
-from .models import HojaTrabajo, ResultadoMuestra
+from .models import HojaTrabajo, ResultadoMuestra, InformeEnsayo, ConsecutivoInforme
 from .forms import ResultadoMuestraForm
+from . import informes
 from core.models import Obra
 
 
@@ -166,7 +168,10 @@ def editar_resultado(request, pk):
             'diametro_d1', 'diametro_d2', 'diametro_d3',
             'longitud_l1', 'longitud_l2', 'longitud_l3',
             'peso_gramos', 'carga_maxima_kn', 'forma_falla',
-            'fecha_ensayo', 'observaciones', 'estado'
+            'fecha_ensayo', 'observaciones', 'estado',
+            # Campos de vigas (flexión)
+            'luz_entre_apoyos', 'distancia_falla_apoyo',
+            'formula_flexion', 'tipo_especimen_viga',
         ]
 
         # Detectar si es actualizacion parcial (AJAX desde hoja de trabajo)
@@ -181,7 +186,8 @@ def editar_resultado(request, pk):
 
                 if campo in ['diametro_d1', 'diametro_d2', 'diametro_d3',
                              'longitud_l1', 'longitud_l2', 'longitud_l3',
-                             'peso_gramos', 'carga_maxima_kn']:
+                             'peso_gramos', 'carga_maxima_kn',
+                             'luz_entre_apoyos', 'distancia_falla_apoyo']:
                     # Campos decimales
                     if valor:
                         try:
@@ -191,8 +197,8 @@ def editar_resultado(request, pk):
                     else:
                         setattr(resultado, campo, None)
 
-                elif campo == 'forma_falla':
-                    # Campo choice
+                elif campo in ['forma_falla', 'formula_flexion', 'tipo_especimen_viga']:
+                    # Campos choice
                     setattr(resultado, campo, valor if valor else '')
 
                 elif campo == 'fecha_ensayo':
@@ -229,6 +235,7 @@ def editar_resultado(request, pk):
                 'success': True,
                 'pk': resultado.pk,
                 'estado': resultado.estado,
+                'geometria': resultado.muestra.geometria,
                 'diametro_real': str(resultado.diametro_real) if resultado.diametro_real else None,
                 'longitud_real': str(resultado.longitud_real) if resultado.longitud_real else None,
                 'area_mm2': str(resultado.area_mm2) if resultado.area_mm2 else None,
@@ -484,6 +491,7 @@ def hoja_trabajo_obra(request, obra_pk):
         resultados_con_info.append({
             'resultado': resultado,
             'muestra': resultado.muestra,  # Pasar muestra explicitamente
+            'geometria': resultado.muestra.geometria,
             'fecha_falla': fecha_falla,
             'es_hoy': es_hoy,
             'esta_vencida': esta_vencida,
@@ -494,9 +502,13 @@ def hoja_trabajo_obra(request, obra_pk):
     total_muestras = len(resultados_con_info)
     progreso = int((conteo_completadas / total_muestras) * 100) if total_muestras > 0 else 0
 
+    # Detectar si hay vigas en esta obra
+    tiene_vigas = any(r['geometria'] == 'prisma' for r in resultados_con_info)
+
     context = {
         'obra': obra,
         'resultados': resultados_con_info,
+        'tiene_vigas': tiene_vigas,
         'fecha_hoy': hoy,
         'conteo_hoy': conteo_hoy,
         'conteo_vencidas': conteo_vencidas,
@@ -630,6 +642,7 @@ def dashboard_tecnico(request):
                 muestra_info = {
                     'resultado': resultado,
                     'muestra': resultado.muestra,
+                    'geometria': resultado.muestra.geometria,
                     'fecha_falla': fecha_falla,
                     'dias_vencida': (hoy - fecha_falla).days if esta_vencida else 0,
                 }
@@ -656,3 +669,135 @@ def dashboard_tecnico(request):
         'total_pendientes': total_hoy + total_vencidas,
     }
     return render(request, 'ensayos/dashboard_tecnico.html', context)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# GENERACIÓN DE INFORMES (F-AI-1-01 — Compresión de cilindros de concreto)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@login_required
+def generar_informe_compresion(request, obra_pk):
+    """
+    Genera el informe de compresión de cilindros de una obra, agrupando por
+    fecha de falla. Rellena la plantilla Excel de la ciudad y, si hay LibreOffice,
+    también el PDF. Reutiliza el mismo N° de informe al re-generar la misma fecha.
+    """
+    if not request.user.es_geolab:
+        messages.error(request, "No tienes permiso para acceder a esta sección.")
+        return redirect('home')
+
+    obra = get_object_or_404(Obra, pk=obra_pk)
+
+    # Fecha de falla objetivo (default: hoy, hora Colombia)
+    fecha_str = request.POST.get('fecha_falla') or request.GET.get('fecha_falla')
+    fecha = timezone.localdate()
+    if fecha_str:
+        try:
+            fecha = datetime.strptime(fecha_str, '%Y-%m-%d').date()
+        except ValueError:
+            pass
+
+    # Cilindros completados de la obra cuya fecha de falla coincide
+    qs = ResultadoMuestra.objects.select_related('muestra', 'hoja_trabajo').filter(
+        hoja_trabajo__remision__obra=obra,
+        estado='completado',
+        muestra__geometria='cilindro',
+    )
+    especimenes = [r for r in qs if r.fecha_falla_programada == fecha]
+    especimenes.sort(key=lambda r: (r.muestra.numero_muestra, r.muestra.edad_ensayo_dias))
+
+    if not especimenes:
+        messages.warning(
+            request,
+            f"No hay cilindros completados con fecha de falla {fecha:%Y-%m-%d} en esta obra."
+        )
+        return redirect('hoja_trabajo_obra', obra_pk=obra.pk)
+
+    # Reusar/crear el informe (consecutivo estable por obra+tipo+fecha de falla)
+    informe, _creado = InformeEnsayo.objects.get_or_create(
+        obra=obra, tipo='compresion_cilindros', fecha_falla=fecha,
+        defaults={
+            'numero_informe': ConsecutivoInforme.siguiente(fecha.year),
+            'ciudad': obra.constructora.ciudad or '',
+            'generado_por': request.user,
+        },
+    )
+
+    cabecera = {
+        'cliente': obra.constructora.nombre,
+        'obra': f"{obra.codigo_obra} — {obra.nombre}",
+        'fecha_informe': timezone.localdate(),
+        'numero_informe': informe.numero_informe,
+    }
+    salida = informes.generar_archivos(
+        informe.ciudad or obra.constructora.ciudad, especimenes, cabecera
+    )
+
+    base = informe.numero_informe.replace('/', '-')
+    ext = 'zip' if salida['xlsx_es_zip'] else 'xlsx'
+    informe.archivo_xlsx.save(f"{base}.{ext}", ContentFile(salida['xlsx']), save=False)
+    if salida['pdf']:
+        informe.archivo_pdf.save(f"{base}.pdf", ContentFile(salida['pdf']), save=False)
+    informe.save()
+
+    # Marcar los resultados incluidos en este informe
+    ResultadoMuestra.objects.filter(pk__in=[r.pk for r in especimenes]).update(
+        informe_ensayo=informe
+    )
+
+    if salida['pdf'] is None:
+        messages.warning(
+            request,
+            "Informe generado en Excel. El PDF no se pudo crear "
+            "(LibreOffice no disponible en el servidor)."
+        )
+    else:
+        messages.success(
+            request,
+            f"Informe {informe.numero_informe} generado con {len(especimenes)} especímenes."
+        )
+    return redirect('detalle_informe_ensayo', pk=informe.pk)
+
+
+@login_required
+def detalle_informe_ensayo(request, pk):
+    """Página del informe generado, con descargas y lista de especímenes."""
+    if not request.user.es_geolab:
+        return redirect('home')
+    informe = get_object_or_404(InformeEnsayo, pk=pk)
+    return render(request, 'ensayos/detalle_informe_ensayo.html', {
+        'informe': informe,
+        'resultados': informe.resultados.select_related('muestra').all(),
+    })
+
+
+def _descargar_archivo(filefield, content_type, inline=False):
+    if not filefield:
+        raise Http404("Archivo no disponible.")
+    nombre = filefield.name.split('/')[-1]
+    with filefield.open('rb') as f:
+        datos = f.read()
+    disp = 'inline' if inline else 'attachment'
+    resp = HttpResponse(datos, content_type=content_type)
+    resp['Content-Disposition'] = f'{disp}; filename="{nombre}"'
+    return resp
+
+
+@login_required
+def descargar_informe_xlsx(request, pk):
+    if not request.user.es_geolab:
+        return redirect('home')
+    informe = get_object_or_404(InformeEnsayo, pk=pk)
+    es_zip = informe.archivo_xlsx and informe.archivo_xlsx.name.endswith('.zip')
+    ctype = 'application/zip' if es_zip else (
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+    )
+    return _descargar_archivo(informe.archivo_xlsx, ctype)
+
+
+@login_required
+def descargar_informe_pdf(request, pk):
+    if not request.user.es_geolab:
+        return redirect('home')
+    informe = get_object_or_404(InformeEnsayo, pk=pk)
+    return _descargar_archivo(informe.archivo_pdf, 'application/pdf', inline=True)

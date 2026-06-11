@@ -1,7 +1,5 @@
-from django.db import models
+from django.db import models, transaction
 from datetime import timedelta
-from math import pi
-from decimal import Decimal, InvalidOperation
 
 
 class HojaTrabajo(models.Model):
@@ -249,6 +247,61 @@ class ResultadoMuestra(models.Model):
         verbose_name='Seleccionado para informe'
     )
 
+    # ══════════════════════════════════════════════════════════════════════════
+    # CAMPOS ESPECÍFICOS PARA VIGAS (Flexión NTC 2871)
+    # Solo aplican cuando la muestra es geometría 'prisma'
+    # ══════════════════════════════════════════════════════════════════════════
+
+    luz_entre_apoyos = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        verbose_name='Luz entre apoyos L (mm)',
+        help_text='Distancia entre apoyos inferiores en mm'
+    )
+
+    distancia_falla_apoyo = models.DecimalField(
+        max_digits=7, decimal_places=2, null=True, blank=True,
+        verbose_name='Distancia falla-apoyo a (mm)',
+        help_text='Distancia de la línea de falla al apoyo más próximo en mm'
+    )
+
+    FORMULA_FLEXION_CHOICES = [
+        ('', '-- Seleccionar --'),
+        ('A', 'A - Falla en tercio medio'),
+        ('B', 'B - Falla fuera del tercio medio'),
+    ]
+    formula_flexion = models.CharField(
+        max_length=1,
+        choices=FORMULA_FLEXION_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Fórmula usada',
+        help_text='A: falla en tercio medio, B: falla fuera del tercio medio'
+    )
+
+    TIPO_ESPECIMEN_VIGA_CHOICES = [
+        ('', '-- Seleccionar --'),
+        ('F', 'Fundido'),
+        ('C', 'Cortado'),
+    ]
+    tipo_especimen_viga = models.CharField(
+        max_length=1,
+        choices=TIPO_ESPECIMEN_VIGA_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Tipo espécimen',
+        help_text='F: Fundido, C: Cortado'
+    )
+
+    # Informe generado que incluye este resultado (marca de inclusión)
+    informe_ensayo = models.ForeignKey(
+        'ensayos.InformeEnsayo',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='resultados',
+        verbose_name='Informe de ensayo'
+    )
+
     class Meta:
         verbose_name = 'Resultado de Muestra'
         verbose_name_plural = 'Resultados de Muestras'
@@ -288,64 +341,51 @@ class ResultadoMuestra(models.Model):
         return None
 
     @property
+    def _macro(self):
+        """Obtiene la macro de cálculo según la geometría de la muestra."""
+        from ensayos.macros import get_macro
+        return get_macro(self.muestra.geometria)
+
+    @property
     def diametro_real(self):
-        """
-        DIÁMETRO REAL = PROMEDIO(D1, D2, D3)
-        Promedio de las 3 mediciones de diámetro en mm.
-        """
-        if all([self.diametro_d1, self.diametro_d2, self.diametro_d3]):
-            promedio = (self.diametro_d1 + self.diametro_d2 + self.diametro_d3) / 3
-            return round(promedio, 2)
-        return None
+        """Promedio de las 3 mediciones de diámetro/lado A en mm."""
+        return self._macro.calcular_dimension_real(
+            self.diametro_d1, self.diametro_d2, self.diametro_d3
+        )
 
     @property
     def longitud_real(self):
-        """
-        LONGITUD REAL = PROMEDIO(L1, L2, L3)
-        Promedio de las 3 mediciones de longitud en mm.
-        """
-        if all([self.longitud_l1, self.longitud_l2, self.longitud_l3]):
-            promedio = (self.longitud_l1 + self.longitud_l2 + self.longitud_l3) / 3
-            return round(promedio, 2)
-        return None
+        """Promedio de las 3 mediciones de longitud/lado B en mm."""
+        return self._macro.calcular_dimension_real(
+            self.longitud_l1, self.longitud_l2, self.longitud_l3
+        )
 
     @property
     def area_mm2(self):
-        """
-        ÁREA = PI * DIÁMETRO² / 4 / 100
-        Área de la sección transversal en mm².
-        """
-        if self.diametro_real:
-            area = (Decimal(str(pi)) * (self.diametro_real ** 2) / 4) / 100
-            return round(area, 2)
-        return None
+        """Área de la sección transversal. Fórmula varía según geometría."""
+        return self._macro.calcular_area(self.diametro_real, self.longitud_real)
 
     @property
     def esfuerzo_mpa(self):
-        """
-        ESFUERZO = (CARGA_KN * 101.9716 / ÁREA) / 10
-        Resistencia real a la compresión en MPa.
-        """
-        if self.carga_maxima_kn and self.area_mm2:
-            esfuerzo = (self.carga_maxima_kn * Decimal('101.9716') / self.area_mm2) / 10
-            return round(esfuerzo, 2)
-        return None
+        """Resistencia/módulo de rotura en MPa. Fórmula varía según geometría."""
+        from ensayos.geometry import GEOMETRIA_PRISMA
+        if self.muestra.geometria == GEOMETRIA_PRISMA:
+            return self._macro.calcular_esfuerzo_viga(
+                self.carga_maxima_kn,
+                self.diametro_real,   # b (ancho)
+                self.longitud_real,   # d (altura)
+                self.luz_entre_apoyos,
+                self.distancia_falla_apoyo,
+                self.formula_flexion,
+            )
+        return self._macro.calcular_esfuerzo(self.carga_maxima_kn, self.area_mm2)
 
     @property
     def porcentaje_desarrollo(self):
-        """
-        % DESARROLLO = (ESFUERZO / F'c) * 100
-        Porcentaje de la resistencia alcanzada vs la esperada.
-        """
-        if self.esfuerzo_mpa and self.muestra.fc_resistencia:
-            try:
-                fc = Decimal(str(self.muestra.fc_resistencia))
-                if fc > 0:
-                    porcentaje = (self.esfuerzo_mpa / fc) * 100
-                    return round(porcentaje, 1)
-            except (ValueError, TypeError, InvalidOperation):
-                pass
-        return None
+        """Porcentaje de la resistencia alcanzada vs la esperada."""
+        return self._macro.calcular_porcentaje(
+            self.esfuerzo_mpa, self.muestra.fc_resistencia
+        )
 
     @property
     def cumple_resistencia(self):
@@ -377,3 +417,68 @@ class ResultadoMuestra(models.Model):
             self.hoja_trabajo.actualizar_estado()
             return True
         return False
+
+
+class ConsecutivoInforme(models.Model):
+    """
+    Contador del consecutivo de informes, global por año.
+    Formato del número: INF{n}-{año} (ej. INF1079-2026).
+    """
+    anio = models.PositiveIntegerField(unique=True, verbose_name='Año')
+    ultimo = models.PositiveIntegerField(default=0, verbose_name='Último consecutivo')
+
+    class Meta:
+        verbose_name = 'Consecutivo de Informe'
+        verbose_name_plural = 'Consecutivos de Informe'
+
+    def __str__(self):
+        return f"{self.anio}: {self.ultimo}"
+
+    @classmethod
+    def siguiente(cls, anio):
+        """Asigna y devuelve el siguiente número de informe de forma atómica."""
+        with transaction.atomic():
+            contador, _ = cls.objects.select_for_update().get_or_create(anio=anio)
+            contador.ultimo += 1
+            contador.save(update_fields=['ultimo'])
+            return f"INF{contador.ultimo}-{anio}"
+
+
+class InformeEnsayo(models.Model):
+    """
+    Informe de resultados generado a partir de la plantilla Excel oficial.
+    Un informe = (obra, tipo, fecha de falla). Reusa el mismo N° al re-generar.
+    """
+    TIPO_CHOICES = [
+        ('compresion_cilindros', 'Compresión de cilindros de concreto'),
+    ]
+
+    obra = models.ForeignKey(
+        'core.Obra', on_delete=models.CASCADE, related_name='informes_ensayo'
+    )
+    tipo = models.CharField(
+        max_length=30, choices=TIPO_CHOICES, default='compresion_cilindros'
+    )
+    numero_informe = models.CharField(max_length=50, unique=True)
+    fecha_falla = models.DateField(verbose_name='Fecha de falla')
+    fecha_emision = models.DateField(auto_now_add=True)
+    ciudad = models.CharField(max_length=100, blank=True)
+    generado_por = models.ForeignKey(
+        'users.UsuarioBase', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='informes_ensayo_generados'
+    )
+    archivo_xlsx = models.FileField(
+        upload_to='informes_ensayo/%Y/%m/', null=True, blank=True
+    )
+    archivo_pdf = models.FileField(
+        upload_to='informes_ensayo/%Y/%m/', null=True, blank=True
+    )
+
+    class Meta:
+        verbose_name = 'Informe de Ensayo'
+        verbose_name_plural = 'Informes de Ensayo'
+        ordering = ['-fecha_emision', '-id']
+        unique_together = ['obra', 'tipo', 'fecha_falla']
+
+    def __str__(self):
+        return f"{self.numero_informe} - {self.obra.nombre}"

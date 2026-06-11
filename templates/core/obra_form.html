@@ -1,0 +1,48 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+
+        <a href="javascript:history.back()" class="text-decoration-none text-muted mb-3 d-inline-block">
+            <i class="bi bi-arrow-left"></i> Volver atrás
+        </a>
+
+        <div class="card card-custom border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="fw-bold mb-4">{{ titulo }}</h4>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">{{ form.nombre.label }}</label>
+                        {{ form.nombre }}
+                        {% if form.nombre.errors %}<div class="text-danger small mt-1">{{ form.nombre.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Código de obra</label>
+                        <div class="input-group">
+                            <span class="input-group-text fw-bold">{{ form.prefijo_codigo }}</span>
+                            {{ form.numero_codigo }}
+                        </div>
+                        {% if form.numero_codigo.errors %}<div class="text-danger small mt-1">{{ form.numero_codigo.errors.0 }}</div>{% endif %}
+                        <div class="form-text">El prefijo corresponde al código de la empresa.</div>
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save me-2"></i> {{ btn_texto }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

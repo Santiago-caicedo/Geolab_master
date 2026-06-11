@@ -340,7 +340,7 @@
                     <td><strong>{{ m.numero_muestra }}</strong></td>
                     <td>{{ m.cantidad }}</td>
                     <td>{{ m.get_tipo_muestra_display }}</td>
-                    <td>{% if m.diametro_longitud %}{{ m.diametro_longitud }} {{ m.unidad_diametro }}{% else %}-{% endif %}</td>
+                    <td>{{ m.dimension_display }}</td>
                     <td class="col-ensayos">
                         {% for e in m.ensayos_list %}{{ e }}{% if not forloop.last %}, {% endif %}{% empty %}-{% endfor %}
                     </td>

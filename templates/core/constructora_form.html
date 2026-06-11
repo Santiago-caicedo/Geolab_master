@@ -1,0 +1,75 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-md-8 col-lg-6">
+
+        <a href="javascript:history.back()" class="text-decoration-none text-muted mb-3 d-inline-block">
+            <i class="bi bi-arrow-left"></i> Volver atrás
+        </a>
+
+        <div class="card card-custom border-0 shadow-sm">
+            <div class="card-body p-4">
+                <h4 class="fw-bold mb-4">{{ titulo }}</h4>
+
+                <form method="post">
+                    {% csrf_token %}
+
+                    {% if form.non_field_errors %}
+                        <div class="alert alert-danger py-2">{{ form.non_field_errors }}</div>
+                    {% endif %}
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">{{ form.nombre.label }}</label>
+                        {{ form.nombre }}
+                        {% if form.nombre.errors %}<div class="text-danger small mt-1">{{ form.nombre.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">{{ form.ciudad.label }}</label>
+                        {{ form.ciudad }}
+                        {% if form.ciudad.errors %}<div class="text-danger small mt-1">{{ form.ciudad.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">Código interno</label>
+                        <div class="input-group">
+                            <span class="input-group-text fw-bold" id="prefijo-codigo">--</span>
+                            {{ form.numero_codigo }}
+                        </div>
+                        {% if form.numero_codigo.errors %}<div class="text-danger small mt-1">{{ form.numero_codigo.errors.0 }}</div>{% endif %}
+                        <div class="form-text">El prefijo se asigna automáticamente según la ciudad seleccionada.</div>
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label fw-bold small text-muted text-uppercase">{{ form.nit.label }}</label>
+                        {{ form.nit }}
+                        {% if form.nit.errors %}<div class="text-danger small mt-1">{{ form.nit.errors.0 }}</div>{% endif %}
+                    </div>
+
+                    <div class="d-grid mt-4">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="bi bi-save me-2"></i> {{ btn_texto }}
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    (function () {
+        const PREFIJOS = { 'Bucaramanga': 'BUC', 'Bogotá': 'BOG', 'Ibagué': 'IBA' };
+        const ciudad = document.getElementById('id_ciudad');
+        const prefijoSpan = document.getElementById('prefijo-codigo');
+
+        function actualizarPrefijo() {
+            prefijoSpan.textContent = PREFIJOS[ciudad.value] || '--';
+        }
+
+        ciudad.addEventListener('change', actualizarPrefijo);
+        actualizarPrefijo();
+    })();
+</script>
+{% endblock %}

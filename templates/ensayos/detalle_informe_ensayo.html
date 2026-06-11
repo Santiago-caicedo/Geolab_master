@@ -1,0 +1,86 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="row justify-content-center">
+    <div class="col-lg-10">
+
+        <a href="{% url 'hoja_trabajo_obra' informe.obra.pk %}" class="text-decoration-none text-muted mb-3 d-inline-block">
+            <i class="bi bi-arrow-left"></i> Volver a la hoja de trabajo
+        </a>
+
+        <div class="card card-custom border-0 shadow-sm mb-4">
+            <div class="card-body p-4">
+                <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+                    <div>
+                        <h4 class="fw-bold mb-1">Informe {{ informe.numero_informe }}</h4>
+                        <div class="text-muted small">
+                            <div><i class="bi bi-building me-1"></i> {{ informe.obra.constructora.nombre }}</div>
+                            <div><i class="bi bi-bricks me-1"></i> {{ informe.obra.codigo_obra }} — {{ informe.obra.nombre }}</div>
+                            <div><i class="bi bi-geo-alt me-1"></i> {{ informe.ciudad|default:"--" }}</div>
+                            <div><i class="bi bi-calendar-event me-1"></i> Fecha de falla: {{ informe.fecha_falla|date:"Y-m-d" }}</div>
+                            <div><i class="bi bi-clock-history me-1"></i> Emitido: {{ informe.fecha_emision|date:"Y-m-d" }}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex flex-column gap-2">
+                        {% if informe.archivo_xlsx %}
+                        <a href="{% url 'descargar_informe_xlsx' informe.pk %}" class="btn btn-success">
+                            <i class="bi bi-file-earmark-excel me-1"></i> Descargar Excel
+                        </a>
+                        {% endif %}
+                        {% if informe.archivo_pdf %}
+                        <a href="{% url 'descargar_informe_pdf' informe.pk %}" class="btn btn-danger" target="_blank">
+                            <i class="bi bi-file-earmark-pdf me-1"></i> Descargar PDF
+                        </a>
+                        {% else %}
+                        <span class="badge bg-warning text-dark">PDF no disponible (sin LibreOffice)</span>
+                        {% endif %}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="card card-custom border-0 shadow-sm">
+            <div class="card-header bg-light fw-bold">
+                Especímenes incluidos ({{ resultados|length }})
+            </div>
+            <div class="table-responsive">
+                <table class="table table-hover align-middle mb-0">
+                    <thead class="bg-light">
+                        <tr>
+                            <th class="ps-3">Muestra</th>
+                            <th>Localización</th>
+                            <th class="text-center">Edad (d)</th>
+                            <th class="text-center">Ø real (mm)</th>
+                            <th class="text-center">Carga (kN)</th>
+                            <th class="text-center">Resistencia (MPa)</th>
+                            <th class="text-center">% desarrollo</th>
+                            <th class="text-center">Falla</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in resultados %}
+                        <tr>
+                            <td class="ps-3 fw-bold">{{ r.muestra.numero_muestra }}</td>
+                            <td class="small">{{ r.muestra.localizacion|default:"--" }}</td>
+                            <td class="text-center">{{ r.muestra.edad_ensayo_dias }}</td>
+                            <td class="text-center">{{ r.diametro_real|default:"--" }}</td>
+                            <td class="text-center">{{ r.carga_maxima_kn|default:"--" }}</td>
+                            <td class="text-center">{{ r.esfuerzo_mpa|default:"--" }}</td>
+                            <td class="text-center">
+                                {% if r.porcentaje_desarrollo is not None %}
+                                    <span class="badge {% if r.cumple_resistencia %}bg-success{% else %}bg-secondary{% endif %}">
+                                        {{ r.porcentaje_desarrollo }}%
+                                    </span>
+                                {% else %}--{% endif %}
+                            </td>
+                            <td class="text-center small">{{ r.get_forma_falla_display|default:"--" }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+</div>
+{% endblock %}

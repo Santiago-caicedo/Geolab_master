@@ -1,0 +1,973 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Flujo de Remisiones - Geolab Master</title>
+<style>
+  :root {
+    --brand-blue: #008ed6;
+    --brand-dark: #1c2e4a;
+    --bg-body: #f8fafc;
+    --border: #e2e8f0;
+    --text-main: #334155;
+    --text-muted: #94a3b8;
+    --success: #059669;
+    --warning: #f59e0b;
+    --danger: #dc2626;
+    --deprecated: #9ca3af;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+    line-height: 1.5;
+    padding: 2rem;
+  }
+
+  .container {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--brand-dark) 0%, #2d4a73 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  header h1 {
+    font-size: 1.75rem;
+    margin-bottom: 0.5rem;
+  }
+
+  header p {
+    opacity: 0.85;
+    font-size: 0.95rem;
+  }
+
+  .section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-size: 1.15rem;
+    color: var(--brand-dark);
+    margin-bottom: 1.25rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 2px solid var(--brand-blue);
+    font-weight: 700;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .section-num {
+    background: var(--brand-blue);
+    color: white;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.95rem;
+    flex-shrink: 0;
+  }
+
+  /* ORÍGENES */
+  .origins-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  .origin-card {
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    background: white;
+    position: relative;
+    transition: all 0.2s;
+  }
+
+  .origin-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  .origin-card.active { border-color: var(--success); background: #f0fdf4; }
+  .origin-card.staff { border-color: var(--brand-blue); background: #f0f9ff; }
+  .origin-card.deprecated { border-color: var(--deprecated); background: #f9fafb; opacity: 0.85; }
+
+  .origin-badge {
+    position: absolute;
+    top: -10px;
+    right: 12px;
+    font-size: 0.7rem;
+    padding: 0.25rem 0.6rem;
+    border-radius: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .origin-badge.active { background: var(--success); color: white; }
+  .origin-badge.staff { background: var(--brand-blue); color: white; }
+  .origin-badge.deprecated { background: var(--deprecated); color: white; }
+
+  .origin-title { font-weight: 700; margin-bottom: 0.5rem; color: var(--brand-dark); }
+  .origin-route { font-family: "Consolas", monospace; font-size: 0.8rem; background: #f1f5f9; padding: 0.3rem 0.6rem; border-radius: 4px; display: inline-block; margin-bottom: 0.75rem; color: var(--brand-dark); }
+  .origin-view { font-family: "Consolas", monospace; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.75rem; }
+  .origin-desc { font-size: 0.85rem; color: var(--text-main); }
+  .origin-features { font-size: 0.78rem; color: var(--text-muted); margin-top: 0.6rem; padding-top: 0.6rem; border-top: 1px dashed var(--border); }
+  .origin-features li { margin-left: 1.2rem; margin-bottom: 0.2rem; }
+
+  /* FLUJO PRINCIPAL */
+  .flow-diagram {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    align-items: stretch;
+  }
+
+  .flow-step {
+    background: white;
+    border: 2px solid var(--border);
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: grid;
+    grid-template-columns: 50px 1fr;
+    gap: 1rem;
+    align-items: center;
+    position: relative;
+  }
+
+  .flow-step .step-num {
+    background: var(--brand-blue);
+    color: white;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1.1rem;
+  }
+
+  .flow-step .step-content h4 {
+    color: var(--brand-dark);
+    margin-bottom: 0.25rem;
+    font-size: 1rem;
+  }
+
+  .flow-step .step-content .step-meta {
+    font-size: 0.78rem;
+    color: var(--text-muted);
+    font-family: "Consolas", monospace;
+    margin-bottom: 0.3rem;
+  }
+
+  .flow-step .step-content .step-desc {
+    font-size: 0.87rem;
+  }
+
+  .flow-arrow {
+    text-align: center;
+    color: var(--brand-blue);
+    font-size: 1.5rem;
+    line-height: 0.5;
+    margin: -0.2rem 0;
+  }
+
+  .flow-step.atomic { border-color: var(--brand-blue); background: #f0f9ff; }
+  .flow-step.atomic .step-num { background: var(--brand-blue); }
+
+  .flow-step.notify { border-color: var(--warning); background: #fffbeb; }
+  .flow-step.notify .step-num { background: var(--warning); }
+
+  .flow-step.lab { border-color: var(--success); background: #f0fdf4; }
+  .flow-step.lab .step-num { background: var(--success); }
+
+  /* DESTINOS DE DATOS */
+  .destinations-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+
+  .dest-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    background: white;
+  }
+
+  .dest-icon {
+    width: 48px;
+    height: 48px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.4rem;
+    color: white;
+    margin-bottom: 0.75rem;
+    font-weight: 700;
+  }
+
+  .dest-icon.db { background: #3b82f6; }
+  .dest-icon.email { background: #f59e0b; }
+  .dest-icon.bell { background: #ec4899; }
+  .dest-icon.s3 { background: #8b5cf6; }
+
+  .dest-title { font-weight: 700; color: var(--brand-dark); margin-bottom: 0.3rem; }
+  .dest-tech { font-family: "Consolas", monospace; font-size: 0.75rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+  .dest-items { font-size: 0.85rem; }
+  .dest-items li { margin-left: 1.2rem; margin-bottom: 0.25rem; }
+
+  /* ESTADOS */
+  .states-flow {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    padding: 1rem;
+    background: #f8fafc;
+    border-radius: 8px;
+  }
+
+  .state-pill {
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 600;
+    font-size: 0.85rem;
+    color: white;
+    white-space: nowrap;
+  }
+
+  .state-pill.borrador { background: #6b7280; }
+  .state-pill.enviada { background: var(--warning); }
+  .state-pill.completada { background: var(--success); }
+  .state-pill.vencida { background: var(--danger); }
+
+  .state-arrow {
+    color: var(--text-muted);
+    font-weight: 700;
+  }
+
+  /* TIPOS DE INFORMES */
+  .reports-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1rem;
+  }
+
+  .report-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 1.25rem;
+    background: white;
+    position: relative;
+  }
+
+  .report-status {
+    position: absolute;
+    top: 12px;
+    right: 12px;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  .report-status.implemented { background: #d1fae5; color: var(--success); }
+  .report-status.partial { background: #fef3c7; color: #92400e; }
+  .report-status.gap { background: #fee2e2; color: var(--danger); }
+
+  .report-title { font-weight: 700; color: var(--brand-dark); margin-bottom: 0.3rem; padding-right: 80px; }
+  .report-format { font-family: "Consolas", monospace; font-size: 0.78rem; color: var(--brand-blue); margin-bottom: 0.5rem; font-weight: 600; }
+  .report-engine { font-size: 0.78rem; color: var(--text-muted); margin-bottom: 0.5rem; }
+  .report-desc { font-size: 0.85rem; margin-bottom: 0.5rem; }
+  .report-route { font-family: "Consolas", monospace; font-size: 0.72rem; background: #f1f5f9; padding: 0.25rem 0.5rem; border-radius: 4px; display: inline-block; color: var(--brand-dark); }
+
+  /* CADENA DE CUSTODIA */
+  .custody-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.75rem;
+  }
+
+  .custody-stage {
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem;
+    background: white;
+  }
+
+  .custody-stage h5 {
+    color: var(--brand-dark);
+    font-size: 0.95rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.4rem;
+    border-bottom: 2px solid var(--brand-blue);
+  }
+
+  .custody-stage ul {
+    font-size: 0.8rem;
+    font-family: "Consolas", monospace;
+    color: var(--text-main);
+  }
+
+  .custody-stage ul li {
+    margin-left: 1rem;
+    margin-bottom: 0.2rem;
+    color: var(--text-muted);
+  }
+
+  /* ROLES */
+  .roles-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 0.75rem;
+  }
+
+  .role-card {
+    border-left: 4px solid var(--brand-blue);
+    background: white;
+    padding: 1rem;
+    border-radius: 6px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  }
+
+  .role-card.remitente { border-left-color: var(--warning); }
+  .role-card.staff { border-left-color: var(--brand-blue); }
+  .role-card.tecnico { border-left-color: var(--success); }
+  .role-card.cliente { border-left-color: #8b5cf6; }
+
+  .role-name { font-weight: 700; color: var(--brand-dark); margin-bottom: 0.3rem; }
+  .role-actions { font-size: 0.8rem; color: var(--text-main); }
+  .role-actions li { margin-left: 1.1rem; margin-bottom: 0.15rem; }
+
+  /* TABLA DE MODELOS */
+  .models-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .models-table th {
+    background: var(--brand-dark);
+    color: white;
+    text-align: left;
+    padding: 0.65rem 0.8rem;
+    font-weight: 600;
+    font-size: 0.8rem;
+  }
+
+  .models-table td {
+    padding: 0.65rem 0.8rem;
+    border-bottom: 1px solid var(--border);
+    vertical-align: top;
+  }
+
+  .models-table tr:nth-child(even) td { background: #fafbfc; }
+
+  .models-table code {
+    font-family: "Consolas", monospace;
+    background: #f1f5f9;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.78rem;
+    color: var(--brand-blue);
+  }
+
+  /* DIAGRAMA DE DATOS */
+  .data-diagram {
+    background: #fafbfc;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    font-family: "Consolas", monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    color: var(--brand-dark);
+  }
+
+  .data-diagram .key { color: var(--brand-blue); font-weight: 700; }
+  .data-diagram .comment { color: var(--text-muted); font-style: italic; }
+  .data-diagram .arrow { color: var(--success); font-weight: 700; }
+
+  /* NOTAS */
+  .note {
+    background: #fffbeb;
+    border-left: 4px solid var(--warning);
+    padding: 0.75rem 1rem;
+    border-radius: 4px;
+    font-size: 0.85rem;
+    margin-top: 0.75rem;
+  }
+
+  .note strong { color: #92400e; }
+
+  .legend {
+    display: flex;
+    gap: 1rem;
+    flex-wrap: wrap;
+    margin-top: 0.75rem;
+    font-size: 0.8rem;
+  }
+
+  .legend-item { display: flex; align-items: center; gap: 0.4rem; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+  footer {
+    text-align: center;
+    padding: 1.5rem;
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    margin-top: 2rem;
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 1rem; }
+    .custody-grid { grid-template-columns: 1fr; }
+    .flow-step { grid-template-columns: 40px 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>Flujo de Remisiones de Muestras - Geolab Master</h1>
+  <p>Diagrama completo del ciclo de vida de una remisión: orígenes, recorrido de datos, destinos y tipos de informes generados.</p>
+</header>
+
+<!-- =================== ORÍGENES =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">1</span>¿De dónde se originan las remisiones?</h2>
+  <p style="margin-bottom: 1rem; color: var(--text-muted);">Hay <strong>3 puntos de entrada</strong> al sistema para crear una remisión de muestras (formato F-GC-05):</p>
+
+  <div class="origins-grid">
+
+    <div class="origin-card active">
+      <span class="origin-badge active">Activo</span>
+      <div class="origin-title">1. Remitente (cliente externo)</div>
+      <div class="origin-route">POST /remitente/obras/&lt;obra_pk&gt;/nueva-remision/</div>
+      <div class="origin-view">solicitudes.views.crear_remision_cliente</div>
+      <div class="origin-desc">El cliente autenticado con rol <code>remitente</code> crea la remisión desde su panel. El sistema auto-firma con sus datos (nombre, email, cargo).</div>
+      <div class="origin-features">
+        <strong>Características:</strong>
+        <ul>
+          <li>Auto-firma con request.user</li>
+          <li>Registra IP + User-Agent</li>
+          <li>Estado → completada inmediato</li>
+          <li>acepta_veracidad = True auto</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="origin-card staff">
+      <span class="origin-badge staff">Activo</span>
+      <div class="origin-title">2. Staff Geolab (interno)</div>
+      <div class="origin-route">POST /obras/&lt;obra_pk&gt;/nueva-remision/</div>
+      <div class="origin-view">solicitudes.views.crear_remision</div>
+      <div class="origin-desc">Personal de Geolab (admin, lab, recepción) crea la remisión manualmente cuando el cliente la envía en papel o por otros medios.</div>
+      <div class="origin-features">
+        <strong>Características:</strong>
+        <ul>
+          <li>Llena todos los datos a mano</li>
+          <li>Útil para clientes sin acceso digital</li>
+          <li>Solo para usuarios es_geolab=True</li>
+        </ul>
+      </div>
+    </div>
+
+    <div class="origin-card deprecated">
+      <span class="origin-badge deprecated">Deprecado</span>
+      <div class="origin-title">3. Token público (legacy)</div>
+      <div class="origin-route">GET/POST /remision/&lt;token&gt;/</div>
+      <div class="origin-view">solicitudes.views.responder_remision</div>
+      <div class="origin-desc">Sistema antiguo donde se enviaba un link con token al cliente para que respondiera la remisión sin autenticarse. <strong>Reemplazado por el rol Remitente</strong>.</div>
+      <div class="origin-features">
+        <strong>Campos legacy:</strong>
+        <ul>
+          <li>token_acceso (nullable)</li>
+          <li>email_destinatario (nullable)</li>
+          <li>Ruta aún existe por compatibilidad</li>
+        </ul>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- =================== FLUJO PRINCIPAL =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">2</span>Flujo paso a paso de los datos</h2>
+
+  <div class="flow-diagram">
+
+    <div class="flow-step">
+      <div class="step-num">1</div>
+      <div class="step-content">
+        <h4>Usuario llena el formulario de remisión</h4>
+        <div class="step-meta">Form: CrearRemisionClienteForm + MuestraFormSet (inlineformset_factory)</div>
+        <div class="step-desc">Datos del proyecto + N muestras con: tipo, dimension_especimen, cantidad, edad_ensayo, fc_resistencia, etc.</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step">
+      <div class="step-num">2</div>
+      <div class="step-content">
+        <h4>Validación cliente + servidor</h4>
+        <div class="step-meta">form.is_valid() + formset.is_valid() + clean_acepta_veracidad()</div>
+        <div class="step-desc">Se valida que haya al menos 1 muestra no eliminada, checkbox legal aceptado, contraseñas, etc.</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step atomic">
+      <div class="step-num">3</div>
+      <div class="step-content">
+        <h4>🔒 Transacción atómica (transaction.atomic)</h4>
+        <div class="step-meta">Si CUALQUIER paso falla → rollback completo</div>
+        <div class="step-desc">
+          <strong>3.1</strong> Guarda <code>RemisionMuestras</code> (auto-genera orden_trabajo)<br>
+          <strong>3.2</strong> Guarda <code>Muestra</code>s del formset (auto-clasifica geometría en save())<br>
+          <strong>3.3</strong> Llama <code>crear_hoja_trabajo_y_resultados()</code><br>
+          <strong>3.4</strong> Crea <code>HojaTrabajo</code> (1:1 con remisión)<br>
+          <strong>3.5</strong> bulk_create de <code>ResultadoMuestra</code> (uno por muestra)
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step notify">
+      <div class="step-num">4</div>
+      <div class="step-content">
+        <h4>📨 Notificación dual (fuera de transacción)</h4>
+        <div class="step-meta">solicitudes.views.notificar_nueva_remision()</div>
+        <div class="step-desc">
+          <strong>4.1</strong> Crea registro <code>Notificacion</code> (campana en DB)<br>
+          <strong>4.2</strong> Envía email via <code>send_mail</code> a todos los <code>UsuarioBase.es_geolab=True, is_active=True</code>
+        </div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step lab">
+      <div class="step-num">5</div>
+      <div class="step-content">
+        <h4>Staff recibe muestras físicamente</h4>
+        <div class="step-meta">Vista: detalle_remision (completa cadena de custodia LAB)</div>
+        <div class="step-desc">Llena: <code>lab_fecha</code>, <code>lab_cantidad</code>, <code>lab_estado</code>, <code>lab_firma_nombre</code>. Marca remisión como <code>programado=True</code>.</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step lab">
+      <div class="step-num">6</div>
+      <div class="step-content">
+        <h4>Técnico ejecuta ensayos</h4>
+        <div class="step-meta">/ensayos/dashboard-tecnico/ → /resultado/&lt;pk&gt;/editar/ (HTMX)</div>
+        <div class="step-desc">Ingresa mediciones (D1-D3, L1-L3, peso, carga). Backend valida → calcula vía macro correspondiente (cilindro/cubo/prisma) → guarda → renderiza partial HTML.</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step lab">
+      <div class="step-num">7</div>
+      <div class="step-content">
+        <h4>Auto-cálculos vía Strategy Pattern</h4>
+        <div class="step-meta">ResultadoMuestra._macro = get_macro(muestra.geometria)</div>
+        <div class="step-desc">Properties calculadas on-demand: <code>diametro_real</code>, <code>area_mm2</code>, <code>esfuerzo_mpa</code>, <code>porcentaje_desarrollo</code>, <code>cumple_resistencia</code>. Cada geometría usa fórmulas distintas (NTC 220, NTC 2871).</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step">
+      <div class="step-num">8</div>
+      <div class="step-content">
+        <h4>HojaTrabajo.actualizar_estado()</h4>
+        <div class="step-meta">Auto-recalculado al guardar cada resultado</div>
+        <div class="step-desc">Si 0 completadas → pendiente · Si parcial → en_proceso · Si todas → completada</div>
+      </div>
+    </div>
+    <div class="flow-arrow">▼</div>
+
+    <div class="flow-step">
+      <div class="step-num">9</div>
+      <div class="step-content">
+        <h4>Generación de informes (ver sección 5)</h4>
+        <div class="step-meta">Múltiples salidas posibles</div>
+        <div class="step-desc">PDF de remisión, PDF de factura, hoja de trabajo en HTML, o subida manual de informe PDF asociado a la obra.</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- =================== DESTINOS DE DATOS =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">3</span>¿A dónde van los datos? (Destinos)</h2>
+
+  <div class="destinations-grid">
+
+    <div class="dest-card">
+      <div class="dest-icon db">DB</div>
+      <div class="dest-title">PostgreSQL (principal)</div>
+      <div class="dest-tech">DB_ENGINE=postgresql</div>
+      <ul class="dest-items">
+        <li><code>RemisionMuestras</code> (encabezado F-GC-05)</li>
+        <li><code>Muestra</code> (N por remisión)</li>
+        <li><code>HojaTrabajo</code> (1:1 con remisión)</li>
+        <li><code>ResultadoMuestra</code> (1:1 con muestra)</li>
+        <li><code>Notificacion</code> (campana)</li>
+      </ul>
+    </div>
+
+    <div class="dest-card">
+      <div class="dest-icon email">📧</div>
+      <div class="dest-title">Email SMTP</div>
+      <div class="dest-tech">DEFAULT_FROM_EMAIL → staff es_geolab</div>
+      <ul class="dest-items">
+        <li>Asunto: "[Geolab] Nueva Remisión #N"</li>
+        <li>DEV: console backend</li>
+        <li>PROD: SMTP Gmail/empresarial</li>
+        <li>fail_silently=True</li>
+      </ul>
+    </div>
+
+    <div class="dest-card">
+      <div class="dest-icon bell">🔔</div>
+      <div class="dest-title">Campana (Notificación DB)</div>
+      <div class="dest-tech">Polling AJAX cada 30s en navbar</div>
+      <ul class="dest-items">
+        <li><code>tipo='nueva_remision'</code></li>
+        <li><code>solo_staff=True</code></li>
+        <li>FK opcional a remisión</li>
+        <li>Endpoints: contar / recientes / marcar_leida</li>
+      </ul>
+    </div>
+
+    <div class="dest-card">
+      <div class="dest-icon s3">☁️</div>
+      <div class="dest-title">AWS S3 (PDFs generados)</div>
+      <div class="dest-tech">vadomdata/geolab/media/</div>
+      <ul class="dest-items">
+        <li>PDFs de remisión: remisiones_pdf/</li>
+        <li>PDFs de factura: facturas/&lt;YYYY&gt;/&lt;MM&gt;/</li>
+        <li>Documentos SGC: calidad/&lt;YYYY&gt;/&lt;MM&gt;/</li>
+        <li>Solo cuando DEBUG=False</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- =================== ESTADOS =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">4</span>Estados de la remisión</h2>
+
+  <div class="states-flow">
+    <span class="state-pill borrador">borrador</span>
+    <span class="state-arrow">→</span>
+    <span class="state-pill enviada">enviada</span>
+    <span class="state-arrow">→</span>
+    <span class="state-pill completada">completada</span>
+    <span class="state-arrow" style="margin-left: 1rem; color: var(--danger);">⚠</span>
+    <span class="state-pill vencida">vencida</span>
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><div class="legend-dot" style="background:#6b7280"></div> <strong>borrador:</strong> creada pero no enviada (uso interno)</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--warning)"></div> <strong>enviada:</strong> firmada por el cliente, esperando ensayos</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--success)"></div> <strong>completada:</strong> con muestras y firma — caso típico actual</div>
+    <div class="legend-item"><div class="legend-dot" style="background:var(--danger)"></div> <strong>vencida:</strong> sin completar después de cierto tiempo</div>
+  </div>
+
+  <div class="note">
+    <strong>Importante:</strong> Actualmente, las remisiones creadas vía <code>crear_remision_cliente</code> o <code>responder_remision</code> pasan directamente a <code>completada</code> porque ya incluyen muestras + firma. El estado <code>borrador</code> aplica más a remisiones internas iniciadas por staff.
+  </div>
+</div>
+
+<!-- =================== TIPOS DE INFORMES =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">5</span>Tipos de informes y generación de PDFs</h2>
+  <p style="margin-bottom: 1rem; color: var(--text-muted);">El sistema genera <strong>4 tipos distintos</strong> de documentos:</p>
+
+  <div class="reports-grid">
+
+    <div class="report-card">
+      <span class="report-status implemented">Implementado</span>
+      <div class="report-title">PDF Remisión F-GC-05</div>
+      <div class="report-format">Formato F-GC-05 (Landscape Letter)</div>
+      <div class="report-engine">Engine: WeasyPrint · Template: pdf_remision.html</div>
+      <div class="report-desc">PDF imprimible de la remisión completa con encabezado, datos del proyecto, tabla de muestras, cadena de custodia y firmas.</div>
+      <div class="report-route">GET /remisiones/&lt;pk&gt;/pdf/</div>
+    </div>
+
+    <div class="report-card">
+      <span class="report-status implemented">Implementado</span>
+      <div class="report-title">PDF Factura</div>
+      <div class="report-format">Formato fiscal (Portrait Letter)</div>
+      <div class="report-engine">Engine: WeasyPrint · Template: factura_pdf.html</div>
+      <div class="report-desc">Factura agrupada por obra y periodo, con líneas de servicios (incluye tratamiento especial para categoría 7 = Transporte).</div>
+      <div class="report-route">GET /facturacion/factura/&lt;pk&gt;/pdf/</div>
+    </div>
+
+    <div class="report-card">
+      <span class="report-status partial">Solo HTML</span>
+      <div class="report-title">Hoja de Trabajo F-GT-05</div>
+      <div class="report-format">Formato F-GT-05 (web editable)</div>
+      <div class="report-engine">Engine: HTML + HTMX · Template: hoja_trabajo_obra.html</div>
+      <div class="report-desc">Vista web editable con cálculos client-side en JS (replican las macros). Permite registrar mediciones en tiempo real, pero <strong>NO se exporta a PDF</strong>.</div>
+      <div class="report-route">GET /ensayos/hojas-trabajo/obra/&lt;obra_pk&gt;/</div>
+    </div>
+
+    <div class="report-card">
+      <span class="report-status gap">GAP del sistema</span>
+      <div class="report-title">Informe técnico de resultados</div>
+      <div class="report-format">PDF con resultados de ensayos</div>
+      <div class="report-engine">Engine: manual (subida de PDF externo)</div>
+      <div class="report-desc"><strong>No se genera automáticamente.</strong> Staff sube PDFs manualmente como <code>Informe</code> asociado a una <code>Obra</code> (típicamente generados en Excel/Word externo). Los campos <code>HojaTrabajo.numero_informe</code> y estado <code>informe_generado</code> existen pero no se usan.</div>
+      <div class="report-route">POST /cargar-informe/</div>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <strong>Oportunidad de mejora:</strong> Actualmente existe un GAP entre los resultados de la <code>HojaTrabajo</code> (calculados automáticamente por las macros) y la generación final del informe PDF. Este proceso es manual y propenso a duplicación de trabajo. Una mejora natural sería un endpoint <code>/ensayos/&lt;pk&gt;/informe-pdf/</code> que genere automáticamente el PDF con los datos ya calculados.
+  </div>
+</div>
+
+<!-- =================== CADENA DE CUSTODIA =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">6</span>Cadena de custodia (3 etapas)</h2>
+  <p style="margin-bottom: 1rem; color: var(--text-muted);">La remisión tiene <strong>3 secciones de firma</strong> que se llenan en momentos distintos del ciclo:</p>
+
+  <div class="custody-grid">
+
+    <div class="custody-stage">
+      <h5>① Cliente (al enviar muestra)</h5>
+      <ul>
+        <li>cliente_fecha</li>
+        <li>cliente_cantidad</li>
+        <li>cliente_estado</li>
+        <li>cliente_firma_nombre</li>
+        <li>cliente_observaciones</li>
+      </ul>
+      <p style="margin-top:0.5rem; font-size:0.78rem; color: var(--text-muted);">Llenado durante la creación de la remisión.</p>
+    </div>
+
+    <div class="custody-stage">
+      <h5>② Laboratorio (al recibir)</h5>
+      <ul>
+        <li>lab_fecha</li>
+        <li>lab_cantidad</li>
+        <li>lab_estado</li>
+        <li>lab_firma_nombre</li>
+        <li>lab_observaciones</li>
+      </ul>
+      <p style="margin-top:0.5rem; font-size:0.78rem; color: var(--text-muted);">Staff Geolab al recibir físicamente las muestras.</p>
+    </div>
+
+    <div class="custody-stage">
+      <h5>③ Revisión interna</h5>
+      <ul>
+        <li>revisado_por</li>
+        <li>programado (bool)</li>
+        <li>fecha_revision</li>
+        <li>firma_revision</li>
+      </ul>
+      <p style="margin-top:0.5rem; font-size:0.78rem; color: var(--text-muted);">Control de calidad interno antes de programar ensayos.</p>
+    </div>
+
+  </div>
+
+  <div class="note">
+    <strong>Firma digital legal:</strong> Adicionalmente se registran <code>firmante_nombre</code>, <code>firmante_cedula</code>, <code>firmante_cargo</code>, <code>firmante_email</code>, <code>firmante_telefono</code>, <code>firma_ip_address</code>, <code>firma_user_agent</code>, <code>firma_fecha</code> y <code>acepta_veracidad</code> — todos los campos necesarios para auditoría legal de la firma electrónica.
+  </div>
+</div>
+
+<!-- =================== ROLES =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">7</span>Roles involucrados en el flujo</h2>
+
+  <div class="roles-grid">
+
+    <div class="role-card remitente">
+      <div class="role-name">🟠 Remitente</div>
+      <ul class="role-actions">
+        <li>Crea remisión digital</li>
+        <li>Auto-firma con sus datos</li>
+        <li>Ve sus remisiones</li>
+      </ul>
+    </div>
+
+    <div class="role-card staff">
+      <div class="role-name">🔵 Staff Geolab</div>
+      <ul class="role-actions">
+        <li>Recibe notificación</li>
+        <li>Completa cadena lab</li>
+        <li>Programa ensayos</li>
+        <li>Sube informes PDF</li>
+        <li>Genera facturas</li>
+      </ul>
+    </div>
+
+    <div class="role-card tecnico">
+      <div class="role-name">🟢 Técnico Laboratorio</div>
+      <ul class="role-actions">
+        <li>Ve ensayos del día</li>
+        <li>Ingresa mediciones (HTMX)</li>
+        <li>Auto-cálculo via macros</li>
+        <li>Marca como completado</li>
+      </ul>
+    </div>
+
+    <div class="role-card cliente">
+      <div class="role-name">🟣 Director / Residente</div>
+      <ul class="role-actions">
+        <li>Ve obras y sus informes</li>
+        <li>Descarga PDFs (S3)</li>
+        <li>Director: todas las obras</li>
+        <li>Residente: solo asignadas</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- =================== TABLA DE MODELOS AFECTADOS =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">8</span>Modelos afectados durante el flujo</h2>
+
+  <table class="models-table">
+    <thead>
+      <tr>
+        <th>Modelo</th>
+        <th>App</th>
+        <th>Momento de creación</th>
+        <th>¿Quién lo crea?</th>
+        <th>Cardinalidad</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>RemisionMuestras</code></td>
+        <td>solicitudes</td>
+        <td>Al enviar formulario</td>
+        <td>Remitente / Staff</td>
+        <td>1 por solicitud</td>
+      </tr>
+      <tr>
+        <td><code>Muestra</code></td>
+        <td>solicitudes</td>
+        <td>Junto con remisión (formset)</td>
+        <td>Remitente / Staff</td>
+        <td>N por remisión</td>
+      </tr>
+      <tr>
+        <td><code>HojaTrabajo</code></td>
+        <td>ensayos</td>
+        <td>Auto en transaction.atomic</td>
+        <td>Sistema (helper)</td>
+        <td>1:1 con remisión</td>
+      </tr>
+      <tr>
+        <td><code>ResultadoMuestra</code></td>
+        <td>ensayos</td>
+        <td>Auto via bulk_create</td>
+        <td>Sistema (helper)</td>
+        <td>1:1 con muestra</td>
+      </tr>
+      <tr>
+        <td><code>Notificacion</code></td>
+        <td>solicitudes</td>
+        <td>Después de transacción</td>
+        <td>Sistema</td>
+        <td>1 por nueva remisión</td>
+      </tr>
+      <tr>
+        <td><code>Informe</code></td>
+        <td>core</td>
+        <td>Manual posterior</td>
+        <td>Staff (upload)</td>
+        <td>N por obra</td>
+      </tr>
+      <tr>
+        <td><code>RegistroServicio</code></td>
+        <td>facturacion</td>
+        <td>Posterior, opcional</td>
+        <td>Staff admin</td>
+        <td>N por obra → 1 Factura</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- =================== DIAGRAMA SCHEMA =================== -->
+<div class="section">
+  <h2 class="section-title"><span class="section-num">9</span>Diagrama de relaciones (esquema simplificado)</h2>
+
+  <div class="data-diagram">
+<span class="key">Constructora</span> (1) ─── (N) <span class="key">Obra</span> ─── (N) <span class="key">Informe</span>           <span class="comment"># PDFs subidos manualmente</span>
+                                │
+                                └─── (N) <span class="key">RemisionMuestras</span>      <span class="comment"># Formato F-GC-05</span>
+                                          │
+                                          ├─── orden_trabajo (auto)
+                                          ├─── firmante_* + IP + UA   <span class="comment"># auditoría legal</span>
+                                          ├─── cliente_* + lab_*       <span class="comment"># cadena de custodia</span>
+                                          │
+                                          ├─── (N) <span class="key">Muestra</span>           <span class="comment"># cada cilindro/cubo/viga</span>
+                                          │        │
+                                          │        ├─── dimension_especimen
+                                          │        ├─── geometria (auto-calc)
+                                          │        └─── (1) <span class="key">ResultadoMuestra</span>
+                                          │                  │
+                                          │                  ├─── D1-D3, L1-L3, peso, carga
+                                          │                  └─── _macro <span class="arrow">→</span> calcula via Strategy
+                                          │
+                                          └─── (1) <span class="key">HojaTrabajo</span>          <span class="comment"># Formato F-GT-05</span>
+                                                    │
+                                                    ├─── estado (pendiente/en_proceso/completada)
+                                                    └─── progreso (auto-calc)
+
+<span class="key">Notificacion</span> (FK opcional <span class="arrow">→</span> RemisionMuestras)   <span class="comment"># Campana + email</span>
+
+<span class="comment"># --- Facturación (rama independiente) ---</span>
+<span class="key">Obra</span> ─── (N) <span class="key">PrecioServicio</span> ─── (1) <span class="key">TipoServicio</span> ─── (1) <span class="key">CategoriaServicio</span>
+    │                                                          │
+    └─── (N) <span class="key">RegistroServicio</span>                                │
+              │                                                │
+              ├─── precio_unitario_congelado <span class="comment"># price freezing</span>
+              ├─── tipo_servicio <span class="arrow">→</span> (catálogo)
+              └─── factura <span class="arrow">→</span> (N <span class="key">Factura</span>)
+  </div>
+</div>
+
+<footer>
+  Geolab Master · Flujo de Remisiones generado a partir del análisis arquitectónico del proyecto
+</footer>
+
+</div>
+</body>
+</html>

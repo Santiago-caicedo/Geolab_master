@@ -272,7 +272,7 @@
                     </thead>
                     <tbody>
                         {% for m in item.muestras_vencidas %}
-                        <tr class="vencida" data-resultado-pk="{{ m.resultado.pk }}">
+                        <tr class="vencida" data-resultado-pk="{{ m.resultado.pk }}" data-geometria="{{ m.geometria }}">
                             <td class="info-muestra">
                                 <span class="numero">#{{ m.muestra.numero_muestra }}</span>
                                 <span class="badge badge-dias bg-danger ms-1">{{ m.dias_vencida }}d</span>
@@ -341,7 +341,7 @@
                         {% endfor %}
 
                         {% for m in item.muestras_hoy %}
-                        <tr class="hoy" data-resultado-pk="{{ m.resultado.pk }}">
+                        <tr class="hoy" data-resultado-pk="{{ m.resultado.pk }}" data-geometria="{{ m.geometria }}">
                             <td class="info-muestra">
                                 <span class="numero">#{{ m.muestra.numero_muestra }}</span>
                                 <span class="badge badge-dias bg-warning text-dark ms-1">HOY</span>

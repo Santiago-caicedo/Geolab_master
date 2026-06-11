@@ -33,8 +33,13 @@
 </div>
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h5 class="fw-bold text-dark mb-0">🏗️ Obras y Proyectos</h5>
-    <span class="badge bg-light text-dark border">{{ obras.count }} Activos</span>
+    <div class="d-flex align-items-center gap-2">
+        <h5 class="fw-bold text-dark mb-0">🏗️ Obras y Proyectos</h5>
+        <span class="badge bg-light text-dark border">{{ obras.count }} Activos</span>
+    </div>
+    <a href="{% url 'crear_obra' empresa.pk %}" class="btn btn-primary btn-sm shadow-sm d-flex align-items-center gap-2">
+        <i class="bi bi-plus-lg"></i> <span class="d-none d-md-inline">Nueva Obra</span>
+    </a>
 </div>
 
 <div class="card card-custom">

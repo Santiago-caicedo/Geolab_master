@@ -11,8 +11,10 @@ urlpatterns = [
 
     # URLs DE GESTIÓN (Staff Geolab)
     path('empresas/', views.lista_constructoras, name='lista_constructoras'),
+    path('empresas/nueva/', views.crear_constructora, name='crear_constructora'),
     path('empresas/<int:pk>/', views.detalle_constructora, name='detalle_constructora'),
     path('empresas/<int:pk>/editar/', views.editar_constructora, name='editar_constructora'),
+    path('empresas/<int:pk>/nueva-obra/', views.crear_obra, name='crear_obra'),
 
 
     path('obras/<int:pk>/', views.detalle_obra, name='detalle_obra'),

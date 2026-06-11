@@ -43,6 +43,16 @@ urlpatterns = [
     path('resultado/<int:pk>/completar/', views.completar_resultado, name='completar_resultado'),
 
     # ══════════════════════════════════════════════════════════════════════════
+    # GENERACIÓN DE INFORMES (compresión de cilindros de concreto)
+    # ══════════════════════════════════════════════════════════════════════════
+
+    path('hojas-trabajo/obra/<int:obra_pk>/generar-informe/',
+         views.generar_informe_compresion, name='generar_informe_compresion'),
+    path('informes/<int:pk>/', views.detalle_informe_ensayo, name='detalle_informe_ensayo'),
+    path('informes/<int:pk>/xlsx/', views.descargar_informe_xlsx, name='descargar_informe_xlsx'),
+    path('informes/<int:pk>/pdf/', views.descargar_informe_pdf, name='descargar_informe_pdf'),
+
+    # ══════════════════════════════════════════════════════════════════════════
     # VISTAS LEGACY (mantener compatibilidad)
     # ══════════════════════════════════════════════════════════════════════════
 

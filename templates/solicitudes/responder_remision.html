@@ -504,8 +504,7 @@
                         <td>{{ muestra_form.numero_muestra }}{{ muestra_form.id }}</td>
                         <td>{{ muestra_form.cantidad }}</td>
                         <td>{{ muestra_form.tipo_muestra }}</td>
-                        <td>{{ muestra_form.diametro_longitud }}</td>
-                        <td>{{ muestra_form.unidad_diametro }}</td>
+                        <td>{{ muestra_form.dimension_especimen }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_flexion }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_compresion }}</td>
                         <td class="text-center">{{ muestra_form.ensayo_absorcion }}</td>
@@ -882,8 +881,8 @@
                         </div>
                         <div class="col-6">
                             <div class="muestra-field">
-                                <label>Diametro/Long.</label>
-                                <div class="form-control-plaintext">${getValue('diametro_longitud') ? getValue('diametro_longitud') + ' ' + getSelectText('unidad_diametro') : '-'}</div>
+                                <label>Dimensión</label>
+                                <div class="form-control-plaintext">${getSelectText('dimension_especimen') || '-'}</div>
                             </div>
                         </div>
                         <div class="col-12">

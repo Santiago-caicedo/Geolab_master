@@ -1,6 +1,10 @@
 import uuid
 from django.db import models
 from django.utils import timezone
+from ensayos.geometry import (
+    GEOMETRIA_CHOICES, GEOMETRIA_CILINDRO,
+    DIMENSION_ESPECIMEN_CHOICES, clasificar_geometria,
+)
 
 
 class RemisionMuestras(models.Model):
@@ -170,7 +174,17 @@ class Muestra(models.Model):
         verbose_name='Tipo de Muestra'
     )
 
-    # Dimensiones
+    # Dimensión del espécimen (nuevo: select predefinido)
+    dimension_especimen = models.CharField(
+        max_length=20,
+        choices=DIMENSION_ESPECIMEN_CHOICES,
+        blank=True,
+        default='',
+        verbose_name='Dimensión del espécimen',
+        help_text='Seleccione la dimensión estándar'
+    )
+
+    # Campos legacy — se mantienen para datos existentes
     UNIDAD_DIAMETRO_CHOICES = [
         ('mm', 'mm'),
         ('cm', 'cm'),
@@ -213,6 +227,15 @@ class Muestra(models.Model):
         help_text='Resistencia esperada'
     )
 
+    # Geometría derivada automáticamente de diametro_longitud + unidad_diametro
+    geometria = models.CharField(
+        max_length=20,
+        choices=GEOMETRIA_CHOICES,
+        default=GEOMETRIA_CILINDRO,
+        editable=False,
+        verbose_name='Geometría del espécimen'
+    )
+
     class Meta:
         verbose_name = 'Muestra'
         verbose_name_plural = 'Muestras'
@@ -222,6 +245,23 @@ class Muestra(models.Model):
 
     def __str__(self):
         return f"Muestra {self.numero_muestra} ({self.cantidad} uds) - {self.edad_ensayo_dias} dias"
+
+    def save(self, *args, **kwargs):
+        self.geometria = clasificar_geometria(
+            self.dimension_especimen, self.diametro_longitud, self.unidad_diametro
+        )
+        super().save(*args, **kwargs)
+
+    @property
+    def dimension_display(self):
+        """Muestra la dimensión en formato legible."""
+        from ensayos.geometry import DIMENSION_DISPLAY
+        if self.dimension_especimen:
+            return DIMENSION_DISPLAY.get(self.dimension_especimen, self.dimension_especimen)
+        # Fallback legacy
+        if self.diametro_longitud:
+            return f"{self.diametro_longitud} {self.unidad_diametro}"
+        return '-'
 
     @property
     def ensayos_list(self):

@@ -19,6 +19,11 @@ class ResultadoMuestraForm(forms.ModelForm):
             'fecha_ensayo',
             'observaciones',
             'estado',
+            # Campos de vigas (flexión)
+            'luz_entre_apoyos',
+            'distancia_falla_apoyo',
+            'formula_flexion',
+            'tipo_especimen_viga',
         ]
         widgets = {
             'diametro_d1': forms.NumberInput(attrs={
@@ -74,6 +79,22 @@ class ResultadoMuestraForm(forms.ModelForm):
                 'placeholder': 'Observaciones...',
             }),
             'estado': forms.Select(attrs={
+                'class': 'form-select form-select-sm',
+            }),
+            'luz_entre_apoyos': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm',
+                'step': '0.01',
+                'placeholder': 'L (mm)',
+            }),
+            'distancia_falla_apoyo': forms.NumberInput(attrs={
+                'class': 'form-control form-control-sm',
+                'step': '0.01',
+                'placeholder': 'a (mm)',
+            }),
+            'formula_flexion': forms.Select(attrs={
+                'class': 'form-select form-select-sm',
+            }),
+            'tipo_especimen_viga': forms.Select(attrs={
                 'class': 'form-select form-select-sm',
             }),
         }

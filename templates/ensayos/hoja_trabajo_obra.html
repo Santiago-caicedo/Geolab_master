@@ -644,10 +644,17 @@
                 <span class="text-muted small">
                     Seleccionadas: <strong id="conteoSeleccionadas" class="text-primary">0</strong>
                 </span>
-                <button type="button" class="btn-accion btn-accion-success" id="btnGenerarInforme" disabled>
-                    <i class="bi bi-file-earmark-pdf"></i>
-                    Generar Informe
-                </button>
+                <form method="post" action="{% url 'generar_informe_compresion' obra.pk %}" class="d-flex align-items-center gap-2 mb-0">
+                    {% csrf_token %}
+                    <label class="text-muted small mb-0">Fecha de falla:</label>
+                    <input type="date" name="fecha_falla" value="{{ fecha_hoy|date:'Y-m-d' }}"
+                           class="form-control form-control-sm" style="width: auto;">
+                    <button type="submit" class="btn-accion btn-accion-success" id="btnGenerarInforme"
+                            title="Genera el informe de compresión con los cilindros completados de esa fecha de falla">
+                        <i class="bi bi-file-earmark-pdf"></i>
+                        Generar Informe
+                    </button>
+                </form>
             </div>
         </div>
 
@@ -672,6 +679,9 @@
                             <th rowspan="2" style="width: 55px;">PESO<br>(g)</th>
                             <th colspan="3">RESULTADOS</th>
                             <th rowspan="2" style="width: 65px;">FORMA<br>FALLA</th>
+                            {% if tiene_vigas %}
+                            <th colspan="4">VIGAS (FLEXIÓN)</th>
+                            {% endif %}
                             <th rowspan="2" style="width: 45px;">ESTADO</th>
                             <th rowspan="2" style="width: 55px;">REM.</th>
                         </tr>
@@ -690,6 +700,12 @@
                             <th style="width: 55px;">CARGA<br>(KN)</th>
                             <th style="width: 55px;">ESFUERZO<br>(MPa)</th>
                             <th style="width: 50px;">%<br>DESARR.</th>
+                            {% if tiene_vigas %}
+                            <th style="width: 60px;">LUZ L<br>(mm)</th>
+                            <th style="width: 60px;">DIST a<br>(mm)</th>
+                            <th style="width: 45px;">FÓRM.<br>A/B</th>
+                            <th style="width: 40px;">F/C</th>
+                            {% endif %}
                         </tr>
                     </thead>
                     <tbody>
@@ -698,6 +714,7 @@
                         <tr id="fila-{{ r.pk }}"
                             class="{% if item.es_hoy %}fila-hoy{% elif item.esta_vencida %}fila-vencida{% elif r.estado == 'completado' %}fila-completada{% endif %}"
                             data-pk="{{ r.pk }}"
+                            data-geometria="{{ item.geometria }}"
                             data-es-hoy="{{ item.es_hoy|yesno:'true,false' }}"
                             data-vencida="{{ item.esta_vencida|yesno:'true,false' }}">
 
@@ -755,7 +772,7 @@
                             <td class="fw-medium">{{ item.muestra.edad_ensayo_dias }}</td>
 
                             <!-- Diametro teorico -->
-                            <td>{% if item.muestra.diametro_longitud %}{{ item.muestra.diametro_longitud }} {{ item.muestra.unidad_diametro }}{% else %}-{% endif %}</td>
+                            <td>{{ item.muestra.dimension_display }}</td>
 
                             <!-- F'c -->
                             <td class="fw-medium">{{ item.muestra.fc_resistencia|default:"-" }}</td>
@@ -933,6 +950,59 @@
                                 </select>
                             </td>
 
+                            {% if tiene_vigas %}
+                                {% if item.geometria == 'prisma' %}
+                                <!-- Campos de Vigas (Flexión) -->
+                                <td>
+                                    <input type="number"
+                                           class="input-medicion {% if r.luz_entre_apoyos %}has-value{% endif %}"
+                                           name="luz_{{ r.pk }}"
+                                           value="{{ r.luz_entre_apoyos|default_if_none:'' }}"
+                                           step="0.01" min="0" max="2000"
+                                           data-field="luz_entre_apoyos"
+                                           data-pk="{{ r.pk }}"
+                                           placeholder="L (mm)"
+                                           {% if r.estado == 'completado' %}disabled{% endif %}>
+                                </td>
+                                <td>
+                                    <input type="number"
+                                           class="input-medicion {% if r.distancia_falla_apoyo %}has-value{% endif %}"
+                                           name="dist_falla_{{ r.pk }}"
+                                           value="{{ r.distancia_falla_apoyo|default_if_none:'' }}"
+                                           step="0.01" min="0" max="2000"
+                                           data-field="distancia_falla_apoyo"
+                                           data-pk="{{ r.pk }}"
+                                           placeholder="a (mm)"
+                                           {% if r.estado == 'completado' %}disabled{% endif %}>
+                                </td>
+                                <td>
+                                    <select class="select-falla"
+                                            name="formula_{{ r.pk }}"
+                                            data-field="formula_flexion"
+                                            data-pk="{{ r.pk }}"
+                                            {% if r.estado == 'completado' %}disabled{% endif %}>
+                                        <option value="">--</option>
+                                        <option value="A" {% if r.formula_flexion == 'A' %}selected{% endif %}>A</option>
+                                        <option value="B" {% if r.formula_flexion == 'B' %}selected{% endif %}>B</option>
+                                    </select>
+                                </td>
+                                <td>
+                                    <select class="select-falla"
+                                            name="tipo_viga_{{ r.pk }}"
+                                            data-field="tipo_especimen_viga"
+                                            data-pk="{{ r.pk }}"
+                                            {% if r.estado == 'completado' %}disabled{% endif %}>
+                                        <option value="">--</option>
+                                        <option value="F" {% if r.tipo_especimen_viga == 'F' %}selected{% endif %}>F</option>
+                                        <option value="C" {% if r.tipo_especimen_viga == 'C' %}selected{% endif %}>C</option>
+                                    </select>
+                                </td>
+                                {% else %}
+                                <!-- Celdas vacías para no-vigas -->
+                                <td></td><td></td><td></td><td></td>
+                                {% endif %}
+                            {% endif %}
+
                             <!-- Estado -->
                             <td>
                                 {% if r.estado == 'completado' %}
@@ -1063,7 +1133,6 @@ document.addEventListener('DOMContentLoaded', function() {
     function actualizarConteoSeleccion() {
         const seleccionadas = document.querySelectorAll('.check-muestra:checked:not(:disabled)').length;
         conteoSeleccionadas.textContent = seleccionadas;
-        btnGenerarInforme.disabled = seleccionadas === 0;
     }
 
     function actualizarBotonGuardar() {
@@ -1076,8 +1145,78 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // Dispatch de calculo de area por geometria
+    function calcularAreaPorGeometria(geometria, diamReal, longReal) {
+        switch (geometria) {
+            case 'cilindro':
+                return ((Math.PI * Math.pow(diamReal, 2) / 4) / 100).toFixed(2);
+            case 'cubo':
+                // Area cm² = (ancho_mm/10) × (largo_mm/10)
+                if (diamReal && longReal) {
+                    return ((diamReal / 10) * (longReal / 10)).toFixed(2);
+                }
+                return '-';
+            case 'prisma':
+                // TODO: Vigas flexión - requiere campos adicionales (L, a)
+                return '-';
+            default:
+                return ((Math.PI * Math.pow(diamReal, 2) / 4) / 100).toFixed(2);
+        }
+    }
+
+    // Dispatch de calculo de esfuerzo por geometria
+    function calcularEsfuerzoPorGeometria(geometria, carga, area, pk) {
+        switch (geometria) {
+            case 'cilindro':
+                return ((carga * 101.9716 / area) / 10).toFixed(2);
+            case 'cubo':
+                // esfuerzo_kgcm2 = (carga × 101.96) / area_cm2
+                // esfuerzo_mpa = esfuerzo_kgcm2 × 0.09807
+                return ((carga * 101.96 / area) * 0.09807).toFixed(2);
+            case 'prisma':
+                return calcularEsfuerzoViga(carga, pk);
+            default:
+                return ((carga * 101.9716 / area) / 10).toFixed(2);
+        }
+    }
+
+    // Cálculo de módulo de rotura para vigas (flexión NTC 2871)
+    function calcularEsfuerzoViga(cargaKn, pk) {
+        const fila = document.getElementById(`fila-${pk}`);
+        if (!fila) return '-';
+
+        const b = parseFloat(document.getElementById(`diam-real-${pk}`)?.textContent) || 0;
+        const d = parseFloat(document.getElementById(`long-real-${pk}`)?.textContent) || 0;
+        const luz = parseFloat(document.querySelector(`input[name="luz_${pk}"]`)?.value) || 0;
+        const distFalla = parseFloat(document.querySelector(`input[name="dist_falla_${pk}"]`)?.value) || 0;
+        const formula = document.querySelector(`select[name="formula_${pk}"]`)?.value || '';
+
+        if (!b || !d || !cargaKn) return '-';
+
+        const pKgf = cargaKn * 101.96;
+        const denominador = b * Math.pow(d, 2);
+
+        if (denominador === 0) return '-';
+
+        let rMpa;
+        if (formula === 'A') {
+            if (!luz) return '-';
+            rMpa = (pKgf * luz / denominador) * 10;
+        } else if (formula === 'B') {
+            if (!distFalla) return '-';
+            rMpa = (3 * pKgf * distFalla / denominador) * 10;
+        } else {
+            return '-';
+        }
+
+        return rMpa.toFixed(4);
+    }
+
     // Calcular valores automaticamente
     function calcularValores(pk) {
+        const fila = document.getElementById(`fila-${pk}`);
+        const geometria = fila?.dataset.geometria || 'cilindro';
+
         const d1 = parseFloat(document.querySelector(`input[name="d1_${pk}"]`)?.value) || 0;
         const d2 = parseFloat(document.querySelector(`input[name="d2_${pk}"]`)?.value) || 0;
         const d3 = parseFloat(document.querySelector(`input[name="d3_${pk}"]`)?.value) || 0;
@@ -1099,17 +1238,6 @@ document.addEventListener('DOMContentLoaded', function() {
             elDiamReal.classList.toggle('vacio', diamReal === '-');
         }
 
-        // Area
-        let area = '-';
-        if (diamReal !== '-') {
-            area = ((Math.PI * Math.pow(parseFloat(diamReal), 2) / 4) / 100).toFixed(2);
-        }
-        const elArea = document.getElementById(`area-${pk}`);
-        if (elArea) {
-            elArea.textContent = area;
-            elArea.classList.toggle('vacio', area === '-');
-        }
-
         // Longitud real
         let longReal = '-';
         if (l1 && l2 && l3) {
@@ -1121,10 +1249,21 @@ document.addEventListener('DOMContentLoaded', function() {
             elLongReal.classList.toggle('vacio', longReal === '-');
         }
 
-        // Esfuerzo
+        // Area - dispatch por geometria
+        let area = '-';
+        if (diamReal !== '-') {
+            area = calcularAreaPorGeometria(geometria, parseFloat(diamReal), longReal !== '-' ? parseFloat(longReal) : 0);
+        }
+        const elArea = document.getElementById(`area-${pk}`);
+        if (elArea) {
+            elArea.textContent = area;
+            elArea.classList.toggle('vacio', area === '-');
+        }
+
+        // Esfuerzo - dispatch por geometria
         let esfuerzo = '-';
-        if (carga && area !== '-') {
-            esfuerzo = ((carga * 101.9716 / parseFloat(area)) / 10).toFixed(2);
+        if (carga && (area !== '-' || geometria === 'prisma')) {
+            esfuerzo = calcularEsfuerzoPorGeometria(geometria, carga, area !== '-' ? parseFloat(area) : 0, pk);
         }
         const elEsfuerzo = document.getElementById(`esfuerzo-${pk}`);
         if (elEsfuerzo) {
@@ -1133,12 +1272,9 @@ document.addEventListener('DOMContentLoaded', function() {
         }
 
         // Porcentaje desarrollo - necesita F'c de la muestra
-        const fila = document.getElementById(`fila-${pk}`);
         const elPct = document.getElementById(`pct-${pk}`);
         if (elPct && esfuerzo !== '-') {
-            // Obtener F'c de la columna (esto es simplificado, idealmente vendria del servidor)
-            // Por ahora solo actualizamos visualmente si ya habia un porcentaje
-            // El calculo real se hara al guardar
+            // El calculo real se hara al guardar en el servidor
         }
     }
 
@@ -1293,18 +1429,8 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     });
 
-    // Boton generar informe
-    btnGenerarInforme.addEventListener('click', function() {
-        const seleccionadas = Array.from(document.querySelectorAll('.check-muestra:checked:not(:disabled)'))
-                                   .map(cb => cb.dataset.pk);
-
-        if (seleccionadas.length === 0) {
-            alert('Selecciona al menos una muestra');
-            return;
-        }
-
-        alert('Proximamente: Generar informe con ' + seleccionadas.length + ' muestras.\n\nIDs: ' + seleccionadas.join(', '));
-    });
+    // El botón "Generar Informe" ahora es un submit del formulario por fecha de falla
+    // (ver barra de acciones). La generación se hace server-side.
 
     // ══════════════════════════════════════════════════════════════════════════
     // INICIALIZACION

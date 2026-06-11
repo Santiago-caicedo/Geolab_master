@@ -103,8 +103,7 @@ class MuestraForm(forms.ModelForm):
             'numero_muestra',
             'cantidad',
             'tipo_muestra',
-            'diametro_longitud',
-            'unidad_diametro',
+            'dimension_especimen',
             'ensayo_flexion',
             'ensayo_compresion',
             'ensayo_absorcion',
@@ -128,14 +127,8 @@ class MuestraForm(forms.ModelForm):
             'tipo_muestra': forms.Select(attrs={
                 'class': 'form-select form-select-sm',
             }),
-            'diametro_longitud': forms.TextInput(attrs={
-                'class': 'form-control form-control-sm text-center',
-                'style': 'width: 70px;',
-                'placeholder': 'Ej: 6',
-            }),
-            'unidad_diametro': forms.Select(attrs={
+            'dimension_especimen': forms.Select(attrs={
                 'class': 'form-select form-select-sm',
-                'style': 'width: 70px;',
             }),
             'ensayo_flexion': forms.CheckboxInput(attrs={
                 'class': 'form-check-input',

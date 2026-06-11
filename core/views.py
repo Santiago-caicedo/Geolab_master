@@ -4,6 +4,7 @@ from django.core.paginator import Paginator
 from django.db import models
 from django.db.models import Count, Q
 from django.contrib import messages
+from django.utils import timezone
 from .forms import ConstructoraForm, ObraForm
 from users.models import Constructora
 from .models import Informe, Obra
@@ -279,6 +280,28 @@ def detalle_obra(request, pk):
 
 
 @login_required
+def crear_constructora(request):
+    """Creación de Empresa (Solo Staff Geolab)"""
+    if not request.user.es_geolab:
+        return redirect('home')
+
+    if request.method == 'POST':
+        form = ConstructoraForm(request.POST)
+        if form.is_valid():
+            empresa = form.save()
+            messages.success(request, f'Empresa "{empresa.nombre}" creada correctamente.')
+            return redirect('detalle_constructora', pk=empresa.pk)
+    else:
+        form = ConstructoraForm()
+
+    return render(request, 'core/constructora_form.html', {
+        'form': form,
+        'titulo': 'Nueva Empresa',
+        'btn_texto': 'Crear Empresa'
+    })
+
+
+@login_required
 def editar_constructora(request, pk):
     """Edición de Empresa (Solo Staff Geolab)"""
     empresa = get_object_or_404(Constructora, pk=pk)
@@ -295,11 +318,38 @@ def editar_constructora(request, pk):
     else:
         form = ConstructoraForm(instance=empresa)
 
-    return render(request, 'core/editar_form.html', {
-        'form': form, 
+    return render(request, 'core/constructora_form.html', {
+        'form': form,
         'titulo': f'Editar Empresa: {empresa.nombre}',
         'btn_texto': 'Guardar Cambios'
     })
+
+@login_required
+def crear_obra(request, pk):
+    """Crear una obra dentro de una empresa (Solo Staff Geolab)."""
+    empresa = get_object_or_404(Constructora, pk=pk)
+
+    if not request.user.es_geolab:
+        return redirect('home')
+
+    if request.method == 'POST':
+        form = ObraForm(request.POST, constructora=empresa)
+        if form.is_valid():
+            obra = form.save(commit=False)
+            obra.constructora = empresa
+            obra.fecha_creacion = timezone.now()
+            obra.save()
+            messages.success(request, f'Obra "{obra.nombre}" creada correctamente.')
+            return redirect('detalle_constructora', pk=empresa.pk)
+    else:
+        form = ObraForm(constructora=empresa)
+
+    return render(request, 'core/obra_form.html', {
+        'form': form,
+        'titulo': f'Nueva Obra · {empresa.nombre}',
+        'btn_texto': 'Crear Obra'
+    })
+
 
 @login_required
 def editar_obra(request, pk):
@@ -318,7 +368,7 @@ def editar_obra(request, pk):
     else:
         form = ObraForm(instance=obra)
 
-    return render(request, 'core/editar_form.html', {
+    return render(request, 'core/obra_form.html', {
         'form': form,
         'titulo': f'Editar Obra: {obra.nombre}',
         'btn_texto': 'Actualizar Obra'

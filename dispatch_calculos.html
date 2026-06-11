@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dispatch de Cálculos - Geolab Master</title>
+<style>
+  :root {
+    --brand-blue: #008ed6;
+    --brand-dark: #1c2e4a;
+    --bg-body: #f8fafc;
+    --border: #e2e8f0;
+    --text-main: #334155;
+    --text-muted: #94a3b8;
+    --success: #059669;
+    --warning: #f59e0b;
+    --danger: #dc2626;
+    --code-bg: #f1f5f9;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg-body);
+    color: var(--text-main);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+
+  .container {
+    max-width: 1100px;
+    margin: 0 auto;
+  }
+
+  header {
+    background: linear-gradient(135deg, var(--brand-dark) 0%, #2d4a73 100%);
+    color: white;
+    padding: 2rem;
+    border-radius: 12px;
+    margin-bottom: 2rem;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.08);
+  }
+
+  header h1 {
+    font-size: 1.6rem;
+    margin-bottom: 0.5rem;
+  }
+
+  header .subtitle {
+    opacity: 0.85;
+    font-size: 0.95rem;
+  }
+
+  .key-answer {
+    background: #fef9c3;
+    border-left: 5px solid var(--warning);
+    padding: 1.25rem 1.5rem;
+    border-radius: 8px;
+    margin-bottom: 2rem;
+    font-size: 1rem;
+  }
+
+  .key-answer strong {
+    color: #92400e;
+    display: block;
+    margin-bottom: 0.4rem;
+    font-size: 1.05rem;
+  }
+
+  .section {
+    background: white;
+    border-radius: 12px;
+    padding: 1.75rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+    border: 1px solid var(--border);
+  }
+
+  .section-title {
+    font-size: 1.2rem;
+    color: var(--brand-dark);
+    margin-bottom: 1rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 2px solid var(--brand-blue);
+    font-weight: 700;
+  }
+
+  p { margin-bottom: 0.8rem; }
+
+  code {
+    font-family: "Consolas", "Monaco", monospace;
+    background: var(--code-bg);
+    padding: 0.15rem 0.4rem;
+    border-radius: 3px;
+    font-size: 0.88em;
+    color: var(--brand-blue);
+  }
+
+  /* Pipeline */
+  .pipeline {
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+
+  .pipe-step {
+    border-radius: 10px;
+    padding: 1rem 1.25rem;
+    display: grid;
+    grid-template-columns: 44px 1fr;
+    gap: 1rem;
+    align-items: start;
+    border: 2px solid var(--border);
+  }
+
+  .pipe-step .step-num {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 1rem;
+    background: var(--brand-blue);
+  }
+
+  .pipe-step h4 {
+    color: var(--brand-dark);
+    margin-bottom: 0.3rem;
+    font-size: 1rem;
+  }
+
+  .pipe-step .actor {
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+    font-weight: 700;
+    margin-bottom: 0.3rem;
+  }
+
+  .pipe-step .step-body {
+    font-size: 0.92rem;
+  }
+
+  .pipe-step.remitente { background: #fffbeb; border-color: var(--warning); }
+  .pipe-step.remitente .step-num { background: var(--warning); }
+
+  .pipe-step.sistema { background: #eff6ff; border-color: var(--brand-blue); }
+  .pipe-step.sistema .step-num { background: var(--brand-blue); }
+
+  .pipe-step.tecnico { background: #f0fdf4; border-color: var(--success); }
+  .pipe-step.tecnico .step-num { background: var(--success); }
+
+  .arrow {
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 1.4rem;
+    line-height: 0.5;
+    margin: -0.2rem 0;
+  }
+
+  /* Code block */
+  .code-block {
+    background: #0f172a;
+    color: #e2e8f0;
+    border-radius: 8px;
+    padding: 1.25rem;
+    font-family: "Consolas", "Monaco", monospace;
+    font-size: 0.85rem;
+    line-height: 1.7;
+    overflow-x: auto;
+    margin: 1rem 0;
+  }
+
+  .code-block .cmt { color: #64748b; font-style: italic; }
+  .code-block .kw  { color: #f472b6; }
+  .code-block .str { color: #86efac; }
+  .code-block .fn  { color: #fbbf24; }
+  .code-block .var { color: #93c5fd; }
+
+  /* Dropdown mockup */
+  .dropdown-mock {
+    background: white;
+    border: 2px solid var(--brand-blue);
+    border-radius: 8px;
+    padding: 0.5rem;
+    max-width: 320px;
+    margin: 0.75rem 0;
+    box-shadow: 0 4px 12px rgba(0,142,214,0.15);
+  }
+
+  .dropdown-mock .item {
+    padding: 0.55rem 0.85rem;
+    border-radius: 4px;
+    cursor: default;
+    font-size: 0.9rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+
+  .dropdown-mock .item:hover {
+    background: #eff6ff;
+  }
+
+  .dropdown-mock .item .tag {
+    font-size: 0.7rem;
+    padding: 0.15rem 0.5rem;
+    border-radius: 10px;
+    color: white;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+
+  .tag-cil { background: var(--brand-blue); }
+  .tag-cub { background: var(--success); }
+  .tag-pri { background: var(--warning); }
+
+  /* Mapping table */
+  .map-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.9rem;
+  }
+
+  .map-table th {
+    background: var(--brand-dark);
+    color: white;
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+    font-weight: 600;
+    font-size: 0.85rem;
+  }
+
+  .map-table td {
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .map-table tr:nth-child(even) td { background: #fafbfc; }
+
+  .map-table .arrow-cell {
+    text-align: center;
+    color: var(--brand-blue);
+    font-weight: 700;
+  }
+
+  /* Field labels table */
+  .field-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-top: 1rem;
+    font-size: 0.88rem;
+  }
+
+  .field-table th {
+    background: var(--brand-dark);
+    color: white;
+    text-align: left;
+    padding: 0.7rem 0.9rem;
+  }
+
+  .field-table td {
+    padding: 0.7rem 0.9rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .field-table tr:hover td {
+    background: #f8fafc;
+  }
+
+  .geom-badge {
+    display: inline-block;
+    padding: 0.2rem 0.6rem;
+    border-radius: 12px;
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+  }
+
+  /* Comparison boxes */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1rem;
+    margin-top: 1rem;
+  }
+
+  .compare-box {
+    border-radius: 10px;
+    padding: 1.1rem;
+    border: 2px solid var(--border);
+  }
+
+  .compare-box.active {
+    border-color: var(--success);
+    background: #f0fdf4;
+  }
+
+  .compare-box.legacy {
+    border-color: var(--text-muted);
+    background: #f9fafb;
+    opacity: 0.92;
+  }
+
+  .compare-box h4 {
+    margin-bottom: 0.5rem;
+    color: var(--brand-dark);
+  }
+
+  .compare-box .status {
+    display: inline-block;
+    font-size: 0.7rem;
+    padding: 0.2rem 0.55rem;
+    border-radius: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    margin-bottom: 0.5rem;
+  }
+
+  .compare-box.active .status { background: var(--success); color: white; }
+  .compare-box.legacy .status { background: var(--text-muted); color: white; }
+
+  .compare-box ul {
+    margin-left: 1.1rem;
+    margin-top: 0.5rem;
+    font-size: 0.88rem;
+  }
+
+  .compare-box li { margin-bottom: 0.25rem; }
+
+  /* Summary box */
+  .summary {
+    background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+    color: white;
+    padding: 1.5rem 1.75rem;
+    border-radius: 12px;
+    margin-top: 1.5rem;
+  }
+
+  .summary h3 {
+    color: #fbbf24;
+    margin-bottom: 0.6rem;
+    font-size: 1.1rem;
+  }
+
+  .summary p {
+    font-size: 0.95rem;
+    line-height: 1.65;
+  }
+
+  .summary code {
+    background: rgba(255,255,255,0.1);
+    color: #93c5fd;
+  }
+
+  @media (max-width: 768px) {
+    body { padding: 1rem; }
+    .compare-grid { grid-template-columns: 1fr; }
+    .pipe-step { grid-template-columns: 36px 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+<header>
+  <h1>¿Cómo decide el sistema qué cálculos aplicar?</h1>
+  <p class="subtitle">El dispatch de macros de cálculo en Geolab Master — estado actual.</p>
+</header>
+
+<div class="key-answer">
+  <strong>⚡ Respuesta corta</strong>
+  El sistema <strong>NO se basa en los diámetros medidos</strong> (D1, D2, D3) para escoger los cálculos. Esos diámetros son datos de entrada del ensayo, no determinan el camino. El dispatch se decide <strong>mucho antes</strong>, cuando el remitente crea la remisión y selecciona la <em>dimensión del espécimen</em> en un dropdown predefinido.
+</div>
+
+<!-- ====== FLUJO REAL ====== -->
+<div class="section">
+  <h2 class="section-title">El flujo real (estado actual)</h2>
+
+  <div class="pipeline">
+
+    <div class="pipe-step remitente">
+      <div class="step-num">1</div>
+      <div>
+        <div class="actor">Remitente</div>
+        <h4>Selecciona la dimensión del espécimen</h4>
+        <div class="step-body">
+          Al crear la remisión, escoge una opción de un <strong>dropdown predefinido sin ambigüedad</strong>:
+          <div class="dropdown-mock">
+            <div class="item">3" <span class="tag tag-cil">Cilindro</span></div>
+            <div class="item">4" <span class="tag tag-cil">Cilindro</span></div>
+            <div class="item">6" <span class="tag tag-cil">Cilindro</span></div>
+            <div class="item">50mm <span class="tag tag-cub">Cubo</span></div>
+            <div class="item">15×15cm <span class="tag tag-pri">Viga</span></div>
+          </div>
+          No hay parseo de texto libre ni inferencia por tamaño — el remitente <strong>escoge explícitamente</strong>.
+        </div>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="pipe-step sistema">
+      <div class="step-num">2</div>
+      <div>
+        <div class="actor">Sistema (Muestra.save)</div>
+        <h4>Auto-clasifica la geometría</h4>
+        <div class="step-body">
+          <code>Muestra.save()</code> detecta el dropdown y mapea a <code>geometria</code>:
+          <div class="code-block">
+<span class="cmt"># ensayos/geometry.py</span>
+DIMENSION_A_GEOMETRIA = {
+    <span class="str">'3_pulg'</span>:    <span class="str">'cilindro'</span>,
+    <span class="str">'4_pulg'</span>:    <span class="str">'cilindro'</span>,
+    <span class="str">'6_pulg'</span>:    <span class="str">'cilindro'</span>,
+    <span class="str">'50_mm'</span>:     <span class="str">'cubo'</span>,
+    <span class="str">'15x15_cm'</span>:  <span class="str">'prisma'</span>,
+}
+          </div>
+          El valor de <code>geometria</code> queda <strong>persistido en DB</strong> (campo <code>editable=False</code>).
+        </div>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="pipe-step tecnico">
+      <div class="step-num">3</div>
+      <div>
+        <div class="actor">Técnico</div>
+        <h4>Mide los especímenes en hoja de trabajo</h4>
+        <div class="step-body">
+          Ingresa diámetros/anchos, longitudes, peso y carga. <strong>Aquí los diámetros son inputs, no decisiones</strong>. La geometría ya fue establecida en el paso 2.
+        </div>
+      </div>
+    </div>
+    <div class="arrow">▼</div>
+
+    <div class="pipe-step sistema">
+      <div class="step-num">4</div>
+      <div>
+        <div class="actor">Sistema (Strategy Pattern)</div>
+        <h4>Dispatch automático a la macro correcta</h4>
+        <div class="step-body">
+          <code>ResultadoMuestra._macro</code> consulta la geometría y obtiene la macro:
+          <div class="code-block">
+<span class="cmt"># ensayos/macros.py</span>
+<span class="kw">def</span> <span class="fn">get_macro</span>(geometria):
+    <span class="kw">return</span> MACRO_REGISTRY.get(geometria, MACRO_REGISTRY[<span class="str">'cilindro'</span>])
+
+<span class="cmt"># En ResultadoMuestra:</span>
+<span class="kw">@property</span>
+<span class="kw">def</span> <span class="fn">_macro</span>(<span class="var">self</span>):
+    <span class="kw">return</span> <span class="fn">get_macro</span>(<span class="var">self</span>.muestra.geometria)
+          </div>
+          Cada macro implementa sus propias fórmulas (NTC 220, NTC 2871, etc.) y calcula <code>area_mm2</code>, <code>esfuerzo_mpa</code>, <code>porcentaje_desarrollo</code>.
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ====== MAPEO ====== -->
+<div class="section">
+  <h2 class="section-title">El mapeo completo: dimensión → geometría → macro</h2>
+
+  <table class="map-table">
+    <thead>
+      <tr>
+        <th>Dimensión (dropdown)</th>
+        <th class="arrow-cell">→</th>
+        <th>Geometría (DB)</th>
+        <th class="arrow-cell">→</th>
+        <th>Macro / Norma</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>3_pulg</code> · 3" (7.62 cm)</td>
+        <td class="arrow-cell">→</td>
+        <td><span class="geom-badge tag-cil">cilindro</span></td>
+        <td class="arrow-cell">→</td>
+        <td><code>MacroCilindro</code> — compresión estándar</td>
+      </tr>
+      <tr>
+        <td><code>4_pulg</code> · 4" (10.16 cm)</td>
+        <td class="arrow-cell">→</td>
+        <td><span class="geom-badge tag-cil">cilindro</span></td>
+        <td class="arrow-cell">→</td>
+        <td><code>MacroCilindro</code> — compresión estándar</td>
+      </tr>
+      <tr>
+        <td><code>6_pulg</code> · 6" (15.24 cm)</td>
+        <td class="arrow-cell">→</td>
+        <td><span class="geom-badge tag-cil">cilindro</span></td>
+        <td class="arrow-cell">→</td>
+        <td><code>MacroCilindro</code> — compresión estándar</td>
+      </tr>
+      <tr>
+        <td><code>50_mm</code> · 50mm</td>
+        <td class="arrow-cell">→</td>
+        <td><span class="geom-badge tag-cub">cubo</span></td>
+        <td class="arrow-cell">→</td>
+        <td><code>MacroCubo</code> — compresión NTC 220</td>
+      </tr>
+      <tr>
+        <td><code>15x15_cm</code> · 15×15cm</td>
+        <td class="arrow-cell">→</td>
+        <td><span class="geom-badge tag-pri">prisma</span></td>
+        <td class="arrow-cell">→</td>
+        <td><code>MacroPrisma</code> — flexión NTC 2871</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ====== CAMPOS QUE VE EL TECNICO ====== -->
+<div class="section">
+  <h2 class="section-title">¿Qué campos ve el técnico en la hoja de trabajo?</h2>
+
+  <p>Los campos físicos en DB son siempre los mismos (<code>diametro_d1..d3</code>, <code>longitud_l1..l3</code>), pero <strong>el template los renderiza con etiquetas distintas</strong> según la geometría:</p>
+
+  <table class="field-table">
+    <thead>
+      <tr>
+        <th>Geometría</th>
+        <th>Columna 1 (mediciones)</th>
+        <th>Columna 2 (mediciones)</th>
+        <th>Campos extra</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><span class="geom-badge tag-cil">cilindro</span></td>
+        <td>D1, D2, D3 (DIÁMETRO mm)</td>
+        <td>L1, L2, L3 (LONGITUD mm)</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><span class="geom-badge tag-cub">cubo</span></td>
+        <td>A1, A2, A3 (ANCHO mm)</td>
+        <td>L1, L2, L3 (LARGO mm)</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td><span class="geom-badge tag-pri">prisma</span></td>
+        <td>b1, b2, b3 (ANCHO b mm)</td>
+        <td>d1, d2, d3 (ALTURA d mm)</td>
+        <td>
+          <code>luz_entre_apoyos</code><br>
+          <code>distancia_falla_apoyo</code><br>
+          <code>formula_flexion</code> (A/B)<br>
+          <code>tipo_especimen_viga</code> (F/C)
+        </td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- ====== ACTUAL vs LEGACY ====== -->
+<div class="section">
+  <h2 class="section-title">Sistema nuevo vs fallback legacy</h2>
+
+  <div class="compare-grid">
+
+    <div class="compare-box active">
+      <span class="status">Sistema actual</span>
+      <h4>Dropdown predefinido</h4>
+      <p>Campo: <code>dimension_especimen</code></p>
+      <ul>
+        <li>Sin ambigüedad — el remitente escoge directamente</li>
+        <li>Mapeo 1:1 a geometría (lookup en diccionario)</li>
+        <li>Se ejecuta en <strong>todas las muestras nuevas</strong></li>
+        <li>Introducido en migración 0007 + backfill 0008</li>
+      </ul>
+    </div>
+
+    <div class="compare-box legacy">
+      <span class="status">Fallback legacy</span>
+      <h4>Inferencia por texto libre</h4>
+      <p>Campos: <code>diametro_longitud</code> + <code>unidad_diametro</code></p>
+      <ul>
+        <li>Solo se ejecuta si <code>dimension_especimen</code> está vacío</li>
+        <li>Parsea texto: "3" + "pulg" → cilindro</li>
+        <li>Reconoce formato "AxB" para cubos/prismas (con tolerancias)</li>
+        <li>En cualquier duda → cilindro (fallback seguro)</li>
+        <li><strong>Casi no se usa hoy</strong> — el backfill llenó todos los datos antiguos</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<!-- ====== RESUMEN ====== -->
+<div class="summary">
+  <h3>📌 Resumen en una línea</h3>
+  <p>
+    El "camino" lo decide el <strong>remitente al elegir la dimensión del espécimen en un dropdown</strong>. Eso se traduce a <code>geometria</code> en el <code>save()</code> del modelo, y el Strategy Pattern (<code>get_macro()</code>) usa ese valor para escoger qué fórmulas aplicar — los diámetros medidos por el técnico solo son <strong>inputs de esas fórmulas</strong>, no parte del dispatch.
+  </p>
+</div>
+
+</div>
+</body>
+</html>
