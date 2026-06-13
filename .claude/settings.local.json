@@ -50,7 +50,9 @@
       "Bash(soffice --headless --nolockcheck --norestore --convert-to xlsx --outdir _tmp_pdf_verify _tmp_pdf_verify/test.xlsx)",
       "Bash(rm -rf _tmp_pdf_verify)",
       "Bash(soffice --headless --nolockcheck --norestore --convert-to xlsx --outdir _tmp_pdf_verify/recalc _tmp_pdf_verify/test.xlsx)",
-      "Bash(soffice --headless --nolockcheck --norestore --calc --convert-to \"xlsx:Calc Office Open XML\" --outdir _tmp_pdf_verify/r2 _tmp_pdf_verify/test.xlsx)"
+      "Bash(soffice --headless --nolockcheck --norestore --calc --convert-to \"xlsx:Calc Office Open XML\" --outdir _tmp_pdf_verify/r2 _tmp_pdf_verify/test.xlsx)",
+      "Bash(awk 'NR>=474 && NR<=520' templates/solicitudes/crear_remision_cliente.html)",
+      "Bash(awk 'NR>=500 && NR<=545' templates/solicitudes/responder_remision.html)"
     ]
   }
 }
