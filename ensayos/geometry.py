@@ -8,23 +8,41 @@ El remitente selecciona de un dropdown, eliminando ambigüedad.
 GEOMETRIA_CILINDRO = 'cilindro'
 GEOMETRIA_CUBO = 'cubo'
 GEOMETRIA_PRISMA = 'prisma'
+GEOMETRIA_ACERO = 'acero'   # varilla / malla electrosoldada (no genera hoja de trabajo)
 
 GEOMETRIA_CHOICES = [
     (GEOMETRIA_CILINDRO, 'Cilindro'),
     (GEOMETRIA_CUBO, 'Cubo'),
     (GEOMETRIA_PRISMA, 'Prisma'),
+    (GEOMETRIA_ACERO, 'Acero (varilla/malla)'),
 ]
 
-# Dimensiones predefinidas de especímenes.
-# Cada opción mapea a una geometría específica — sin ambigüedad.
-DIMENSION_ESPECIMEN_CHOICES = [
-    ('', '-- Seleccionar --'),
+# Dimensiones de especímenes de concreto (cilindro / cubo / viga).
+DIMENSION_CONCRETO_CHOICES = [
     ('3_pulg', '3" (Cilindro)'),
     ('4_pulg', '4" (Cilindro)'),
     ('6_pulg', '6" (Cilindro)'),
     ('50_mm', '50mm (Cubo)'),
     ('15x15_cm', '15x15cm (Viga)'),
 ]
+
+# Diámetros de acero (varilla / malla electrosoldada).
+DIMENSION_ACERO_CHOICES = [
+    ('1_4_pulg', '1/4"'),
+    ('3_8_pulg', '3/8"'),
+    ('1_2_pulg', '1/2"'),
+    ('5_8_pulg', '5/8"'),
+    ('3_4_pulg', '3/4"'),
+    ('7_8_pulg', '7/8"'),
+    ('1_pulg', '1"'),
+    ('1_1_4_pulg', '1 1/4"'),
+]
+
+# Choices completas del campo. El formulario muestra el subconjunto correcto
+# (concreto vs acero) según el tipo de muestra elegido (vía JS).
+DIMENSION_ESPECIMEN_CHOICES = (
+    [('', '-- Seleccionar --')] + DIMENSION_CONCRETO_CHOICES + DIMENSION_ACERO_CHOICES
+)
 
 # Mapeo dimensión → geometría
 DIMENSION_A_GEOMETRIA = {
@@ -33,6 +51,14 @@ DIMENSION_A_GEOMETRIA = {
     '6_pulg': GEOMETRIA_CILINDRO,
     '50_mm': GEOMETRIA_CUBO,
     '15x15_cm': GEOMETRIA_PRISMA,
+    '1_4_pulg': GEOMETRIA_ACERO,
+    '3_8_pulg': GEOMETRIA_ACERO,
+    '1_2_pulg': GEOMETRIA_ACERO,
+    '5_8_pulg': GEOMETRIA_ACERO,
+    '3_4_pulg': GEOMETRIA_ACERO,
+    '7_8_pulg': GEOMETRIA_ACERO,
+    '1_pulg': GEOMETRIA_ACERO,
+    '1_1_4_pulg': GEOMETRIA_ACERO,
 }
 
 # Etiquetas legibles para mostrar en tablas/reportes
@@ -42,6 +68,14 @@ DIMENSION_DISPLAY = {
     '6_pulg': '6"',
     '50_mm': '50mm',
     '15x15_cm': '15×15cm',
+    '1_4_pulg': '1/4"',
+    '3_8_pulg': '3/8"',
+    '1_2_pulg': '1/2"',
+    '5_8_pulg': '5/8"',
+    '3_4_pulg': '3/4"',
+    '7_8_pulg': '7/8"',
+    '1_pulg': '1"',
+    '1_1_4_pulg': '1 1/4"',
 }
 
 

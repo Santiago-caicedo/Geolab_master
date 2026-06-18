@@ -1038,5 +1038,61 @@
             }, 30000);
         });
     });
+
+    // ── Dimensiones dinámicas según el tipo de muestra (acero vs concreto) ────
+    (function () {
+        const TIPOS_ACERO = ['varilla', 'malla_elec'];
+        const DIM_CONCRETO = [
+            ['', '-- Seleccionar --'],
+            ['3_pulg', '3" (Cilindro)'],
+            ['4_pulg', '4" (Cilindro)'],
+            ['6_pulg', '6" (Cilindro)'],
+            ['50_mm', '50mm (Cubo)'],
+            ['15x15_cm', '15x15cm (Viga)'],
+        ];
+        const DIM_ACERO = [
+            ['', '-- Seleccionar --'],
+            ['1_4_pulg', '1/4"'],
+            ['3_8_pulg', '3/8"'],
+            ['1_2_pulg', '1/2"'],
+            ['5_8_pulg', '5/8"'],
+            ['3_4_pulg', '3/4"'],
+            ['7_8_pulg', '7/8"'],
+            ['1_pulg', '1"'],
+            ['1_1_4_pulg', '1 1/4"'],
+        ];
+
+        function aplicar(row) {
+            if (!row) return;
+            const tipoSel = row.querySelector('[name$="-tipo_muestra"]');
+            const dimSel = row.querySelector('[name$="-dimension_especimen"]');
+            if (!tipoSel || !dimSel) return;
+            const opciones = TIPOS_ACERO.includes(tipoSel.value) ? DIM_ACERO : DIM_CONCRETO;
+            const actual = dimSel.value;
+            dimSel.innerHTML = opciones
+                .map(([v, l]) => `<option value="${v}">${l}</option>`)
+                .join('');
+            dimSel.value = opciones.some(([v]) => v === actual) ? actual : '';
+        }
+
+        document.addEventListener('change', function (e) {
+            if (e.target && e.target.matches && e.target.matches('select[name$="-tipo_muestra"]')) {
+                aplicar(e.target.closest('.muestra-row'));
+            }
+        });
+
+        const tbody = document.getElementById('muestras-tbody');
+        if (tbody && window.MutationObserver) {
+            new MutationObserver(function (muts) {
+                muts.forEach(m => m.addedNodes.forEach(n => {
+                    if (n.nodeType === 1 && n.classList && n.classList.contains('muestra-row')) {
+                        aplicar(n);
+                    }
+                }));
+            }).observe(tbody, { childList: true });
+        }
+
+        document.querySelectorAll('.muestra-row').forEach(aplicar);
+    })();
 </script>
 {% endblock %}

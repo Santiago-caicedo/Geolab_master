@@ -222,3 +222,10 @@ else:
 DEFAULT_FROM_EMAIL = 'Geolab S.A.S <noreply@geolab.com>'
 
 
+# ── Conversión de informes XLSX → PDF (LibreOffice headless) ──────────────────
+# Ruta al ejecutable de LibreOffice (soffice). Si queda vacío, el sistema busca
+# 'soffice'/'libreoffice' en el PATH; si no lo encuentra, genera solo el XLSX.
+# Windows (instalación típica): C:\Program Files\LibreOffice\program\soffice.exe
+LIBREOFFICE_PATH = config('LIBREOFFICE_PATH', default=None)
+
+

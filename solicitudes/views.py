@@ -56,6 +56,20 @@ def crear_hoja_trabajo_y_resultados(remision):
     if not muestras:
         raise ValueError(f"La remisión #{remision.orden_trabajo} no tiene muestras registradas")
 
+    # El acero (varilla/malla) por ahora NO va a hoja de trabajo: solo se
+    # almacena en la remisión. Filtramos las muestras ensayables.
+    muestras_ensayables = [
+        m for m in muestras if m.tipo_muestra not in Muestra.TIPOS_SIN_HOJA
+    ]
+
+    # Si TODAS las muestras son de acero, la remisión queda almacenada sin hoja.
+    if not muestras_ensayables:
+        logger.info(
+            f"Remision #{remision.orden_trabajo}: todas las muestras son de acero "
+            f"(varilla/malla); no se crea hoja de trabajo."
+        )
+        return None, 0
+
     # Crear o obtener la hoja de trabajo
     hoja, created = HojaTrabajo.objects.get_or_create(
         remision=remision,
@@ -65,10 +79,10 @@ def crear_hoja_trabajo_y_resultados(remision):
     if created:
         logger.info(f"Creada HojaTrabajo para Remision #{remision.orden_trabajo}")
 
-    # Crear ResultadoMuestra solo para muestras que no tengan uno
+    # Crear ResultadoMuestra solo para muestras ensayables que no tengan uno
     resultados_existentes = set(
         ResultadoMuestra.objects.filter(
-            muestra__in=muestras
+            muestra__in=muestras_ensayables
         ).values_list('muestra_id', flat=True)
     )
 
@@ -78,7 +92,7 @@ def crear_hoja_trabajo_y_resultados(remision):
             muestra=muestra,
             estado='pendiente'
         )
-        for muestra in muestras
+        for muestra in muestras_ensayables
         if muestra.pk not in resultados_existentes
     ]
 
@@ -268,7 +282,8 @@ def responder_remision(request, token):
 
                     logger.info(
                         f"Remision #{remision.orden_trabajo} completada exitosamente. "
-                        f"HojaTrabajo: {hoja.pk}, Resultados: {num_resultados}"
+                        f"HojaTrabajo: {hoja.pk if hoja else 'sin hoja (acero)'}, "
+                        f"Resultados: {num_resultados}"
                     )
 
                 # 4. Notificar a Staff (fuera de la transacción)
@@ -633,7 +648,7 @@ def crear_remision_cliente(request, obra_pk):
 
                         logger.info(
                             f"Remitente {request.user.username} creo Remision #{remision.orden_trabajo} "
-                            f"para obra {obra.nombre}. HojaTrabajo: {hoja.pk}"
+                            f"para obra {obra.nombre}. HojaTrabajo: {hoja.pk if hoja else 'sin hoja (acero)'}"
                         )
 
                     messages.success(

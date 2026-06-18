@@ -151,6 +151,10 @@ class Muestra(models.Model):
         ('malla_elec', 'Malla Eléctrica'),
     ]
 
+    # Tipos que por ahora NO generan hoja de trabajo: solo se almacenan en la
+    # remisión (acero: varilla y malla electrosoldada).
+    TIPOS_SIN_HOJA = ('varilla', 'malla_elec')
+
     remision = models.ForeignKey(
         RemisionMuestras,
         on_delete=models.CASCADE,

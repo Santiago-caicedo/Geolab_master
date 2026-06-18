@@ -1287,7 +1287,7 @@ document.addEventListener('DOMContentLoaded', function() {
         cb.addEventListener('change', function() {
             const pk = this.dataset.pk;
 
-            fetch(`/ensayos/resultado/${pk}/toggle-seleccion/`, {
+            fetch(`/resultado/${pk}/toggle-seleccion/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrfToken,
@@ -1345,7 +1345,7 @@ document.addEventListener('DOMContentLoaded', function() {
         document.querySelectorAll('.fila-hoy .check-muestra, .fila-vencida .check-muestra').forEach(cb => {
             if (!cb.disabled && !cb.checked) {
                 cb.checked = true;
-                fetch(`/ensayos/resultado/${cb.dataset.pk}/toggle-seleccion/`, {
+                fetch(`/resultado/${cb.dataset.pk}/toggle-seleccion/`, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
@@ -1362,7 +1362,7 @@ document.addEventListener('DOMContentLoaded', function() {
         checkboxes.forEach(cb => {
             if (cb.checked && !cb.disabled) {
                 cb.checked = false;
-                fetch(`/ensayos/resultado/${cb.dataset.pk}/toggle-seleccion/`, {
+                fetch(`/resultado/${cb.dataset.pk}/toggle-seleccion/`, {
                     method: 'POST',
                     headers: {
                         'X-CSRFToken': csrfToken,
@@ -1388,7 +1388,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 formData.append(field, value);
             });
 
-            return fetch(`/ensayos/resultado/${pk}/editar/`, {
+            return fetch(`/resultado/${pk}/editar/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': csrfToken,

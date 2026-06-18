@@ -324,12 +324,12 @@
                             <td>
                                 <select class="select-falla" name="forma_falla" data-pk="{{ m.resultado.pk }}">
                                     <option value="">-</option>
-                                    <option value="1" {% if m.resultado.forma_falla == '1' %}selected{% endif %}>1</option>
-                                    <option value="2" {% if m.resultado.forma_falla == '2' %}selected{% endif %}>2</option>
-                                    <option value="3" {% if m.resultado.forma_falla == '3' %}selected{% endif %}>3</option>
-                                    <option value="4" {% if m.resultado.forma_falla == '4' %}selected{% endif %}>4</option>
-                                    <option value="5" {% if m.resultado.forma_falla == '5' %}selected{% endif %}>5</option>
-                                    <option value="6" {% if m.resultado.forma_falla == '6' %}selected{% endif %}>6</option>
+                                    <option value="tipo_1" {% if m.resultado.forma_falla == 'tipo_1' %}selected{% endif %}>1</option>
+                                    <option value="tipo_2" {% if m.resultado.forma_falla == 'tipo_2' %}selected{% endif %}>2</option>
+                                    <option value="tipo_3" {% if m.resultado.forma_falla == 'tipo_3' %}selected{% endif %}>3</option>
+                                    <option value="tipo_4" {% if m.resultado.forma_falla == 'tipo_4' %}selected{% endif %}>4</option>
+                                    <option value="tipo_5" {% if m.resultado.forma_falla == 'tipo_5' %}selected{% endif %}>5</option>
+                                    <option value="tipo_6" {% if m.resultado.forma_falla == 'tipo_6' %}selected{% endif %}>6</option>
                                 </select>
                             </td>
                             <td>
@@ -393,12 +393,12 @@
                             <td>
                                 <select class="select-falla" name="forma_falla" data-pk="{{ m.resultado.pk }}">
                                     <option value="">-</option>
-                                    <option value="1" {% if m.resultado.forma_falla == '1' %}selected{% endif %}>1</option>
-                                    <option value="2" {% if m.resultado.forma_falla == '2' %}selected{% endif %}>2</option>
-                                    <option value="3" {% if m.resultado.forma_falla == '3' %}selected{% endif %}>3</option>
-                                    <option value="4" {% if m.resultado.forma_falla == '4' %}selected{% endif %}>4</option>
-                                    <option value="5" {% if m.resultado.forma_falla == '5' %}selected{% endif %}>5</option>
-                                    <option value="6" {% if m.resultado.forma_falla == '6' %}selected{% endif %}>6</option>
+                                    <option value="tipo_1" {% if m.resultado.forma_falla == 'tipo_1' %}selected{% endif %}>1</option>
+                                    <option value="tipo_2" {% if m.resultado.forma_falla == 'tipo_2' %}selected{% endif %}>2</option>
+                                    <option value="tipo_3" {% if m.resultado.forma_falla == 'tipo_3' %}selected{% endif %}>3</option>
+                                    <option value="tipo_4" {% if m.resultado.forma_falla == 'tipo_4' %}selected{% endif %}>4</option>
+                                    <option value="tipo_5" {% if m.resultado.forma_falla == 'tipo_5' %}selected{% endif %}>5</option>
+                                    <option value="tipo_6" {% if m.resultado.forma_falla == 'tipo_6' %}selected{% endif %}>6</option>
                                 </select>
                             </td>
                             <td>
@@ -467,7 +467,7 @@
         btn.innerHTML = '<i class="bi bi-hourglass-split"></i>';
 
         try {
-            const response = await fetch(`/ensayos/resultado/${pk}/editar/`, {
+            const response = await fetch(`/resultado/${pk}/editar/`, {
                 method: 'POST',
                 headers: {
                     'X-CSRFToken': getCookie('csrftoken'),
