@@ -364,6 +364,11 @@ document.addEventListener('DOMContentLoaded', function() {
         {% endfor %}
     ];
 
+    // IDs de las obras ya asignadas al usuario (para marcarlas al recargar por AJAX en edición)
+    const obrasAsignadas = [
+        {% for obra in form.obras_asignadas.initial %}{{ obra.pk }},{% endfor %}
+    ];
+
     let selectedIndex = -1;
 
     // Filtrar empresas según texto
@@ -525,11 +530,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.obras && data.obras.length > 0) {
                     let html = '<div class="row">';
                     data.obras.forEach(obra => {
+                        const marcada = obrasAsignadas.includes(obra.id) ? 'checked' : '';
                         html += `
                             <div class="col-md-6 mb-2">
                                 <div class="form-check">
                                     <input type="checkbox" name="obras_asignadas" value="${obra.id}"
-                                           class="form-check-input" id="obra_${obra.id}">
+                                           class="form-check-input" id="obra_${obra.id}" ${marcada}>
                                     <label class="form-check-label" for="obra_${obra.id}">
                                         ${obra.nombre}
                                         <span class="text-muted small">(${obra.codigo_obra})</span>
