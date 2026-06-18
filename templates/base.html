@@ -220,6 +220,7 @@
 </head>
 <body>
 
+    {% block sidebar %}
     {% if user.es_tecnico_laboratorio %}
         {% include 'includes/sidebar_tecnico.html' %}
     {% elif user.es_geolab %}
@@ -229,6 +230,7 @@
     {% else %}
         {% include 'includes/sidebar_client.html' %}
     {% endif %}
+    {% endblock %}
 
 
     <div class="main-content">
@@ -241,6 +243,7 @@
                 </button>
                 <div>
                     <h5 class="mb-0 fw-bold text-dark" style="letter-spacing: -0.5px;">
+                        {% block panel_title %}
                         {% if user.es_tecnico_laboratorio %}
                             Panel de Laboratorio
                         {% elif user.es_geolab %}
@@ -250,6 +253,7 @@
                         {% else %}
                             Portal de Clientes
                         {% endif %}
+                        {% endblock %}
                     </h5>
                     <small class="text-muted">
                         {% now "l, d F Y" %}

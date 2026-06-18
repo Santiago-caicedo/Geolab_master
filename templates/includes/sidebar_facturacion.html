@@ -1,0 +1,65 @@
+{% load static %}
+<nav class="sidebar">
+    <a href="{% url 'dashboard_facturacion' %}" class="sidebar-brand flex-column gap-1" style="height: auto; padding-top: 1rem; padding-bottom: 1rem;">
+        <img src="{% static 'img/geolab-logo.png' %}" alt="Geolab Sistema" style="width: 150px; height: auto;">
+        <span class="badge bg-soft-blue text-uppercase" style="letter-spacing: 1px; font-size: 0.65rem;">
+            <i class="bi bi-receipt-cutoff me-1"></i> Facturación
+        </span>
+    </a>
+
+    <div class="d-flex flex-column py-2 h-100 text-nowrap overflow-auto" style="scrollbar-width: none;">
+
+        <!-- Salir del módulo: volver al portal principal -->
+        <a href="{% url 'home' %}" class="nav-link" style="color: rgba(255,255,255,0.55);">
+            <i class="bi bi-arrow-left-circle"></i> Volver al Portal
+        </a>
+
+        <div class="nav-section">PANEL</div>
+
+        <a href="{% url 'dashboard_facturacion' %}" class="nav-link {% if request.resolver_match.url_name == 'dashboard_facturacion' %}active{% endif %}">
+            <i class="bi bi-speedometer2"></i> Panel Facturación
+        </a>
+
+        <div class="nav-section">OPERACIÓN</div>
+
+        <a href="{% url 'crear_registro_facturacion' %}" class="nav-link {% if 'registro' in request.path %}active{% endif %}">
+            <i class="bi bi-plus-circle"></i> Registrar Servicio
+        </a>
+
+        <a href="{% url 'generar_factura' %}" class="nav-link {% if 'generar' in request.path or 'finalizar' in request.path %}active{% endif %}">
+            <i class="bi bi-file-earmark-text"></i> Generar Factura
+        </a>
+
+        <a href="{% url 'historico_facturacion' %}" class="nav-link {% if 'historico' in request.path %}active{% endif %}">
+            <i class="bi bi-clock-history"></i> Histórico
+        </a>
+
+        <div class="nav-section">REPOSITORIO</div>
+
+        <a href="{% url 'repositorio_clientes' %}" class="nav-link {% if 'repositorio' in request.path %}active{% endif %}">
+            <i class="bi bi-archive"></i> Repositorio Facturas
+        </a>
+
+        <div class="nav-section">CONFIGURACIÓN</div>
+
+        <a href="{% url 'catalogo_servicios' %}" class="nav-link {% if 'catalogo' in request.path or 'servicios' in request.path or 'categorias' in request.path %}active{% endif %}">
+            <i class="bi bi-list-check"></i> Catálogo Servicios
+        </a>
+
+        <a href="{% url 'lista_impuestos' %}" class="nav-link {% if 'impuestos' in request.path %}active{% endif %}">
+            <i class="bi bi-percent"></i> Impuestos
+        </a>
+
+        <div class="flex-grow-1"></div>
+
+        <div class="p-3">
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn w-100 btn-sm d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
+                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
+                    <i class="bi bi-box-arrow-left"></i> Cerrar Sesión
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>

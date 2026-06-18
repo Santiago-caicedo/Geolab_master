@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+
+{# Shell del módulo de Facturación: reutiliza el chrome (navbar, notificaciones,
+   footer, responsive) pero con su propio sidebar e identidad de "app aparte". #}
+
+{% block sidebar %}
+    {% include 'includes/sidebar_facturacion.html' %}
+{% endblock %}
+
+{% block panel_title %}
+    <i class="bi bi-receipt-cutoff text-primary me-1"></i> Facturación
+{% endblock %}
