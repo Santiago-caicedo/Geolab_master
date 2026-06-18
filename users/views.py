@@ -2,6 +2,7 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.http import Http404, JsonResponse
+from django.core.paginator import Paginator
 from django.db.models import Q, Count
 
 from .models import ClienteExterno, Constructora
@@ -42,12 +43,23 @@ def lista_usuarios_cliente(request):
     if empresa_filtro:
         clientes = clientes.filter(empresa_id=empresa_filtro)
 
-    # Estadísticas
+    # Estadísticas (sobre el total, no la página)
     total_directores = ClienteExterno.objects.filter(rol='director').count()
     total_residentes = ClienteExterno.objects.filter(rol='residente').count()
 
+    # Paginación
+    paginator = Paginator(clientes, 15)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    # Querystring para conservar los filtros en los enlaces de paginación
+    params = request.GET.copy()
+    params.pop('page', None)
+    querystring = params.urlencode()
+
     context = {
-        'clientes': clientes,
+        'clientes': page_obj,
+        'page_obj': page_obj,
+        'querystring': querystring,
         'busqueda': busqueda,
         'rol_filtro': rol_filtro,
         'empresa_filtro': empresa_filtro,

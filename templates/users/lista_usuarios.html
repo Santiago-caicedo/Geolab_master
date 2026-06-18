@@ -106,6 +106,7 @@
                         <option value="">Todos los roles</option>
                         <option value="director" {% if rol_filtro == 'director' %}selected{% endif %}>Director</option>
                         <option value="residente" {% if rol_filtro == 'residente' %}selected{% endif %}>Residente</option>
+                        <option value="remitente" {% if rol_filtro == 'remitente' %}selected{% endif %}>Remitente</option>
                     </select>
                 </div>
                 <div class="col-md-3">
@@ -174,6 +175,10 @@
                                 <span class="badge bg-success bg-opacity-10 text-success px-3 py-2">
                                     <i class="bi bi-building me-1"></i> Director
                                 </span>
+                                {% elif cliente.rol == 'remitente' %}
+                                <span class="badge bg-warning bg-opacity-10 text-warning px-3 py-2">
+                                    <i class="bi bi-send me-1"></i> Remitente
+                                </span>
                                 {% else %}
                                 <span class="badge bg-info bg-opacity-10 text-info px-3 py-2">
                                     <i class="bi bi-person-workspace me-1"></i> Residente
@@ -226,6 +231,41 @@
                     </tbody>
                 </table>
             </div>
+
+            {% if page_obj.paginator.num_pages > 1 %}
+            <div class="d-flex justify-content-between align-items-center px-4 py-3 border-top flex-wrap gap-2">
+                <div class="text-muted small">
+                    Mostrando {{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }} usuarios
+                </div>
+                <nav aria-label="Paginación de usuarios">
+                    <ul class="pagination pagination-sm mb-0">
+                        {% if page_obj.has_previous %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if querystring %}&{{ querystring }}{% endif %}"><i class="bi bi-chevron-left"></i></a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-left"></i></span></li>
+                        {% endif %}
+
+                        {% for num in page_obj.paginator.page_range %}
+                            {% if num == page_obj.number %}
+                            <li class="page-item active"><span class="page-link">{{ num }}</span></li>
+                            {% elif num >= page_obj.number|add:"-2" and num <= page_obj.number|add:"2" %}
+                            <li class="page-item"><a class="page-link" href="?page={{ num }}{% if querystring %}&{{ querystring }}{% endif %}">{{ num }}</a></li>
+                            {% endif %}
+                        {% endfor %}
+
+                        {% if page_obj.has_next %}
+                        <li class="page-item">
+                            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if querystring %}&{{ querystring }}{% endif %}"><i class="bi bi-chevron-right"></i></a>
+                        </li>
+                        {% else %}
+                        <li class="page-item disabled"><span class="page-link"><i class="bi bi-chevron-right"></i></span></li>
+                        {% endif %}
+                    </ul>
+                </nav>
+            </div>
+            {% endif %}
             {% else %}
             <div class="text-center py-5">
                 <i class="bi bi-people text-muted" style="font-size: 4rem;"></i>

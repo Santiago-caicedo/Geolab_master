@@ -57,9 +57,10 @@ geolab_master/
 ### solicitudes
 - **RemisionMuestras**: Formato F-GC-05 (obra FK, orden_trabajo, estado, firmante_*, cadena custodia)
 - **Muestra**: Detalle de cada muestra en la remisión
-  - `dimension_especimen`: Select predefinido (3_pulg, 4_pulg, 6_pulg, 50_mm, 15x15_cm)
-  - `geometria`: Campo auto-calculado (cilindro/cubo/prisma) derivado de dimension_especimen
+  - `dimension_especimen`: Select predefinido. Concreto: 3_pulg, 4_pulg, 6_pulg, 50_mm, 15x15_cm. Acero (varilla/malla): 1_4_pulg, 3_8_pulg, 1_2_pulg, 5_8_pulg, 3_4_pulg, 7_8_pulg, 1_pulg, 1_1_4_pulg. El front muestra el subconjunto según el tipo (JS en los 2 forms de remisión).
+  - `geometria`: Campo auto-calculado (cilindro/cubo/prisma/acero) derivado de dimension_especimen
   - `tipo_muestra`: concreto, grouting, mortero, muretes, bloques, vigas, varilla, malla_elec
+  - `TIPOS_SIN_HOJA = ('varilla', 'malla_elec')`: estos tipos (acero) se almacenan en la remisión pero NO generan HojaTrabajo/ResultadoMuestra (ver `crear_hoja_trabajo_y_resultados`). En remisión mixta, solo el concreto va a la hoja.
   - `numero_muestra`, `cantidad`, `localizacion`, `fecha_toma`, `edad_ensayo_dias`, `fc_resistencia`
   - Campos legacy: `diametro_longitud`, `unidad_diametro` (datos antiguos, no se usan en formularios nuevos)
 - **Notificacion**: Sistema de alertas (tipo, titulo, mensaje, destinatario, leida)
@@ -129,8 +130,9 @@ El sistema rutea automáticamente a diferentes macros de cálculo según la geom
 | 3", 4", 6" (pulg) | `cilindro` | MacroCilindro |
 | 50mm | `cubo` | MacroCubo |
 | 15x15cm | `prisma` | MacroPrisma |
+| 1/4"…1 1/4" (acero) | `acero` | (sin macro — no genera hoja de trabajo) |
 
-`Muestra.save()` auto-calcula `geometria` via `clasificar_geometria()`. El campo `dimension_especimen` es un select predefinido (sin ambigüedad). Existe fallback legacy para datos antiguos con `diametro_longitud` + `unidad_diametro`.
+`Muestra.save()` auto-calcula `geometria` via `clasificar_geometria()`. El campo `dimension_especimen` es un select predefinido (sin ambigüedad). Existe fallback legacy para datos antiguos con `diametro_longitud` + `unidad_diametro`. La geometría `acero` (varilla/malla) no tiene macro ni flujo de ensayo: solo se almacena.
 
 ### Strategy Pattern (ensayos/macros.py)
 
@@ -221,6 +223,7 @@ python manage.py sincronizar_hojas  # Crea hojas faltantes
 python manage.py migrar_geolab      # Migración desde WordPress
 python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py importar_calidad   # Areas y carpetas SGC
+python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
 ```
 
 ## Variables de Entorno (.env)
@@ -233,6 +236,10 @@ DB_USER=postgres
 DB_PASSWORD=...
 DB_HOST=localhost
 DB_PORT=5432
+# Opcional: ruta a LibreOffice para convertir informes XLSX→PDF
+# Windows: LIBREOFFICE_PATH=C:\Program Files\LibreOffice\program\soffice.exe
+# Linux:   LIBREOFFICE_PATH=/usr/bin/soffice
+LIBREOFFICE_PATH=
 # Producción: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EMAIL_HOST_*
 ```
 
@@ -262,6 +269,10 @@ DB_PORT=5432
 13. **Macro dispatch:** `ResultadoMuestra._macro` → `get_macro(muestra.geometria)` → Strategy Pattern
 14. **Price freezing:** `RegistroServicio.precio_unitario_congelado` captura precio al momento del registro
 15. **Producción:** dominio `portalgeolab.com`, S3 bucket `vadomdata/geolab/`
+16. **URLs montadas en RAÍZ:** TODAS las apps se incluyen con `path('', include(...))` en `config/urls.py` (sin prefijo de app). Las rutas reales son p.ej. `/resultado/<pk>/editar/`, NO `/ensayos/resultado/...`. En `fetch()` usar la ruta sin prefijo de app.
+17. **Acero sin hoja de trabajo:** tipos `varilla`/`malla_elec` (`Muestra.TIPOS_SIN_HOJA`) → geometría `acero`, se almacenan pero no generan HojaTrabajo/ResultadoMuestra.
+18. **`forma_falla` canónico:** valores `tipo_1`..`tipo_6` (NO `1`..`6`). `informes._tipo_falla_num()` exige el prefijo `tipo_`.
+19. **PDF de informes de ensayo:** XLSX siempre (inyección XML sobre plantilla); el PDF requiere LibreOffice headless. Ruta vía `settings.LIBREOFFICE_PATH` (config desde `.env`, default None) → fallback a `soffice`/`libreoffice` en PATH. Sin LibreOffice, solo se genera el XLSX.
 
 ## Seguridad
 
