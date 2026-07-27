@@ -492,6 +492,7 @@ def hoja_trabajo_obra(request, obra_pk):
             'resultado': resultado,
             'muestra': resultado.muestra,  # Pasar muestra explicitamente
             'geometria': resultado.muestra.geometria,
+            'dimension': resultado.muestra.dimension_especimen,
             'fecha_falla': fecha_falla,
             'es_hoy': es_hoy,
             'esta_vencida': esta_vencida,

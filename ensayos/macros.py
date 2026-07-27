@@ -5,11 +5,67 @@ Cada macro implementa las fórmulas específicas para un tipo de geometría.
 El registry permite obtener la macro correcta dado un tipo de geometría.
 """
 
+import re
 from abc import ABC, abstractmethod
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from math import pi
 
 from .geometry import GEOMETRIA_CILINDRO, GEOMETRIA_CUBO, GEOMETRIA_PRISMA
+
+
+# ── Corrección de instrumento (F-GT-05, zona "CORRECCION INSTRUMENTO") ────────
+# Fuente: PLANTILLA MACRO.xlsx (F-GT-05 v02). Los valores provienen del
+# certificado de calibración de los equipos: ACTUALIZAR AQUÍ cuando el
+# laboratorio recalibre (calibrador y prensa).
+# La corrección se elige según la dimensión del espécimen (3", 4" o 6") y se
+# SUMA al promedio de las 3 mediciones. Muestras legacy sin dimension_especimen
+# no se corrigen.
+CORRECCION_DIAMETRO_MM = {
+    '3_pulg': -0.077,
+    '4_pulg': -0.0245,
+    '6_pulg': 0.003,
+}
+CORRECCION_LONGITUD_MM = {
+    '3_pulg': 0.17,
+    '4_pulg': 0.1,
+    '6_pulg': 0.072,
+}
+# Polinomio de calibración de la prensa (coeficientes A0..A3 del certificado):
+# carga_corregida = A0 + A1·R + A2·R² + A3·R³   (R = carga en kN tal cual)
+# La carga se REGISTRA tal cual; el polinomio se aplica al calcular el esfuerzo.
+CORRECCION_CARGA_COEFS = (-1.36143, 1.07562, -1.80408e-4, 9.45963e-8)
+
+
+def corregir_carga_kn(carga_kn):
+    """Carga corregida por el polinomio de calibración de la prensa (kN)."""
+    r = float(carga_kn)
+    a0, a1, a2, a3 = CORRECCION_CARGA_COEFS
+    return a0 + a1 * r + a2 * r * r + a3 * r * r * r
+
+
+def redondear_half_up(valor, decimales):
+    """Redondeo de PRESENTACIÓN como lo hace Excel: mitades lejos de cero.
+    (round() de Python usa banker's rounding, que difiere en las fronteras .5)."""
+    if valor is None:
+        return None
+    exp = Decimal(1).scaleb(-decimales)
+    return Decimal(repr(float(valor))).quantize(exp, rounding=ROUND_HALF_UP)
+
+
+def parse_fc_mpa(fc_resistencia):
+    """Extrae el f'c en MPa de un texto libre: '21 MPa', '3000 psi', '210 kg/cm2'."""
+    if not fc_resistencia:
+        return None
+    txt = str(fc_resistencia).strip().lower().replace(',', '.')
+    m = re.search(r'(\d+(?:\.\d+)?)', txt)
+    if not m:
+        return None
+    valor = float(m.group(1))
+    if 'psi' in txt:
+        return round(valor / 145.0377, 2)
+    if 'kg' in txt:  # kg/cm2
+        return round(valor * 0.0980665, 2)
+    return valor  # MPa o sin unidad
 
 
 class MacroBase(ABC):
@@ -83,6 +139,46 @@ class MacroCilindro(MacroBase):
             area = (Decimal(str(pi)) * (diametro_real ** 2) / 4) / 100
             return round(area, 2)
         return None
+
+    def calcular_valores_exactos(self, d1, d2, d3, l1, l2, l3, carga_kn,
+                                 fc_resistencia, dimension=None):
+        """
+        Cadena de cálculo EXACTA de la macro Excel original
+        (PLANTILLA MACRO.xlsx, F-GT-05 v02):
+
+          D.P  = promedio(D1..D3) + corrección_diámetro[3"|4"|6"]
+          L.P  = promedio(L1..L3) + corrección_longitud[3"|4"|6"]
+          área = π·D.P²/4/100                          (cm²)
+          esfuerzo = (carga_corregida·101.9716/área)/10  (MPa)
+          %    = esfuerzo/f'c·100
+
+        donde carga_corregida = polinomio de calibración de la prensa sobre
+        la carga en kN registrada tal cual.
+
+        SIN redondeos intermedios: Excel calcula toda la cadena en precisión
+        completa y solo redondea al PRESENTAR. Este método devuelve los valores
+        exactos (float o None); el consumidor redondea únicamente para mostrar
+        (usar redondear_half_up, que replica el redondeo de Excel).
+
+        `dimension` es Muestra.dimension_especimen; si no está en la tabla de
+        corrección (legacy/vacío) no se aplica corrección.
+        """
+        diam = lon = area = esf = pct = None
+        if all([d1, d2, d3]):
+            diam = ((float(d1) + float(d2) + float(d3)) / 3
+                    + CORRECCION_DIAMETRO_MM.get(dimension or '', 0.0))
+        if all([l1, l2, l3]):
+            lon = ((float(l1) + float(l2) + float(l3)) / 3
+                   + CORRECCION_LONGITUD_MM.get(dimension or '', 0.0))
+        if diam is not None:
+            area = pi * diam * diam / 4 / 100  # cm² (= π·d²/400)
+        if carga_kn is not None and float(carga_kn) > 0 and area:
+            esf = (corregir_carga_kn(carga_kn) * 101.9716 / area) / 10
+        fc = parse_fc_mpa(fc_resistencia)
+        if esf is not None and fc:
+            pct = esf / fc * 100
+        return {'diametro_real': diam, 'longitud_real': lon, 'area': area,
+                'esfuerzo': esf, 'porcentaje': pct}
 
 
 class MacroCubo(MacroBase):

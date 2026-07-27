@@ -53,20 +53,8 @@ def ciudad_a_plantilla(ciudad):
     return os.path.join(PLANTILLAS_DIR, nombre)
 
 
-def parse_fc_mpa(fc_resistencia):
-    """Extrae el f'c en MPa de un texto libre: '21 MPa', '3000 psi', '210 kg/cm2'."""
-    if not fc_resistencia:
-        return None
-    txt = str(fc_resistencia).strip().lower().replace(',', '.')
-    m = re.search(r'(\d+(?:\.\d+)?)', txt)
-    if not m:
-        return None
-    valor = float(m.group(1))
-    if 'psi' in txt:
-        return round(valor / 145.0377, 2)
-    if 'kg' in txt:  # kg/cm2
-        return round(valor * 0.0980665, 2)
-    return valor  # MPa o sin unidad
+# parse_fc_mpa vive en macros.py (fuente única para web e informes).
+from .macros import parse_fc_mpa  # noqa: E402  (re-export para compatibilidad)
 
 
 def _serial_fecha(d):
@@ -156,15 +144,31 @@ def _num(d, coord, v):
 
 def _calcular_dependientes(esp, drow):
     """
-    Calcula en Python las celdas dependientes (resultados de las fórmulas).
-    Necesario porque LibreOffice headless no recalcula al convertir; usa los
-    <v> cacheados que en la plantilla estaban en 0. Los valores aquí se inyectan
-    como <v> y reemplazan las fórmulas — el informe es un snapshot.
+    Calcula en Python las celdas dependientes replicando EXACTAMENTE la macro
+    Excel original (PLANTILLA MACRO.xlsx, F-GT-05):
+
+      - Corrección de instrumento sumada al promedio de diámetro/longitud
+        según la dimensión del espécimen (3"/4"/6").
+      - Polinomio de calibración de la prensa aplicado a la carga para las
+        columnas de resistencia (K kgf, N, O MPa, P psi). La columna L (kN)
+        muestra la carga TAL CUAL la entrega la prensa.
+      - SIN redondeos intermedios: se inyectan valores a precisión completa y
+        el formato numérico de cada celda del template hace el redondeo de
+        presentación, igual que en Excel.
+
+    Necesario porque LibreOffice headless usa los <v> cacheados al convertir.
+    Los valores se inyectan como <v> y reemplazan las fórmulas — el informe
+    es un snapshot.
     """
     import math
     from datetime import timedelta
+    from decimal import Decimal, ROUND_HALF_UP
+    from .macros import (
+        CORRECCION_DIAMETRO_MM, CORRECCION_LONGITUD_MM, corregir_carga_kn,
+    )
     out = {}
     m = esp.muestra
+    dim = getattr(m, 'dimension_especimen', '') or ''
     D1, D2, D3 = esp.diametro_d1, esp.diametro_d2, esp.diametro_d3
     L1, L2, L3 = esp.longitud_l1, esp.longitud_l2, esp.longitud_l3
 
@@ -175,46 +179,56 @@ def _calcular_dependientes(esp, drow):
 
     i_val = j_val = h_val = o_val = None
 
-    # I: diámetro promedio (mm)
+    # I: diámetro promedio (mm) + corrección de instrumento
     if D1 is not None and D2 is not None and D3 is not None:
-        i_val = round((float(D1) + float(D2) + float(D3)) / 3, 2)
+        i_val = ((float(D1) + float(D2) + float(D3)) / 3
+                 + CORRECCION_DIAMETRO_MM.get(dim, 0.0))
         out[f'I{drow}'] = ('num', i_val)
-    # H: longitud promedio (mm)
+    # H: longitud promedio (mm) + corrección de instrumento
     if L1 is not None and L2 is not None and L3 is not None:
-        h_val = round((float(L1) + float(L2) + float(L3)) / 3, 2)
+        h_val = ((float(L1) + float(L2) + float(L3)) / 3
+                 + CORRECCION_LONGITUD_MM.get(dim, 0.0))
         out[f'H{drow}'] = ('num', h_val)
-    # J: AREA cm² = π·d²/400
+    # J: AREA cm² = π·d²/400 (desde el diámetro corregido, sin redondear)
     if i_val is not None:
-        j_val = round(i_val ** 2 * math.pi / 400, 2)
+        j_val = i_val * i_val * math.pi / 400
         out[f'J{drow}'] = ('num', j_val)
-    # L: carga kN
+    # L: carga kN tal cual la entrega la prensa
     if esp.carga_maxima_kn is not None:
         l_val = float(esp.carga_maxima_kn)
         out[f'L{drow}'] = ('num', l_val)
-        # K: carga kgf = kN / 0.009807
-        k_val = round(l_val / 0.009807, 0)
-        out[f'K{drow}'] = ('num', k_val)
-        if j_val:
-            # N: resistencia kgf/cm² = K/J
-            n_val = round(k_val / j_val, 2)
-            out[f'N{drow}'] = ('num', n_val)
-            # O: esfuerzo MPa = (L·101.9716/J)/10
-            o_val = round((l_val * 101.9716 / j_val) / 10, 2)
-            out[f'O{drow}'] = ('num', o_val)
-            # P: psi = N/0.07
-            out[f'P{drow}'] = ('num', round(n_val / 0.07, 0))
+        if l_val > 0:
+            # Carga corregida por el polinomio de la prensa: base de todas
+            # las columnas de resistencia (coherentes entre sí).
+            carga_corr = corregir_carga_kn(l_val)
+            # K: carga corregida en kgf = kN_corr / 0.009807
+            k_val = carga_corr / 0.009807
+            out[f'K{drow}'] = ('num', k_val)
+            if j_val:
+                # N: resistencia kgf/cm² = K/J
+                n_val = k_val / j_val
+                out[f'N{drow}'] = ('num', n_val)
+                # O: esfuerzo MPa = (kN_corr·101.9716/J)/10
+                o_val = (carga_corr * 101.9716 / j_val) / 10
+                out[f'O{drow}'] = ('num', o_val)
+                # P: psi = N/0.07
+                out[f'P{drow}'] = ('num', n_val / 0.07)
     # Q: % desarrollo = O/M·100
     fc = parse_fc_mpa(m.fc_resistencia)
     if o_val is not None and fc:
-        out[f'Q{drow}'] = ('num', round(o_val / fc * 100, 1))
-    # R: densidad (kg/m³) — fórmula del template: MROUND(peso_g/(J·H/1e7)/1000, 10)
+        out[f'Q{drow}'] = ('num', o_val / fc * 100)
+    # R: densidad (kg/m³) — MROUND(peso_g/(J·H/1e7)/1000, 10) como Excel:
+    # múltiplo de 10 más cercano, mitades LEJOS de cero (round() de Python
+    # usa banker's rounding y difiere en la frontera).
     if esp.peso_gramos and j_val and h_val:
         peso_g = float(esp.peso_gramos)
         densidad = peso_g / (j_val * h_val / 1e7) / 1000
-        out[f'R{drow}'] = ('num', int(round(densidad / 10) * 10))
+        mround = int((Decimal(repr(densidad)) / 10)
+                     .quantize(Decimal(1), rounding=ROUND_HALF_UP) * 10)
+        out[f'R{drow}'] = ('num', mround)
     # S: L/D
     if h_val and i_val:
-        out[f'S{drow}'] = ('num', round(h_val / i_val, 2))
+        out[f'S{drow}'] = ('num', h_val / i_val)
     return out
 
 

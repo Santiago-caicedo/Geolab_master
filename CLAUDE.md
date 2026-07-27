@@ -149,13 +149,18 @@ get_macro(geometria) → MacroBase  (registry con fallback a cilindro)
 
 ### Fórmulas por Geometría
 
-**Cilindro (compresión estándar):**
+**Cilindro (compresión estándar) — réplica EXACTA de la macro Excel original (PLANTILLA MACRO.xlsx, F-GT-05):**
 ```
-diametro_real = promedio(D1, D2, D3)
-area = π × d² / 4 / 100
-esfuerzo_mpa = (carga_kn × 101.9716 / area) / 10
+D.P = promedio(D1,D2,D3) + corrección_diámetro[3"|4"|6"]   (tabla CORRECCION_DIAMETRO_MM)
+L.P = promedio(L1,L2,L3) + corrección_longitud[3"|4"|6"]   (tabla CORRECCION_LONGITUD_MM)
+area = π × D.P² / 4 / 100                                   (cm²)
+carga_corr = A0 + A1·R + A2·R² + A3·R³                      (polinomio calibración prensa; R = kN tal cual)
+esfuerzo_mpa = (carga_corr × 101.9716 / area) / 10
 % desarrollo = esfuerzo_mpa / fc_mpa × 100
 ```
+- **Corrección de instrumento**: tablas y polinomio en `ensayos/macros.py` (vienen del certificado de calibración — actualizar ahí al recalibrar). Se elige según `dimension_especimen`; muestras legacy sin dimensión NO se corrigen.
+- **SIN redondeos intermedios**: la cadena se calcula en precisión completa (como Excel) vía `MacroCilindro.calcular_valores_exactos()`; el redondeo es solo de presentación con `redondear_half_up()` (half-away-from-zero, como muestra Excel — `round()` de Python usa banker's). La carga en kN se registra/muestra tal cual; el polinomio se aplica en las columnas de resistencia.
+- Paridad verificada contra el Excel original con `ensayos/tests.py` (`python manage.py test ensayos`) — no modificar fórmulas sin correr esos tests.
 
 **Cubo (compresión NTC 220):**
 ```

@@ -715,6 +715,7 @@
                             class="{% if item.es_hoy %}fila-hoy{% elif item.esta_vencida %}fila-vencida{% elif r.estado == 'completado' %}fila-completada{% endif %}"
                             data-pk="{{ r.pk }}"
                             data-geometria="{{ item.geometria }}"
+                            data-dimension="{{ item.dimension }}"
                             data-es-hoy="{{ item.es_hoy|yesno:'true,false' }}"
                             data-vencida="{{ item.esta_vencida|yesno:'true,false' }}">
 
@@ -1145,6 +1146,18 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     }
 
+    // ── Corrección de instrumento (F-GT-05) ─────────────────────────────
+    // MANTENER SINCRONIZADO con ensayos/macros.py (fuente autoritativa).
+    // Se suma al promedio de las 3 mediciones según la dimensión (3"/4"/6").
+    const CORR_DIAMETRO = {'3_pulg': -0.077, '4_pulg': -0.0245, '6_pulg': 0.003};
+    const CORR_LONGITUD = {'3_pulg': 0.17, '4_pulg': 0.1, '6_pulg': 0.072};
+    // Polinomio de calibración de la prensa: corr = A0 + A1·R + A2·R² + A3·R³
+    const CORR_CARGA = [-1.36143, 1.07562, -1.80408e-4, 9.45963e-8];
+
+    function corregirCargaKn(r) {
+        return CORR_CARGA[0] + CORR_CARGA[1] * r + CORR_CARGA[2] * r * r + CORR_CARGA[3] * r * r * r;
+    }
+
     // Dispatch de calculo de area por geometria
     function calcularAreaPorGeometria(geometria, diamReal, longReal) {
         switch (geometria) {
@@ -1216,6 +1229,7 @@ document.addEventListener('DOMContentLoaded', function() {
     function calcularValores(pk) {
         const fila = document.getElementById(`fila-${pk}`);
         const geometria = fila?.dataset.geometria || 'cilindro';
+        const dimension = fila?.dataset.dimension || '';
 
         const d1 = parseFloat(document.querySelector(`input[name="d1_${pk}"]`)?.value) || 0;
         const d2 = parseFloat(document.querySelector(`input[name="d2_${pk}"]`)?.value) || 0;
@@ -1227,10 +1241,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
         const carga = parseFloat(document.querySelector(`input[name="carga_${pk}"]`)?.value) || 0;
 
-        // Diametro real
+        // Cilindro: cadena EXACTA de la macro Excel (F-GT-05) — corrección de
+        // instrumento en los promedios, área desde el diámetro corregido SIN
+        // redondeos intermedios y polinomio de la prensa en el esfuerzo.
+        // El redondeo (toFixed) es solo de presentación, al final.
+        const esCilindro = (geometria === 'cilindro' || !['cubo', 'prisma'].includes(geometria));
+
+        // Diametro real (exacto; cilindro incluye corrección)
+        let diamExacto = null;
         let diamReal = '-';
         if (d1 && d2 && d3) {
-            diamReal = ((d1 + d2 + d3) / 3).toFixed(2);
+            diamExacto = (d1 + d2 + d3) / 3 + (esCilindro ? (CORR_DIAMETRO[dimension] || 0) : 0);
+            diamReal = diamExacto.toFixed(2);
         }
         const elDiamReal = document.getElementById(`diam-real-${pk}`);
         if (elDiamReal) {
@@ -1238,10 +1260,12 @@ document.addEventListener('DOMContentLoaded', function() {
             elDiamReal.classList.toggle('vacio', diamReal === '-');
         }
 
-        // Longitud real
+        // Longitud real (exacta; cilindro incluye corrección)
+        let longExacto = null;
         let longReal = '-';
         if (l1 && l2 && l3) {
-            longReal = ((l1 + l2 + l3) / 3).toFixed(2);
+            longExacto = (l1 + l2 + l3) / 3 + (esCilindro ? (CORR_LONGITUD[dimension] || 0) : 0);
+            longReal = longExacto.toFixed(2);
         }
         const elLongReal = document.getElementById(`long-real-${pk}`);
         if (elLongReal) {
@@ -1249,9 +1273,15 @@ document.addEventListener('DOMContentLoaded', function() {
             elLongReal.classList.toggle('vacio', longReal === '-');
         }
 
-        // Area - dispatch por geometria
+        // Area - cilindro: exacta desde el diámetro corregido; otras: dispatch
+        let areaExacta = null;
         let area = '-';
-        if (diamReal !== '-') {
+        if (esCilindro) {
+            if (diamExacto !== null) {
+                areaExacta = (Math.PI * diamExacto * diamExacto / 4) / 100;
+                area = areaExacta.toFixed(2);
+            }
+        } else if (diamReal !== '-') {
             area = calcularAreaPorGeometria(geometria, parseFloat(diamReal), longReal !== '-' ? parseFloat(longReal) : 0);
         }
         const elArea = document.getElementById(`area-${pk}`);
@@ -1260,9 +1290,13 @@ document.addEventListener('DOMContentLoaded', function() {
             elArea.classList.toggle('vacio', area === '-');
         }
 
-        // Esfuerzo - dispatch por geometria
+        // Esfuerzo - cilindro: carga corregida por polinomio + área exacta
         let esfuerzo = '-';
-        if (carga && (area !== '-' || geometria === 'prisma')) {
+        if (esCilindro) {
+            if (carga > 0 && areaExacta) {
+                esfuerzo = ((corregirCargaKn(carga) * 101.9716 / areaExacta) / 10).toFixed(2);
+            }
+        } else if (carga && (area !== '-' || geometria === 'prisma')) {
             esfuerzo = calcularEsfuerzoPorGeometria(geometria, carga, area !== '-' ? parseFloat(area) : 0, pk);
         }
         const elEsfuerzo = document.getElementById(`esfuerzo-${pk}`);

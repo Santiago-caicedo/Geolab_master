@@ -347,27 +347,60 @@ class ResultadoMuestra(models.Model):
         return get_macro(self.muestra.geometria)
 
     @property
+    def _valores_cilindro(self):
+        """
+        Cadena de cálculo exacta estilo Excel para cilindros (con corrección
+        de instrumento y polinomio de la prensa). None para otras geometrías.
+        """
+        from ensayos.macros import MacroCilindro
+        macro = self._macro
+        if not isinstance(macro, MacroCilindro):
+            return None
+        return macro.calcular_valores_exactos(
+            self.diametro_d1, self.diametro_d2, self.diametro_d3,
+            self.longitud_l1, self.longitud_l2, self.longitud_l3,
+            self.carga_maxima_kn, self.muestra.fc_resistencia,
+            dimension=self.muestra.dimension_especimen,
+        )
+
+    @property
     def diametro_real(self):
-        """Promedio de las 3 mediciones de diámetro/lado A en mm."""
+        """Promedio de las 3 mediciones de diámetro/lado A en mm.
+        Cilindros: incluye corrección de instrumento según dimensión."""
+        vals = self._valores_cilindro
+        if vals is not None:
+            from ensayos.macros import redondear_half_up
+            return redondear_half_up(vals['diametro_real'], 2)
         return self._macro.calcular_dimension_real(
             self.diametro_d1, self.diametro_d2, self.diametro_d3
         )
 
     @property
     def longitud_real(self):
-        """Promedio de las 3 mediciones de longitud/lado B en mm."""
+        """Promedio de las 3 mediciones de longitud/lado B en mm.
+        Cilindros: incluye corrección de instrumento según dimensión."""
+        vals = self._valores_cilindro
+        if vals is not None:
+            from ensayos.macros import redondear_half_up
+            return redondear_half_up(vals['longitud_real'], 2)
         return self._macro.calcular_dimension_real(
             self.longitud_l1, self.longitud_l2, self.longitud_l3
         )
 
     @property
     def area_mm2(self):
-        """Área de la sección transversal. Fórmula varía según geometría."""
+        """Área de la sección transversal. Fórmula varía según geometría.
+        Cilindros: calculada desde el diámetro corregido SIN redondeos intermedios."""
+        vals = self._valores_cilindro
+        if vals is not None:
+            from ensayos.macros import redondear_half_up
+            return redondear_half_up(vals['area'], 2)
         return self._macro.calcular_area(self.diametro_real, self.longitud_real)
 
     @property
     def esfuerzo_mpa(self):
-        """Resistencia/módulo de rotura en MPa. Fórmula varía según geometría."""
+        """Resistencia/módulo de rotura en MPa. Fórmula varía según geometría.
+        Cilindros: carga corregida por el polinomio de la prensa, cadena exacta."""
         from ensayos.geometry import GEOMETRIA_PRISMA
         if self.muestra.geometria == GEOMETRIA_PRISMA:
             return self._macro.calcular_esfuerzo_viga(
@@ -378,11 +411,21 @@ class ResultadoMuestra(models.Model):
                 self.distancia_falla_apoyo,
                 self.formula_flexion,
             )
+        vals = self._valores_cilindro
+        if vals is not None:
+            from ensayos.macros import redondear_half_up
+            return redondear_half_up(vals['esfuerzo'], 2)
         return self._macro.calcular_esfuerzo(self.carga_maxima_kn, self.area_mm2)
 
     @property
     def porcentaje_desarrollo(self):
         """Porcentaje de la resistencia alcanzada vs la esperada."""
+        from ensayos.geometry import GEOMETRIA_PRISMA
+        if self.muestra.geometria != GEOMETRIA_PRISMA:
+            vals = self._valores_cilindro
+            if vals is not None:
+                from ensayos.macros import redondear_half_up
+                return redondear_half_up(vals['porcentaje'], 1)
         return self._macro.calcular_porcentaje(
             self.esfuerzo_mpa, self.muestra.fc_resistencia
         )
