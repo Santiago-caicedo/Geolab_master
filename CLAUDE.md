@@ -35,8 +35,11 @@ geolab_master/
 ├── ensayos/            # HojaTrabajo, ResultadoMuestra, geometry.py, macros.py
 ├── calidad/            # AreaCalidad, Carpeta, Documento, AccesoAreaUsuario
 ├── facturacion/        # CategoriaServicio, TipoServicio, PrecioServicio, Factura
-├── templates/          # 67 templates organizados por app
-│   └── includes/       # Sidebars: staff, tecnico, remitente, client
+├── templates/          # Templates organizados por app
+│   ├── base.html       # Layout principal (bloques: sidebar, panel_title, content, extra_css/js)
+│   ├── base_tecnico.html      # Shell standalone del técnico
+│   ├── base_facturacion.html  # Shell del módulo Facturación (extiende base.html)
+│   └── includes/       # Sidebars: staff, tecnico, remitente, client, facturacion
 ├── static/img/         # Logo
 ├── media/informes/     # PDFs subidos
 └── requirements.txt
@@ -278,6 +281,7 @@ LIBREOFFICE_PATH=
 17. **Acero sin hoja de trabajo:** tipos `varilla`/`malla_elec` (`Muestra.TIPOS_SIN_HOJA`) → geometría `acero`, se almacenan pero no generan HojaTrabajo/ResultadoMuestra.
 18. **`forma_falla` canónico:** valores `tipo_1`..`tipo_6` (NO `1`..`6`). `informes._tipo_falla_num()` exige el prefijo `tipo_`.
 19. **PDF de informes de ensayo:** XLSX siempre (inyección XML sobre plantilla); el PDF requiere LibreOffice headless. Ruta vía `settings.LIBREOFFICE_PATH` (config desde `.env`, default None) → fallback a `soffice`/`libreoffice` en PATH. Sin LibreOffice, solo se genera el XLSX.
+20. **Layouts / sub-apps:** `base.html` expone `{% block sidebar %}` y `{% block panel_title %}` (defaults por rol). Facturación es un "sub-aplicativo": sus templates extienden `base_facturacion.html` (que sobreescribe esos bloques con `sidebar_facturacion.html`), y el sidebar de staff entra con un solo enlace "Facturación". `factura_pdf.html` NO extiende base (es standalone para WeasyPrint). El técnico usa `base_tecnico.html` (standalone).
 
 ## Seguridad
 
