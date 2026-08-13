@@ -1,140 +1,204 @@
 {% extends 'base_facturacion.html' %}
 {% block title %}Facturación - Dashboard{% endblock %}
 
+{% block extra_css %}
+<style>
+    .fact-kpi {
+        border: 1px solid var(--border-color);
+        border-radius: 14px;
+        background: #fff;
+        padding: 1.15rem 1.25rem;
+        height: 100%;
+        transition: transform .15s ease, box-shadow .15s ease;
+        text-decoration: none;
+        color: var(--text-main);
+        display: block;
+    }
+    .fact-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.07); }
+    .fact-kpi .kpi-ico {
+        width: 42px; height: 42px; border-radius: 11px;
+        display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+    }
+    .fact-kpi .kpi-val { font-size: 1.6rem; font-weight: 700; line-height: 1.15; color: var(--text-main); }
+    .fact-kpi .kpi-lbl { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
+
+    .fact-hero { background: linear-gradient(135deg, #008ed6, #0064a3); border: none; }
+    .fact-hero .kpi-val { color: #fff; }
+    .fact-hero .kpi-lbl { color: rgba(255,255,255,.85); }
+    .fact-hero .kpi-ico { background: rgba(255,255,255,.18); color: #fff; }
+
+    .soft-blue   { background: #eff6ff; color: #1d4ed8; }
+    .soft-green  { background: #ecfdf5; color: #059669; }
+    .soft-amber  { background: #fff7ed; color: #c2410c; }
+    .soft-violet { background: #f5f3ff; color: #7c3aed; }
+    .soft-slate  { background: #f1f5f9; color: #475569; }
+
+    .kpi-cta { font-size: .72rem; font-weight: 600; color: #c2410c; }
+
+    .quick-tile {
+        display: flex; align-items: center; gap: .85rem;
+        padding: 1rem 1.25rem; border: 1px solid var(--border-color);
+        border-radius: 12px; background: #fff; text-decoration: none;
+        color: var(--text-main); font-weight: 600; height: 100%;
+        transition: all .15s ease;
+    }
+    .quick-tile:hover { border-color: var(--brand-blue); color: var(--brand-blue); box-shadow: 0 4px 14px rgba(0,142,214,.12); transform: translateY(-2px); }
+    .quick-tile i { font-size: 1.4rem; }
+
+    .rank-card { overflow: hidden; }
+    .rank-card .card-header { border-bottom: 1px solid var(--border-color); }
+    .rank-list { display: flex; flex-direction: column; }
+    .rank-item { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.25rem; border-bottom: 1px solid var(--border-color); transition: background .15s ease; }
+    .rank-item:hover { background: #f8fafc; }
+    .rank-item:last-child { border-bottom: none; }
+    .rank-no { width: 26px; height: 26px; border-radius: 8px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: .8rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .rank-no.top { background: #fef3c7; color: #b45309; }
+</style>
+{% endblock %}
+
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h2><i class="bi bi-receipt-cutoff me-2"></i>Facturación</h2>
+<!-- Encabezado -->
+<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
+    <div>
+        <h3 class="fw-bold mb-1"><i class="bi bi-receipt-cutoff text-primary me-2"></i>Panel de Facturación</h3>
+        <p class="text-muted mb-0">Resumen de {% now "F Y" %} · indicadores, tendencia y rankings</p>
+    </div>
+    <div class="d-flex gap-2">
+        <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-primary">
+            <i class="bi bi-plus-circle me-1"></i> Registrar Servicio
+        </a>
+        <a href="{% url 'generar_factura' %}" class="btn btn-success">
+            <i class="bi bi-file-earmark-text me-1"></i> Generar Factura
+        </a>
+    </div>
 </div>
 
 <!-- KPIs -->
 <div class="row g-3 mb-4">
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold text-primary">{{ facturas_mes_count }}</div>
-                <small class="text-muted">Facturas este mes</small>
-            </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="fact-kpi fact-hero">
+            <div class="kpi-ico mb-2"><i class="bi bi-cash-coin"></i></div>
+            <div class="kpi-val">${{ facturas_mes_total|floatformat:0 }}</div>
+            <div class="kpi-lbl">Facturado este mes</div>
         </div>
     </div>
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold text-success">${{ facturas_mes_total|floatformat:0 }}</div>
-                <small class="text-muted">Facturado este mes</small>
-            </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="fact-kpi">
+            <div class="kpi-ico soft-blue mb-2"><i class="bi bi-receipt"></i></div>
+            <div class="kpi-val">{{ facturas_mes_count }}</div>
+            <div class="kpi-lbl">Facturas este mes</div>
         </div>
     </div>
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold text-info">{{ registros_mes }}</div>
-                <small class="text-muted">Registros este mes</small>
-            </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="fact-kpi">
+            <div class="kpi-ico soft-violet mb-2"><i class="bi bi-clipboard-data"></i></div>
+            <div class="kpi-val">{{ registros_mes }}</div>
+            <div class="kpi-lbl">Registros este mes</div>
         </div>
     </div>
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold text-warning">{{ registros_pendientes }}</div>
-                <small class="text-muted">Pendientes de facturar</small>
+    <div class="col-6 col-md-4 col-xl-2">
+        <a href="{% url 'generar_factura' %}" class="fact-kpi">
+            <div class="kpi-ico soft-amber mb-2"><i class="bi bi-hourglass-split"></i></div>
+            <div class="kpi-val">{{ registros_pendientes }}</div>
+            <div class="kpi-lbl">Pendientes de facturar
+                {% if registros_pendientes %}<span class="kpi-cta d-block mt-1">Facturar ahora →</span>{% endif %}
             </div>
+        </a>
+    </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="fact-kpi">
+            <div class="kpi-ico soft-slate mb-2"><i class="bi bi-building"></i></div>
+            <div class="kpi-val">{{ total_constructoras }}</div>
+            <div class="kpi-lbl">Constructoras</div>
         </div>
     </div>
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold">{{ total_constructoras }}</div>
-                <small class="text-muted">Constructoras</small>
-            </div>
-        </div>
-    </div>
-    <div class="col-md-4 col-lg-2">
-        <div class="card text-center border-0 shadow-sm">
-            <div class="card-body">
-                <div class="fs-3 fw-bold">{{ total_obras }}</div>
-                <small class="text-muted">Obras</small>
-            </div>
+    <div class="col-6 col-md-4 col-xl-2">
+        <div class="fact-kpi">
+            <div class="kpi-ico soft-green mb-2"><i class="bi bi-cone-striped"></i></div>
+            <div class="kpi-val">{{ total_obras }}</div>
+            <div class="kpi-lbl">Obras</div>
         </div>
     </div>
 </div>
 
-<!-- Acciones rápidas -->
-<div class="row g-3 mb-4">
-    <div class="col-md-3">
-        <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-primary w-100 py-3">
-            <i class="bi bi-plus-circle fs-4 d-block mb-1"></i>
-            Registrar Servicio
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a href="{% url 'generar_factura' %}" class="btn btn-success w-100 py-3">
-            <i class="bi bi-file-earmark-text fs-4 d-block mb-1"></i>
-            Generar Factura
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a href="{% url 'historico_facturacion' %}" class="btn btn-outline-secondary w-100 py-3">
-            <i class="bi bi-clock-history fs-4 d-block mb-1"></i>
-            Histórico
-        </a>
-    </div>
-    <div class="col-md-3">
-        <a href="{% url 'repositorio_clientes' %}" class="btn btn-outline-secondary w-100 py-3">
-            <i class="bi bi-archive fs-4 d-block mb-1"></i>
-            Repositorio
-        </a>
-    </div>
-</div>
-
-<div class="row g-4">
-    <!-- Gráfica -->
+<!-- Gráfica + rankings -->
+<div class="row g-4 mb-4">
     <div class="col-lg-8">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-0">
-                <h5 class="mb-0">Facturación Mensual</h5>
+        <div class="card-custom h-100">
+            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center pt-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-bar-chart-line text-primary me-2"></i>Facturación mensual</h6>
+                <span class="badge-soft bg-soft-blue">Últimos 6 meses</span>
             </div>
             <div class="card-body">
-                <canvas id="chartFacturacion" height="250"></canvas>
+                <div id="chartEmpty" class="text-center text-muted py-5 d-none">
+                    <i class="bi bi-bar-chart" style="font-size: 2.5rem;"></i>
+                    <p class="mb-0 mt-2">Aún no hay facturas para graficar</p>
+                </div>
+                <div style="position: relative; height: 280px;">
+                    <canvas id="chartFacturacion"></canvas>
+                </div>
             </div>
         </div>
     </div>
 
-    <!-- Top clientes y servicios -->
     <div class="col-lg-4">
-        <div class="card border-0 shadow-sm mb-3">
-            <div class="card-header bg-white border-0">
-                <h6 class="mb-0">Top Clientes</h6>
+        <div class="card-custom rank-card mb-3">
+            <div class="card-header bg-white pt-3 pb-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-trophy text-warning me-2"></i>Top clientes</h6>
             </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    {% for c in top_clientes %}
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-truncate me-2">{{ c.nombre }}</span>
-                        <span class="badge bg-success">${{ c.total_facturado|floatformat:0 }}</span>
-                    </li>
-                    {% empty %}
-                    <li class="list-group-item text-muted">Sin datos aún</li>
-                    {% endfor %}
-                </ul>
-            </div>
-        </div>
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white border-0">
-                <h6 class="mb-0">Servicios más registrados (90 días)</h6>
-            </div>
-            <div class="card-body p-0">
-                <ul class="list-group list-group-flush">
-                    {% for s in top_servicios %}
-                    <li class="list-group-item d-flex justify-content-between">
-                        <span class="text-truncate me-2">{{ s.nombre }}</span>
-                        <span class="badge bg-primary">{{ s.total_registros }}</span>
-                    </li>
-                    {% empty %}
-                    <li class="list-group-item text-muted">Sin datos aún</li>
-                    {% endfor %}
-                </ul>
+            <div class="rank-list">
+                {% for c in top_clientes %}
+                <div class="rank-item">
+                    <span class="rank-no {% if forloop.first %}top{% endif %}">{{ forloop.counter }}</span>
+                    <span class="text-truncate flex-grow-1 fw-medium">{{ c.nombre }}</span>
+                    <span class="badge bg-success bg-opacity-10 text-success">${{ c.total_facturado|floatformat:0 }}</span>
+                </div>
+                {% empty %}
+                <div class="text-muted text-center py-4 small"><i class="bi bi-inbox me-1"></i> Sin datos aún</div>
+                {% endfor %}
             </div>
         </div>
+        <div class="card-custom rank-card">
+            <div class="card-header bg-white pt-3 pb-3">
+                <h6 class="fw-bold mb-0"><i class="bi bi-star text-primary me-2"></i>Servicios más registrados</h6>
+                <small class="text-muted">Últimos 90 días</small>
+            </div>
+            <div class="rank-list">
+                {% for s in top_servicios %}
+                <div class="rank-item">
+                    <span class="rank-no {% if forloop.first %}top{% endif %}">{{ forloop.counter }}</span>
+                    <span class="text-truncate flex-grow-1 fw-medium">{{ s.nombre }}</span>
+                    <span class="badge bg-primary bg-opacity-10 text-primary">{{ s.total_registros }}</span>
+                </div>
+                {% empty %}
+                <div class="text-muted text-center py-4 small"><i class="bi bi-inbox me-1"></i> Sin datos aún</div>
+                {% endfor %}
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Accesos rápidos -->
+<div class="row g-3">
+    <div class="col-6 col-md-3">
+        <a href="{% url 'historico_facturacion' %}" class="quick-tile">
+            <i class="bi bi-clock-history text-secondary"></i> Histórico
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'repositorio_clientes' %}" class="quick-tile">
+            <i class="bi bi-archive text-secondary"></i> Repositorio
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'catalogo_servicios' %}" class="quick-tile">
+            <i class="bi bi-list-check text-secondary"></i> Catálogo
+        </a>
+    </div>
+    <div class="col-6 col-md-3">
+        <a href="{% url 'lista_impuestos' %}" class="quick-tile">
+            <i class="bi bi-percent text-secondary"></i> Impuestos
+        </a>
     </div>
 </div>
 {% endblock %}
@@ -146,32 +210,54 @@ document.addEventListener('DOMContentLoaded', function() {
     fetch("{% url 'api_facturacion_mensual' %}")
         .then(r => r.json())
         .then(data => {
-            new Chart(document.getElementById('chartFacturacion'), {
+            const canvas = document.getElementById('chartFacturacion');
+            if (!data.labels || data.labels.length === 0) {
+                canvas.classList.add('d-none');
+                document.getElementById('chartEmpty').classList.remove('d-none');
+                return;
+            }
+            const ctx = canvas.getContext('2d');
+            const grad = ctx.createLinearGradient(0, 0, 0, 250);
+            grad.addColorStop(0, 'rgba(0, 142, 214, 0.85)');
+            grad.addColorStop(1, 'rgba(0, 142, 214, 0.25)');
+
+            new Chart(canvas, {
                 type: 'bar',
                 data: {
                     labels: data.labels,
                     datasets: [{
                         label: 'Facturación ($)',
                         data: data.data,
-                        backgroundColor: 'rgba(0, 142, 214, 0.7)',
+                        backgroundColor: grad,
                         borderColor: '#008ed6',
-                        borderWidth: 1,
-                        borderRadius: 4,
+                        borderWidth: 0,
+                        borderRadius: 6,
+                        maxBarThickness: 48,
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { legend: { display: false } },
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: { display: false },
+                        tooltip: {
+                            callbacks: { label: c => ' $' + c.parsed.y.toLocaleString() }
+                        }
+                    },
                     scales: {
                         y: {
                             beginAtZero: true,
-                            ticks: {
-                                callback: v => '$' + v.toLocaleString()
-                            }
-                        }
+                            grid: { color: '#eef2f7' },
+                            ticks: { callback: v => '$' + v.toLocaleString() }
+                        },
+                        x: { grid: { display: false } }
                     }
                 }
             });
+        })
+        .catch(() => {
+            document.getElementById('chartFacturacion').classList.add('d-none');
+            document.getElementById('chartEmpty').classList.remove('d-none');
         });
 });
 </script>
