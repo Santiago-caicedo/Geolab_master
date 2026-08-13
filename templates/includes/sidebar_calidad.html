@@ -15,7 +15,7 @@
                 </div>
                 <div>
                     <small class="d-block text-white-50" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;">
-                        Coordinador de Calidad
+                        {% if user.es_coordinador_calidad %}Coordinador de Calidad{% else %}Usuario de Calidad{% endif %}
                     </small>
                     <span class="text-white small fw-medium">
                         {{ user.first_name|default:user.username }}
@@ -30,15 +30,25 @@
             <i class="bi bi-grid"></i> Areas del SGC
         </a>
 
+        {% if user.es_admin_sgc %}
         <a href="{% url 'gestionar_accesos' %}" class="nav-link {% if request.resolver_match.url_name == 'gestionar_accesos' %}active{% endif %}">
-            <i class="bi bi-shield-lock"></i> Gestionar Accesos
+            <i class="bi bi-shield-lock"></i> Accesos del Staff
         </a>
+
+        <a href="{% url 'usuarios_calidad' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
+            <i class="bi bi-people"></i> Usuarios de Calidad
+        </a>
+        {% endif %}
 
         <div class="flex-grow-1"></div>
 
         <div class="px-3 py-3 mx-3 mb-3 rounded" style="background: rgba(255,255,255,0.05);">
             <small class="text-white-50 d-block" style="font-size: 0.7rem; line-height: 1.5;">
+                {% if user.es_coordinador_calidad %}
                 Tu usuario esta limitado al Sistema de Calidad.
+                {% else %}
+                Solo ves las carpetas que el coordinador te asigno.
+                {% endif %}
             </small>
         </div>
 

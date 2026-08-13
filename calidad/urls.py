@@ -12,4 +12,10 @@ urlpatterns = [
     path('calidad/documento/<int:pk>/eliminar/', views.eliminar_documento, name='eliminar_documento_calidad'),
     path('calidad/carpeta/<int:pk>/eliminar/', views.eliminar_carpeta, name='eliminar_carpeta_calidad'),
     path('calidad/accesos/', views.gestionar_accesos, name='gestionar_accesos'),
+
+    # Gestion de Usuarios de Calidad (los crea el coordinador)
+    path('calidad/usuarios/', views.usuarios_calidad, name='usuarios_calidad'),
+    path('calidad/usuarios/nuevo/', views.crear_usuario_calidad, name='crear_usuario_calidad'),
+    path('calidad/usuarios/<int:pk>/permisos/', views.permisos_usuario_calidad, name='permisos_usuario_calidad'),
+    path('calidad/usuarios/<int:pk>/toggle/', views.toggle_usuario_calidad, name='toggle_usuario_calidad'),
 ]

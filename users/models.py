@@ -49,6 +49,22 @@ class UsuarioBase(AbstractUser):
         return False
 
     @property
+    def es_usuario_calidad(self):
+        """
+        Verifica si es Usuario de Calidad: creado por el coordinador, solo entra
+        a /calidad/ y unicamente a las carpetas que este le asigne
+        (AccesoCarpetaUsuario), con permisos de ver/cargar/eliminar por carpeta.
+        """
+        if self.es_geolab and hasattr(self, 'perfil_geolab'):
+            return self.perfil_geolab.area == 'calidad_usuario'
+        return False
+
+    @property
+    def es_confinado_a_calidad(self):
+        """Roles que el middleware encierra dentro de /calidad/."""
+        return self.es_coordinador_calidad or self.es_usuario_calidad
+
+    @property
     def es_admin_sgc(self):
         """
         Quien manda dentro del Sistema de Calidad: puede ver las 8 areas sin
@@ -72,6 +88,7 @@ class FuncionarioGeolab(models.Model):
         ('recepcion', 'Recepción de Muestras'),
         ('tecnico', 'Técnico de Laboratorio'),
         ('calidad', 'Coordinador de Calidad (solo SGC)'),
+        ('calidad_usuario', 'Usuario de Calidad (solo carpetas asignadas)'),
     ]
     user = models.OneToOneField(UsuarioBase, on_delete=models.CASCADE, related_name='perfil_geolab')
     area = models.CharField(max_length=50, choices=AREAS)

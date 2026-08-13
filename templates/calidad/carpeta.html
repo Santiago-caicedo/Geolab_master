@@ -91,23 +91,28 @@
             </p>
         </div>
 
-        {% if puede_editar %}
         <div class="d-flex gap-2">
-            {% if carpeta_actual %}
+            {% if carpeta_actual and puede_cargar %}
                 <a href="{% url 'crear_carpeta_calidad' carpeta_actual.pk %}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1">
                     <i class="bi bi-folder-plus"></i> Nueva Carpeta
                 </a>
                 <a href="{% url 'subir_documento_calidad' carpeta_actual.pk %}" class="btn btn-primary btn-sm d-flex align-items-center gap-1">
                     <i class="bi bi-cloud-arrow-up"></i> Subir Archivo
                 </a>
-            {% else %}
+            {% elif es_raiz_area and puede_crear_raiz %}
                 <a href="{% url 'crear_carpeta_raiz_calidad' area.pk %}" class="btn btn-outline-primary btn-sm d-flex align-items-center gap-1">
                     <i class="bi bi-folder-plus"></i> Nueva Carpeta
                 </a>
             {% endif %}
         </div>
-        {% endif %}
     </div>
+
+    {% if es_de_paso %}
+    <div class="alert alert-light border small py-2">
+        <i class="bi bi-signpost-2 me-1"></i>
+        Carpeta de paso: aquí solo puedes navegar hacia tus carpetas asignadas.
+    </div>
+    {% endif %}
 
     {% if messages %}
     {% for message in messages %}
@@ -133,7 +138,7 @@
                             <div class="fw-medium">{{ subcarpeta.nombre }}</div>
                         </div>
                     </a>
-                    {% if request.user.es_admin_sgc and subcarpeta.esta_vacia %}
+                    {% if puede_eliminar_carpetas and subcarpeta.esta_vacia %}
                     <div class="item-actions">
                         <form method="post" action="{% url 'eliminar_carpeta_calidad' subcarpeta.pk %}"
                               onsubmit="return confirm('Eliminar la carpeta &quot;{{ subcarpeta.nombre }}&quot;?')">
@@ -159,7 +164,7 @@
                             <small class="text-muted">{{ doc.tamano_legible }} &middot; {{ doc.fecha_subida|date:"d M Y" }}</small>
                         </div>
                     </a>
-                    {% if request.user.es_admin_sgc %}
+                    {% if puede_eliminar_docs %}
                     <div class="item-actions">
                         <form method="post" action="{% url 'eliminar_documento_calidad' doc.pk %}"
                               onsubmit="return confirm('Eliminar el documento &quot;{{ doc.nombre }}&quot;?')">
@@ -176,7 +181,7 @@
                 <div class="empty-state">
                     <i class="bi bi-folder2-open" style="font-size: 2.5rem;"></i>
                     <p class="mt-2 mb-0">Esta carpeta esta vacia</p>
-                    {% if puede_editar and carpeta_actual %}
+                    {% if puede_cargar and carpeta_actual %}
                     <div class="mt-3">
                         <a href="{% url 'subir_documento_calidad' carpeta_actual.pk %}" class="btn btn-primary btn-sm">
                             <i class="bi bi-cloud-arrow-up me-1"></i> Subir Archivo

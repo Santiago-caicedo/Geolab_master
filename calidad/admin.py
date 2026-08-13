@@ -1,5 +1,7 @@
 from django.contrib import admin
-from .models import AreaCalidad, Carpeta, Documento, AccesoAreaUsuario
+from .models import (
+    AreaCalidad, Carpeta, Documento, AccesoAreaUsuario, AccesoCarpetaUsuario,
+)
 
 
 @admin.register(AreaCalidad)
@@ -47,3 +49,11 @@ class AccesoAreaUsuarioAdmin(admin.ModelAdmin):
     list_display = ['usuario', 'area', 'puede_editar', 'asignado_por', 'fecha_asignacion']
     list_filter = ['area', 'puede_editar']
     search_fields = ['usuario__username', 'usuario__first_name', 'usuario__last_name']
+
+
+@admin.register(AccesoCarpetaUsuario)
+class AccesoCarpetaUsuarioAdmin(admin.ModelAdmin):
+    list_display = ['usuario', 'carpeta', 'puede_ver', 'puede_cargar',
+                    'puede_eliminar', 'asignado_por', 'fecha_asignacion']
+    list_filter = ['carpeta__area', 'puede_cargar', 'puede_eliminar']
+    search_fields = ['usuario__username', 'usuario__first_name', 'carpeta__nombre']

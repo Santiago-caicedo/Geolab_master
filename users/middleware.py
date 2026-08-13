@@ -17,7 +17,10 @@ from django.shortcuts import redirect
 
 
 class RestriccionCalidadMiddleware:
-    """Encierra al Coordinador de Calidad dentro del modulo de calidad."""
+    """
+    Encierra dentro del modulo de calidad a los roles exclusivos del SGC:
+    el Coordinador de Calidad y los Usuarios de Calidad que este crea.
+    """
 
     # Unicos prefijos que puede visitar. '/' entra aparte (ver _ruta_permitida)
     # porque es el router que lo reenvia a su propio panel.
@@ -47,7 +50,7 @@ class RestriccionCalidadMiddleware:
         # Los superusuarios quedan fuera para no bloquearse a si mismos del admin
         if user.is_superuser:
             return False
-        if not user.es_coordinador_calidad:
+        if not user.es_confinado_a_calidad:
             return False
         return not self._ruta_permitida(request.path)
 

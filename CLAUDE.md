@@ -79,7 +79,8 @@ geolab_master/
 - **AreaCalidad**: Las 8 áreas del SGC
 - **Carpeta**: Carpetas recursivas dentro de un área
 - **Documento**: Archivos subidos a una carpeta
-- **AccesoAreaUsuario**: Permisos lectura/edición por área por usuario
+- **AccesoAreaUsuario**: Permisos lectura/edición por área por usuario (staff)
+- **AccesoCarpetaUsuario**: Permisos POR CARPETA de los Usuarios de Calidad (`puede_ver/puede_cargar/puede_eliminar`; cargar/eliminar implican ver). Sin fila = carpeta bloqueada. Sin herencia en BD: la matriz marca subcarpetas en cascada vía JS, pero lo que vale es lo guardado. Los ancestros de una carpeta permitida son "de paso" (navegables, sin documentos ni acciones) — lógica en `calidad/permisos.py`
 
 ### facturacion
 - **CategoriaServicio**: Categorías (ej: CONCRETOS, SUELOS, TRANSPORTE)
@@ -106,17 +107,26 @@ Obra 1:N RegistroServicio N:1 Factura
 | Staff Admin | `es_geolab=True`, area in [admin,lab,recepcion] | Todo |
 | Técnico Lab | `es_geolab=True`, `area='tecnico'` | Solo ensayos/dashboard |
 | Coord. Calidad | `es_geolab=True`, `area='calidad'` | **Solo** `/calidad/*`, pero manda dentro del SGC |
+| Usuario Calidad | `es_geolab=True`, `area='calidad_usuario'` | **Solo** `/calidad/*` y solo carpetas asignadas (ver/cargar/eliminar) |
 | Director | `es_cliente=True`, `rol='director'` | Todas obras de su empresa |
 | Residente | `es_cliente=True`, `rol='residente'` | Solo obras asignadas |
 | Remitente | `es_cliente=True`, `rol='remitente'` | Solo crear remisiones |
 
-**Properties en UsuarioBase:** `es_tecnico_laboratorio`, `es_admin_geolab`, `es_remitente`, `es_coordinador_calidad`, `es_admin_sgc`
+**Properties en UsuarioBase:** `es_tecnico_laboratorio`, `es_admin_geolab`, `es_remitente`, `es_coordinador_calidad`, `es_usuario_calidad`, `es_confinado_a_calidad`, `es_admin_sgc`
 
-### Coordinador de Calidad (rol confinado)
+### Roles confinados al SGC (coordinador y usuarios de calidad)
 
-Necesita `es_geolab=True` porque `calidad.views._usuario_tiene_acceso` lo exige, pero ese
+Ambos necesitan `es_geolab=True` porque el módulo de calidad lo exige, pero ese
 mismo flag es la puerta de ~43 vistas de core/users/solicitudes/ensayos. Por eso el
-confinamiento NO vive en las vistas sino en `users/middleware.py`:
+confinamiento NO vive en las vistas sino en `users/middleware.py` (aplica a
+`es_confinado_a_calidad` = coordinador + usuarios de calidad):
+
+**Usuario de Calidad** (`area='calidad_usuario'`): lo crea el coordinador desde
+`/calidad/usuarios/` (lista, crear, matriz de carpetas, activar/desactivar). Solo ve
+las carpetas con fila en `AccesoCarpetaUsuario` y sus ancestros "de paso"; el resto
+queda bloqueado (GET y POST). Si crea una subcarpeta (permiso cargar), hereda
+automáticamente su fila de permisos sobre ella. La matriz de accesos por área
+(`gestionar_accesos`) lo excluye: sus permisos van por carpeta, no por área.
 
 - **`RestriccionCalidadMiddleware`** (último en `MIDDLEWARE`, necesita `request.user` y
   `messages`): lista blanca de `/calidad/`, `/accounts/`, `/static/`, `/media/` y `/`.

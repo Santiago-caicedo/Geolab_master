@@ -137,6 +137,61 @@ class Documento(models.Model):
             return f"{self.tamano_bytes / (1024 * 1024):.1f} MB"
 
 
+class AccesoCarpetaUsuario(models.Model):
+    """
+    Permisos POR CARPETA para los Usuarios de Calidad (rol creado por el
+    Coordinador de Calidad). A diferencia de AccesoAreaUsuario (por area,
+    para el staff), aqui el acceso es carpeta por carpeta y con tres niveles
+    combinables. Una carpeta sin fila = sin acceso (bloqueo total).
+
+    Regla: cargar o eliminar implican ver (se fuerza en save), porque no se
+    puede operar sobre una carpeta que no se puede abrir.
+    """
+    usuario = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE,
+        related_name='accesos_carpetas_calidad'
+    )
+    carpeta = models.ForeignKey(
+        Carpeta, on_delete=models.CASCADE, related_name='accesos_usuarios'
+    )
+    puede_ver = models.BooleanField(
+        default=True,
+        help_text='Abrir la carpeta y ver/descargar sus documentos.'
+    )
+    puede_cargar = models.BooleanField(
+        default=False,
+        help_text='Subir documentos y crear subcarpetas dentro de la carpeta.'
+    )
+    puede_eliminar = models.BooleanField(
+        default=False,
+        help_text='Eliminar documentos de la carpeta.'
+    )
+    asignado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL,
+        null=True, blank=True, related_name='accesos_carpetas_asignados'
+    )
+    fecha_asignacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = [('usuario', 'carpeta')]
+        verbose_name = 'Acceso a Carpeta'
+        verbose_name_plural = 'Accesos a Carpetas'
+
+    def __str__(self):
+        letras = ''.join([
+            'V' if self.puede_ver else '-',
+            'C' if self.puede_cargar else '-',
+            'E' if self.puede_eliminar else '-',
+        ])
+        return f"{self.usuario} → {self.carpeta} [{letras}]"
+
+    def save(self, *args, **kwargs):
+        # Cargar o eliminar sin ver no tiene sentido: se fuerza la coherencia.
+        if self.puede_cargar or self.puede_eliminar:
+            self.puede_ver = True
+        super().save(*args, **kwargs)
+
+
 class AccesoAreaUsuario(models.Model):
     """Permisos de acceso por área para cada usuario Geolab."""
     usuario = models.ForeignKey(

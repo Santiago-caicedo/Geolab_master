@@ -1,0 +1,179 @@
+{% extends 'base.html' %}
+
+{% block title %}Permisos de {{ usuario.username }} - Sistema de Calidad{% endblock %}
+
+{% block extra_css %}
+<style>
+    .perm-table td, .perm-table th { vertical-align: middle; }
+    .perm-table th.col-perm, .perm-table td.col-perm {
+        text-align: center; width: 90px;
+    }
+    .perm-folder { display: flex; align-items: center; gap: 8px; }
+    .perm-check { width: 1.1rem; height: 1.1rem; cursor: pointer; }
+    .area-head td {
+        background: #f8fafc; font-weight: 600; font-size: 0.85rem;
+        text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-main);
+    }
+    .hint-cascada {
+        font-size: 0.78rem; color: var(--text-muted);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <nav aria-label="breadcrumb" class="mb-4">
+        <ol class="breadcrumb">
+            <li class="breadcrumb-item"><a href="{% url 'explorador_calidad' %}" class="text-decoration-none">Sistema de Calidad</a></li>
+            <li class="breadcrumb-item"><a href="{% url 'usuarios_calidad' %}" class="text-decoration-none">Usuarios de Calidad</a></li>
+            <li class="breadcrumb-item active">{{ usuario.username }}</li>
+        </ol>
+    </nav>
+
+    <div class="d-flex justify-content-between align-items-end mb-3 flex-wrap gap-2">
+        <div>
+            <h4 class="fw-bold text-dark mb-1">
+                Carpetas de {{ usuario.get_full_name|default:usuario.username }}
+            </h4>
+            <p class="text-muted mb-0 small">
+                Marca a qué carpetas puede acceder y con qué permisos.
+                Las carpetas sin marcar quedan <strong>totalmente bloqueadas</strong> para este usuario.
+            </p>
+        </div>
+    </div>
+
+    {% if messages %}
+    {% for message in messages %}
+    <div class="alert alert-{{ message.tags }} alert-dismissible fade show" role="alert">
+        {{ message }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+    {% endfor %}
+    {% endif %}
+
+    <div class="card card-custom border-0 shadow-sm mb-3">
+        <div class="card-body py-2 px-3 d-flex gap-4 align-items-center flex-wrap">
+            <small class="text-muted fw-semibold">Permisos:</small>
+            <small><i class="bi bi-eye text-primary me-1"></i><strong>Ver</strong>: abrir la carpeta y descargar sus documentos</small>
+            <small><i class="bi bi-cloud-arrow-up text-success me-1"></i><strong>Cargar</strong>: subir archivos y crear subcarpetas</small>
+            <small><i class="bi bi-trash text-danger me-1"></i><strong>Eliminar</strong>: borrar documentos de la carpeta</small>
+            <small class="hint-cascada ms-auto"><i class="bi bi-magic me-1"></i>Marcar una carpeta aplica el permiso a sus subcarpetas (puedes desmarcarlas una a una).</small>
+        </div>
+    </div>
+
+    <form method="post">
+        {% csrf_token %}
+        <div class="card card-custom border-0 shadow-sm">
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover mb-0 perm-table">
+                        <thead class="table-light">
+                            <tr>
+                                <th class="px-3">Carpeta</th>
+                                <th class="col-perm">Ver</th>
+                                <th class="col-perm">Cargar</th>
+                                <th class="col-perm">Eliminar</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for seccion in secciones %}
+                            <tr class="area-head">
+                                <td colspan="4" class="px-3">
+                                    <i class="bi {{ seccion.area.icono }} me-2"></i>{{ seccion.area.numero }}. {{ seccion.area.nombre }}
+                                </td>
+                            </tr>
+                            {% for fila in seccion.filas %}
+                            <tr data-carpeta="{{ fila.carpeta.pk }}" data-padre="{{ fila.carpeta.padre_id|default:'' }}">
+                                <td class="px-3">
+                                    <div class="perm-folder" style="padding-left: {{ fila.nivel }}.5rem;">
+                                        <i class="bi bi-folder-fill text-warning"></i>
+                                        <span>{{ fila.carpeta.nombre }}</span>
+                                    </div>
+                                </td>
+                                <td class="col-perm">
+                                    <input type="checkbox" class="perm-check" name="ver_{{ fila.carpeta.pk }}"
+                                           data-flag="ver" {% if fila.grant.puede_ver %}checked{% endif %}>
+                                </td>
+                                <td class="col-perm">
+                                    <input type="checkbox" class="perm-check" name="cargar_{{ fila.carpeta.pk }}"
+                                           data-flag="cargar" {% if fila.grant.puede_cargar %}checked{% endif %}>
+                                </td>
+                                <td class="col-perm">
+                                    <input type="checkbox" class="perm-check" name="eliminar_{{ fila.carpeta.pk }}"
+                                           data-flag="eliminar" {% if fila.grant.puede_eliminar %}checked{% endif %}>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                            {% empty %}
+                            <tr><td colspan="4" class="text-center text-muted py-4">No hay carpetas en el sistema.</td></tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            <div class="card-footer bg-white d-flex justify-content-between align-items-center py-3 px-3">
+                <small class="text-muted">Lo no marcado queda bloqueado (sin GET ni POST) para {{ usuario.username }}.</small>
+                <div class="d-flex gap-2">
+                    <a href="{% url 'usuarios_calidad' %}" class="btn btn-light">Cancelar</a>
+                    <button type="submit" class="btn btn-primary">
+                        <i class="bi bi-check-lg me-1"></i>Guardar permisos
+                    </button>
+                </div>
+            </div>
+        </div>
+    </form>
+</div>
+
+<script>
+(function () {
+    // Mapa carpeta -> hijas directas, para el marcado en cascada
+    const filas = document.querySelectorAll('tr[data-carpeta]');
+    const hijos = {};
+    filas.forEach(tr => {
+        const padre = tr.dataset.padre;
+        if (padre) (hijos[padre] = hijos[padre] || []).push(tr.dataset.carpeta);
+    });
+
+    function caja(carpetaId, flag) {
+        return document.querySelector(
+            `tr[data-carpeta="${carpetaId}"] input[data-flag="${flag}"]`
+        );
+    }
+
+    function normalizarFila(carpetaId) {
+        // Cargar o eliminar implican ver; sin ver no hay cargar ni eliminar.
+        const ver = caja(carpetaId, 'ver'),
+              cargar = caja(carpetaId, 'cargar'),
+              eliminar = caja(carpetaId, 'eliminar');
+        if (cargar.checked || eliminar.checked) ver.checked = true;
+    }
+
+    function cascada(carpetaId, flag, valor) {
+        (hijos[carpetaId] || []).forEach(hijoId => {
+            caja(hijoId, flag).checked = valor;
+            if (!valor && flag === 'ver') {
+                caja(hijoId, 'cargar').checked = false;
+                caja(hijoId, 'eliminar').checked = false;
+            }
+            normalizarFila(hijoId);
+            cascada(hijoId, flag, valor);
+        });
+    }
+
+    document.querySelectorAll('.perm-check').forEach(input => {
+        input.addEventListener('change', function () {
+            const tr = this.closest('tr'),
+                  carpetaId = tr.dataset.carpeta,
+                  flag = this.dataset.flag,
+                  valor = this.checked;
+            if (!valor && flag === 'ver') {
+                caja(carpetaId, 'cargar').checked = false;
+                caja(carpetaId, 'eliminar').checked = false;
+            }
+            normalizarFila(carpetaId);
+            cascada(carpetaId, flag, valor);
+        });
+    });
+})();
+</script>
+{% endblock %}
