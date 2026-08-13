@@ -1,5 +1,6 @@
 import os
 import MySQLdb
+from decouple import config
 from django.core.management.base import BaseCommand
 from django.utils.timezone import make_aware
 from django.db.utils import IntegrityError
@@ -20,10 +21,10 @@ class Command(BaseCommand):
         # ---------------------------------------------------------
         try:
             db = MySQLdb.connect(
-                host="localhost", 
-                user="root", 
-                passwd="", 
-                db="wp_backup", 
+                host=config('WP_DB_HOST', default='localhost'),
+                user=config('WP_DB_USER', default='root'),
+                passwd=config('WP_DB_PASSWORD', default=''),
+                db=config('WP_DB_NAME', default='wp_backup'),
                 charset='utf8mb4'
             )
             cursor = db.cursor()
