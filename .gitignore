@@ -4,6 +4,11 @@
 # Datos fuente del sistema de calidad (425 MB)
 datos_calidad/
 
+# Dumps de base de datos (contienen datos reales de clientes y superan
+# el limite de 100 MB por archivo de GitHub)
+*.sql
+*.dump
+
 ### Django ###
 *.log
 *.pot
