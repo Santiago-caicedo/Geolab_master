@@ -57,7 +57,18 @@
       "Bash(sed -n '/dashboard_tecnico/,/render/p')",
       "Bash(sed -n '/def dashboard_tecnico/,/return render/p' ensayos/views.py)",
       "Bash(grep -rn \"fetch\\(\\\\`/resultado/\" templates/ensayos/)",
-      "Bash(DJANGO_SETTINGS_MODULE=config.settings python3 -c ' *)"
+      "Bash(DJANGO_SETTINGS_MODULE=config.settings python3 -c ' *)",
+      "Bash(sed -n '/def dashboard_facturacion/,/return render/p' facturacion/views.py)",
+      "Bash(sed -n '/def api_facturacion_mensual/,/return JsonResponse/p' facturacion/views.py)",
+      "Bash(awk '{print $5}')",
+      "Bash(./venv/bin/pip freeze *)",
+      "Bash(./venv/Scripts/pip.exe freeze *)",
+      "Bash(git apply *)",
+      "Bash(export PYTHONPATH=/tmp/claude-1000/-mnt-c-Users-ASUS-documents-geolab-master/6215edee-b5cf-408a-be75-46afa9104378/scratchpad:.)",
+      "Bash(git check-ignore *)",
+      "Bash(timeout 15 git ls-remote --heads origin)",
+      "Bash(awk '{print $6, $7, $8}')",
+      "Bash(git ls-tree *)"
     ]
   }
 }
