@@ -16,6 +16,9 @@ def dashboard_router(request):
         # Verificar si es tecnico de laboratorio
         if request.user.es_tecnico_laboratorio:
             return redirect('dashboard_tecnico')
+        # Coordinador de Calidad: su unico modulo es el SGC
+        if request.user.es_coordinador_calidad:
+            return redirect('explorador_calidad')
         return dashboard_staff(request)
     elif request.user.es_cliente:
         # Verificar si es remitente (nuevo rol)

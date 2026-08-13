@@ -105,11 +105,30 @@ Obra 1:N RegistroServicio N:1 Factura
 |-----|-----------|--------|
 | Staff Admin | `es_geolab=True`, area in [admin,lab,recepcion] | Todo |
 | Técnico Lab | `es_geolab=True`, `area='tecnico'` | Solo ensayos/dashboard |
+| Coord. Calidad | `es_geolab=True`, `area='calidad'` | **Solo** `/calidad/*`, pero manda dentro del SGC |
 | Director | `es_cliente=True`, `rol='director'` | Todas obras de su empresa |
 | Residente | `es_cliente=True`, `rol='residente'` | Solo obras asignadas |
 | Remitente | `es_cliente=True`, `rol='remitente'` | Solo crear remisiones |
 
-**Properties en UsuarioBase:** `es_tecnico_laboratorio`, `es_admin_geolab`, `es_remitente`
+**Properties en UsuarioBase:** `es_tecnico_laboratorio`, `es_admin_geolab`, `es_remitente`, `es_coordinador_calidad`, `es_admin_sgc`
+
+### Coordinador de Calidad (rol confinado)
+
+Necesita `es_geolab=True` porque `calidad.views._usuario_tiene_acceso` lo exige, pero ese
+mismo flag es la puerta de ~43 vistas de core/users/solicitudes/ensayos. Por eso el
+confinamiento NO vive en las vistas sino en `users/middleware.py`:
+
+- **`RestriccionCalidadMiddleware`** (último en `MIDDLEWARE`, necesita `request.user` y
+  `messages`): lista blanca de `/calidad/`, `/accounts/`, `/static/`, `/media/` y `/`.
+  Todo lo demás redirige a `explorador_calidad`. Al ser deny-by-default, cualquier módulo
+  o URL nuevo nace cerrado para este rol. Los superusuarios quedan exentos para no
+  bloquearse del admin.
+- **`es_admin_sgc`** = `es_admin_geolab or es_coordinador_calidad`. Es la property que
+  decide quién manda *dentro* del SGC: ve las 8 áreas sin pasar por `AccesoAreaUsuario`,
+  sube, crea, elimina y gestiona accesos. Usarla en calidad (views y templates) en vez
+  de `es_admin_geolab`.
+- Se crea desde el admin de Django: `es_geolab=True` + perfil `FuncionarioGeolab` con
+  `area='calidad'`. **El perfil es obligatorio** (ver nota 21).
 
 ## URLs Principales
 
@@ -269,7 +288,7 @@ LIBREOFFICE_PATH=
 5. **Detección automática HOY:** `fecha_falla = fecha_toma + edad_dias`, marca en ROJO si == hoy
 6. **Firma automática remitente:** Datos del firmante se toman del usuario logueado
 7. **Notificación dual:** Email + campana al crear remisión
-8. **Sidebar condicional:** 4 sidebars según rol (staff, tecnico, remitente, client)
+8. **Sidebar condicional:** 5 sidebars según rol (staff, tecnico, calidad, remitente, client)
 9. **Validación PDFs:** Doble validación cliente (JS) y servidor (Django)
 10. **HTMX:** Usado para edición inline en hojas de trabajo y toggles
 11. **Campos DEPRECADOS:** `token_acceso` y `email_destinatario` en RemisionMuestras (sistema de tokens eliminado)
@@ -282,6 +301,7 @@ LIBREOFFICE_PATH=
 18. **`forma_falla` canónico:** valores `tipo_1`..`tipo_6` (NO `1`..`6`). `informes._tipo_falla_num()` exige el prefijo `tipo_`.
 19. **PDF de informes de ensayo:** XLSX siempre (inyección XML sobre plantilla); el PDF requiere LibreOffice headless. Ruta vía `settings.LIBREOFFICE_PATH` (config desde `.env`, default None) → fallback a `soffice`/`libreoffice` en PATH. Sin LibreOffice, solo se genera el XLSX.
 20. **Layouts / sub-apps:** `base.html` expone `{% block sidebar %}` y `{% block panel_title %}` (defaults por rol). Facturación es un "sub-aplicativo": sus templates extienden `base_facturacion.html` (que sobreescribe esos bloques con `sidebar_facturacion.html`), y el sidebar de staff entra con un solo enlace "Facturación". `factura_pdf.html` NO extiende base (es standalone para WeasyPrint). El técnico usa `base_tecnico.html` (standalone).
+21. **`es_admin_geolab` tiene un fallback peligroso:** si un usuario tiene `es_geolab=True` pero le falta el perfil `FuncionarioGeolab`, la property devuelve `es_geolab` → queda como **admin total**. Por eso todo usuario Geolab (y en especial el Coordinador de Calidad) debe crearse siempre con su perfil. Corregirlo a `return False` es lo correcto, pero antes hay que revisar en producción qué usuarios quedarían sin acceso.
 
 ## Seguridad
 

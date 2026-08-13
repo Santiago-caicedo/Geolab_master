@@ -223,6 +223,8 @@
     {% block sidebar %}
     {% if user.es_tecnico_laboratorio %}
         {% include 'includes/sidebar_tecnico.html' %}
+    {% elif user.es_coordinador_calidad %}
+        {% include 'includes/sidebar_calidad.html' %}
     {% elif user.es_geolab %}
         {% include 'includes/sidebar_staff.html' %}
     {% elif user.es_remitente %}
@@ -246,6 +248,8 @@
                         {% block panel_title %}
                         {% if user.es_tecnico_laboratorio %}
                             Panel de Laboratorio
+                        {% elif user.es_coordinador_calidad %}
+                            Sistema de Calidad
                         {% elif user.es_geolab %}
                             Panel Administrativo
                         {% elif user.es_remitente %}

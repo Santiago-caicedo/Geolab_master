@@ -17,7 +17,7 @@ def _usuario_tiene_acceso(user, area, requiere_edicion=False):
     """Verifica si un usuario Geolab tiene acceso a un área de calidad."""
     if not user.es_geolab:
         return False
-    if user.es_admin_geolab:
+    if user.es_admin_sgc:
         return True
     acceso = AccesoAreaUsuario.objects.filter(usuario=user, area=area).first()
     if not acceso:
@@ -34,7 +34,7 @@ def explorador_calidad(request):
 
     areas = AreaCalidad.objects.all()
 
-    if not request.user.es_admin_geolab:
+    if not request.user.es_admin_sgc:
         # Filtrar solo áreas a las que tiene acceso
         ids_con_acceso = AccesoAreaUsuario.objects.filter(
             usuario=request.user
@@ -236,7 +236,7 @@ def eliminar_documento(request, pk):
         Documento.objects.select_related('carpeta__area'), pk=pk
     )
 
-    if not request.user.es_admin_geolab:
+    if not request.user.es_admin_sgc:
         messages.error(request, "Solo administradores pueden eliminar documentos.")
         return redirect('contenido_carpeta', pk=documento.carpeta.pk)
 
@@ -263,7 +263,7 @@ def eliminar_carpeta(request, pk):
         Carpeta.objects.select_related('area', 'padre'), pk=pk
     )
 
-    if not request.user.es_admin_geolab:
+    if not request.user.es_admin_sgc:
         messages.error(request, "Solo administradores pueden eliminar carpetas.")
         return redirect('contenido_carpeta', pk=carpeta.pk)
 
@@ -297,7 +297,7 @@ def eliminar_carpeta(request, pk):
 @login_required
 def gestionar_accesos(request):
     """Gestión de accesos por área (solo admins Geolab)."""
-    if not request.user.es_admin_geolab:
+    if not request.user.es_admin_sgc:
         messages.error(request, "Solo administradores pueden gestionar accesos.")
         return redirect('explorador_calidad')
 
@@ -306,8 +306,8 @@ def gestionar_accesos(request):
         es_geolab=True
     ).select_related('perfil_geolab').order_by('first_name', 'last_name')
 
-    # Excluir admins (ya tienen acceso total)
-    usuarios_geolab = [u for u in usuarios_geolab if not u.es_admin_geolab]
+    # Excluir a quienes ya mandan en el SGC (admins y coordinadores de calidad)
+    usuarios_geolab = [u for u in usuarios_geolab if not u.es_admin_sgc]
 
     if request.method == 'POST':
         # Procesar la matriz de checkboxes

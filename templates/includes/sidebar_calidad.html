@@ -1,0 +1,55 @@
+{% load static %}
+<nav class="sidebar" style="background: linear-gradient(180deg, #14532d 0%, #166534 100%);">
+    <a href="{% url 'explorador_calidad' %}" class="sidebar-brand">
+        <img src="{% static 'img/geolab-logo.png' %}" alt="Geolab Sistema" style="width: 160px; height: auto;">
+    </a>
+
+    <div class="d-flex flex-column py-2 h-100 text-nowrap overflow-auto" style="scrollbar-width: none;">
+
+        <!-- Indicador de rol -->
+        <div class="px-3 py-2 mb-2" style="background: rgba(255,255,255,0.05); border-bottom: 1px solid rgba(255,255,255,0.1);">
+            <div class="d-flex align-items-center gap-2">
+                <div class="rounded-circle d-flex align-items-center justify-content-center"
+                     style="width: 32px; height: 32px; background: rgba(255,255,255,0.18);">
+                    <i class="bi bi-clipboard2-check text-white"></i>
+                </div>
+                <div>
+                    <small class="d-block text-white-50" style="font-size: 0.65rem; text-transform: uppercase; letter-spacing: 1px;">
+                        Coordinador de Calidad
+                    </small>
+                    <span class="text-white small fw-medium">
+                        {{ user.first_name|default:user.username }}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <div class="nav-section">SISTEMA DE CALIDAD</div>
+
+        <a href="{% url 'explorador_calidad' %}" class="nav-link {% if request.resolver_match.url_name == 'explorador_calidad' %}active{% endif %}">
+            <i class="bi bi-grid"></i> Areas del SGC
+        </a>
+
+        <a href="{% url 'gestionar_accesos' %}" class="nav-link {% if request.resolver_match.url_name == 'gestionar_accesos' %}active{% endif %}">
+            <i class="bi bi-shield-lock"></i> Gestionar Accesos
+        </a>
+
+        <div class="flex-grow-1"></div>
+
+        <div class="px-3 py-3 mx-3 mb-3 rounded" style="background: rgba(255,255,255,0.05);">
+            <small class="text-white-50 d-block" style="font-size: 0.7rem; line-height: 1.5;">
+                Tu usuario esta limitado al Sistema de Calidad.
+            </small>
+        </div>
+
+        <div class="p-3">
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn w-100 btn-sm d-flex align-items-center justify-content-center gap-2 shadow-sm text-white"
+                        style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1); transition: all 0.2s;">
+                    <i class="bi bi-box-arrow-left"></i> Cerrar Sesion
+                </button>
+            </form>
+        </div>
+    </div>
+</nav>

@@ -39,6 +39,25 @@ class UsuarioBase(AbstractUser):
         return self.es_geolab
 
     @property
+    def es_coordinador_calidad(self):
+        """
+        Verifica si el usuario es Coordinador de Calidad: manda dentro del SGC
+        pero NO puede salir del modulo /calidad/ (ver RestriccionCalidadMiddleware).
+        """
+        if self.es_geolab and hasattr(self, 'perfil_geolab'):
+            return self.perfil_geolab.area == 'calidad'
+        return False
+
+    @property
+    def es_admin_sgc(self):
+        """
+        Quien manda dentro del Sistema de Calidad: puede ver las 8 areas sin
+        pasar por la matriz de accesos, subir, crear, eliminar y asignar
+        permisos a otros. Son los admins de Geolab y los coordinadores de calidad.
+        """
+        return self.es_admin_geolab or self.es_coordinador_calidad
+
+    @property
     def es_remitente(self):
         """Verifica si el usuario es remitente (solo crea remisiones)"""
         if self.es_cliente and hasattr(self, 'perfil_cliente'):
@@ -52,6 +71,7 @@ class FuncionarioGeolab(models.Model):
         ('lab', 'Supervisor de Laboratorio'),
         ('recepcion', 'Recepción de Muestras'),
         ('tecnico', 'Técnico de Laboratorio'),
+        ('calidad', 'Coordinador de Calidad (solo SGC)'),
     ]
     user = models.OneToOneField(UsuarioBase, on_delete=models.CASCADE, related_name='perfil_geolab')
     area = models.CharField(max_length=50, choices=AREAS)

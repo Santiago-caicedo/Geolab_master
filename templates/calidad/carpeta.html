@@ -133,7 +133,7 @@
                             <div class="fw-medium">{{ subcarpeta.nombre }}</div>
                         </div>
                     </a>
-                    {% if request.user.es_admin_geolab and subcarpeta.esta_vacia %}
+                    {% if request.user.es_admin_sgc and subcarpeta.esta_vacia %}
                     <div class="item-actions">
                         <form method="post" action="{% url 'eliminar_carpeta_calidad' subcarpeta.pk %}"
                               onsubmit="return confirm('Eliminar la carpeta &quot;{{ subcarpeta.nombre }}&quot;?')">
@@ -159,7 +159,7 @@
                             <small class="text-muted">{{ doc.tamano_legible }} &middot; {{ doc.fecha_subida|date:"d M Y" }}</small>
                         </div>
                     </a>
-                    {% if request.user.es_admin_geolab %}
+                    {% if request.user.es_admin_sgc %}
                     <div class="item-actions">
                         <form method="post" action="{% url 'eliminar_documento_calidad' doc.pk %}"
                               onsubmit="return confirm('Eliminar el documento &quot;{{ doc.nombre }}&quot;?')">
