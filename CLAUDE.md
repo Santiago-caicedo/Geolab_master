@@ -127,8 +127,12 @@ confinamiento NO vive en las vistas sino en `users/middleware.py`:
   decide quién manda *dentro* del SGC: ve las 8 áreas sin pasar por `AccesoAreaUsuario`,
   sube, crea, elimina y gestiona accesos. Usarla en calidad (views y templates) en vez
   de `es_admin_geolab`.
-- Se crea desde el admin de Django: `es_geolab=True` + perfil `FuncionarioGeolab` con
-  `area='calidad'`. **El perfil es obligatorio** (ver nota 21).
+- **Se crea con `python manage.py crear_coordinador_calidad`** (ver Comandos Útiles):
+  hace usuario + perfil dentro de una `transaction.atomic()`, valida la contraseña con
+  los validadores de Django y verifica el rol resultante antes de terminar.
+  A mano desde el admin también se puede, pero es un flujo de 2 pasos (la casilla
+  `es_geolab` solo aparece al editar) y hay que asignar el **área antes** de marcar
+  `es_geolab`, o el usuario queda como admin total mientras tanto (ver nota 21).
 
 ## URLs Principales
 
@@ -251,6 +255,13 @@ python manage.py migrar_geolab      # Migración desde WordPress
 python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
+
+# Crea el rol Coordinador de Calidad (usuario + perfil en una transacción,
+# evitando la ventana en que es_admin_geolab lo dejaría como admin total).
+python manage.py crear_coordinador_calidad <usuario> \
+    --nombre "Maria" --apellido "Gomez" --email maria@geolab.com --codigo-empleado GC-01
+# Sin --password la pide oculta por consola. Otros flags: --actualizar (convierte
+# un usuario existente, conserva su clave si no se pasa --password), --noinput.
 ```
 
 ## Variables de Entorno (.env)
