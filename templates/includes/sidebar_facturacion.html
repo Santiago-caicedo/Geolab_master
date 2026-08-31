@@ -42,6 +42,10 @@
 
         <div class="nav-section">CONFIGURACIÓN</div>
 
+        <a href="{% url 'precios_obras' %}" class="nav-link {% if 'precios' in request.path %}active{% endif %}">
+            <i class="bi bi-tags"></i> Precios por Obra
+        </a>
+
         <a href="{% url 'catalogo_servicios' %}" class="nav-link {% if 'catalogo' in request.path or 'servicios' in request.path or 'categorias' in request.path %}active{% endif %}">
             <i class="bi bi-list-check"></i> Catálogo Servicios
         </a>

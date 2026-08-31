@@ -1,0 +1,103 @@
+{% extends 'base_facturacion.html' %}
+{% block title %}Precios por Obra{% endblock %}
+
+{% block content %}
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+        <h3><i class="bi bi-tags me-2"></i>Precios por Obra</h3>
+        <p class="text-muted mb-0">Cada obra tiene su propia lista de precios ({{ total_servicios }} servicios en catálogo)</p>
+    </div>
+</div>
+
+<form method="get" class="card border-0 shadow-sm mb-4">
+    <div class="card-body row g-2 align-items-end">
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">Buscar obra</label>
+            <input type="text" name="q" value="{{ query }}" class="form-control"
+                   placeholder="Nombre o código de obra">
+        </div>
+        <div class="col-md-5">
+            <label class="form-label small text-muted mb-1">Constructora</label>
+            <select name="constructora" class="form-select">
+                <option value="">-- Todas las constructoras --</option>
+                {% for c in constructoras %}
+                <option value="{{ c.pk }}" {% if constructora_id == c.pk|stringformat:"s" %}selected{% endif %}>
+                    {{ c.nombre }}
+                </option>
+                {% endfor %}
+            </select>
+        </div>
+        <div class="col-md-2 d-flex gap-2">
+            <button type="submit" class="btn btn-primary flex-fill">
+                <i class="bi bi-search"></i> Filtrar
+            </button>
+            {% if query or constructora_id %}
+            <a href="{% url 'precios_obras' %}" class="btn btn-outline-secondary" title="Limpiar">
+                <i class="bi bi-x-lg"></i>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+</form>
+
+<div class="row g-3">
+    {% for obra in page_obj %}
+    <div class="col-md-6 col-lg-4">
+        <a href="{% url 'gestionar_precios_obra' obra.pk %}" class="text-decoration-none">
+            <div class="card border-0 shadow-sm h-100 card-hover">
+                <div class="card-body">
+                    <h5 class="card-title text-dark mb-1">{{ obra.nombre }}</h5>
+                    <p class="text-muted small mb-3">
+                        {{ obra.constructora.nombre }} &middot; {{ obra.codigo_obra }}
+                    </p>
+                    {% if obra.servicios_con_precio %}
+                        <span class="badge bg-success">
+                            <i class="bi bi-check-circle me-1"></i>
+                            {{ obra.servicios_con_precio }} de {{ total_servicios }} con precio
+                        </span>
+                    {% else %}
+                        <span class="badge bg-warning text-dark">
+                            <i class="bi bi-exclamation-triangle me-1"></i> Sin precios configurados
+                        </span>
+                    {% endif %}
+                </div>
+            </div>
+        </a>
+    </div>
+    {% empty %}
+    <div class="col-12">
+        <div class="alert alert-info mb-0">No se encontraron obras con ese filtro.</div>
+    </div>
+    {% endfor %}
+</div>
+
+{% if page_obj.has_other_pages %}
+<nav class="mt-4">
+    <ul class="pagination justify-content-center">
+        {% if page_obj.has_previous %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.previous_page_number }}{% if query %}&q={{ query }}{% endif %}{% if constructora_id %}&constructora={{ constructora_id }}{% endif %}">Anterior</a>
+        </li>
+        {% endif %}
+        <li class="page-item disabled">
+            <span class="page-link">Página {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}</span>
+        </li>
+        {% if page_obj.has_next %}
+        <li class="page-item">
+            <a class="page-link" href="?page={{ page_obj.next_page_number }}{% if query %}&q={{ query }}{% endif %}{% if constructora_id %}&constructora={{ constructora_id }}{% endif %}">Siguiente</a>
+        </li>
+        {% endif %}
+    </ul>
+</nav>
+{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<style>
+.card-hover:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
+    transition: all 0.2s;
+}
+</style>
+{% endblock %}

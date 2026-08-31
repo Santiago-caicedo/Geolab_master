@@ -254,6 +254,41 @@ def eliminar_servicio(request, pk):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @staff_required
+def precios_obras(request):
+    """
+    Listado de obras para entrar a su lista de precios.
+    Es la puerta de entrada del modulo a gestionar_precios_obra.
+    """
+    obras = Obra.objects.select_related('constructora').annotate(
+        servicios_con_precio=Count(
+            'lista_de_precios', filter=Q(lista_de_precios__precio__isnull=False)
+        )
+    ).order_by('constructora__nombre', 'nombre')
+
+    constructora_id = request.GET.get('constructora')
+    if constructora_id:
+        obras = obras.filter(constructora_id=constructora_id)
+
+    query = request.GET.get('q', '').strip()
+    if query:
+        obras = obras.filter(
+            Q(nombre__icontains=query) | Q(codigo_obra__icontains=query)
+        )
+
+    paginator = Paginator(obras, 24)
+    page_obj = paginator.get_page(request.GET.get('page'))
+
+    context = {
+        'page_obj': page_obj,
+        'constructoras': Constructora.objects.all().order_by('nombre'),
+        'constructora_id': constructora_id,
+        'query': query,
+        'total_servicios': TipoServicio.objects.count(),
+    }
+    return render(request, 'facturacion/precios_obras.html', context)
+
+
+@staff_required
 def gestionar_precios_obra(request, obra_pk):
     """
     Gestionar lista de precios de una obra.

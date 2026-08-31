@@ -9,9 +9,14 @@
             {{ obra.constructora.nombre }} &rarr; <strong>{{ obra.nombre }}</strong> ({{ obra.codigo_obra }})
         </p>
     </div>
-    <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Volver a obra
-    </a>
+    <div class="d-flex gap-2">
+        <a href="{% url 'precios_obras' %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-arrow-left"></i> Todas las obras
+        </a>
+        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-box-arrow-up-right"></i> Ver obra
+        </a>
+    </div>
 </div>
 
 <form method="post">

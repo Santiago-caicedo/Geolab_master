@@ -15,6 +15,7 @@ urlpatterns = [
     path('facturacion/servicios/<int:pk>/eliminar/', views.eliminar_servicio, name='eliminar_servicio_facturacion'),
 
     # Precios por obra
+    path('facturacion/precios/', views.precios_obras, name='precios_obras'),
     path('facturacion/obras/<int:obra_pk>/precios/', views.gestionar_precios_obra, name='gestionar_precios_obra'),
 
     # Impuestos
