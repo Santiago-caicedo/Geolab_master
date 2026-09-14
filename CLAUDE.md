@@ -289,6 +289,7 @@ DB_PORT=5432
 # Linux:   LIBREOFFICE_PATH=/usr/bin/soffice
 LIBREOFFICE_PATH=
 # Producción: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EMAIL_HOST_*
+# Producción (opcional): BEHIND_PROXY=True, SECURE_HSTS_SECONDS=3600
 ```
 
 ## Identidad Visual
@@ -332,9 +333,9 @@ LIBREOFFICE_PATH=
 - IP y User-Agent registrados en firma de remisiones
 - FBV exclusivamente con `@login_required`, permisos manuales por vista
 
-**Producción (agregar en settings.py):**
-```python
-SECURE_SSL_REDIRECT = True
-SESSION_COOKIE_SECURE = True
-CSRF_COOKIE_SECURE = True
-```
+**Producción (bloque `if not DEBUG` al final de `settings.py`):**
+- Rechaza arrancar si `SECRET_KEY` empieza por `django-insecure-` o tiene menos de 50 caracteres (`ImproperlyConfigured`).
+- `SECURE_SSL_REDIRECT`, cookies `Secure`/`HttpOnly`/`SameSite=Lax`, `SECURE_CONTENT_TYPE_NOSNIFF`, `X_FRAME_OPTIONS=DENY`, `SECURE_REFERRER_POLICY`.
+- `SECURE_PROXY_SSL_HEADER` activo por defecto (`BEHIND_PROXY=True` en `.env`); ponerlo en `False` solo si Django sirve TLS directamente. El proxy debe sobrescribir `X-Forwarded-Proto`.
+- HSTS arranca en 1 hora (`SECURE_HSTS_SECONDS=3600`); subir a `31536000` en el `.env` cuando se confirme que todo el sitio va por HTTPS.
+- Verificar con `DEBUG=False python manage.py check --deploy` (solo queda W021 sobre preload, deliberado).
