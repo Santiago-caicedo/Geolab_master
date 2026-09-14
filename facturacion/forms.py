@@ -96,11 +96,12 @@ class RegistroServicioForm(forms.ModelForm):
             }),
         }
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ciudad=None, **kwargs):
         super().__init__(*args, **kwargs)
-        self.fields['obra'].queryset = Obra.objects.select_related(
-            'constructora'
-        ).order_by('constructora__nombre', 'nombre')
+        obras = Obra.objects.select_related('constructora')
+        if ciudad:
+            obras = obras.filter(constructora__ciudad__iexact=ciudad)
+        self.fields['obra'].queryset = obras.order_by('constructora__nombre', 'nombre')
         self.fields['obra'].label_from_instance = (
             lambda obj: f"{obj.constructora.nombre} → {obj.nombre}"
         )
@@ -135,27 +136,28 @@ class FiltroHistoricoForm(forms.Form):
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'})
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ciudad=None, **kwargs):
         super().__init__(*args, **kwargs)
+        _acotar_a_ciudad(self, ciudad)
         # Si viene constructora, filtrar obras
-        if 'data' in kwargs and kwargs['data']:
-            constructora_id = kwargs['data'].get('constructora')
-            if constructora_id:
-                try:
-                    self.fields['obra'].queryset = Obra.objects.filter(
-                        constructora_id=int(constructora_id)
-                    ).order_by('nombre')
-                except (ValueError, TypeError):
-                    pass
-        elif args and args[0]:
-            constructora_id = args[0].get('constructora')
-            if constructora_id:
-                try:
-                    self.fields['obra'].queryset = Obra.objects.filter(
-                        constructora_id=int(constructora_id)
-                    ).order_by('nombre')
-                except (ValueError, TypeError):
-                    pass
+        data = kwargs.get('data') if 'data' in kwargs else (args[0] if args else None)
+        constructora_id = data.get('constructora') if data else None
+        if constructora_id:
+            try:
+                self.fields['obra'].queryset = Obra.objects.filter(
+                    constructora_id=int(constructora_id),
+                    constructora__in=self.fields['constructora'].queryset,
+                ).order_by('nombre')
+            except (ValueError, TypeError):
+                pass
+
+
+def _acotar_a_ciudad(form, ciudad):
+    """Limita el select de constructoras a la ciudad activa del módulo."""
+    if ciudad:
+        form.fields['constructora'].queryset = Constructora.objects.filter(
+            ciudad__iexact=ciudad
+        ).order_by('nombre')
 
 
 class GenerarFacturaForm(forms.Form):
@@ -179,14 +181,16 @@ class GenerarFacturaForm(forms.Form):
         label='Fecha fin periodo'
     )
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args, ciudad=None, **kwargs):
         super().__init__(*args, **kwargs)
+        _acotar_a_ciudad(self, ciudad)
         if args and args[0]:
             constructora_id = args[0].get('constructora')
             if constructora_id:
                 try:
                     self.fields['obra'].queryset = Obra.objects.filter(
-                        constructora_id=int(constructora_id)
+                        constructora_id=int(constructora_id),
+                        constructora__in=self.fields['constructora'].queryset,
                     ).order_by('nombre')
                 except (ValueError, TypeError):
                     pass

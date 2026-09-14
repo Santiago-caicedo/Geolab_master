@@ -8,5 +8,5 @@
 {% endblock %}
 
 {% block panel_title %}
-    <i class="bi bi-receipt-cutoff text-primary me-1"></i> Facturación
+    <i class="bi bi-receipt-cutoff text-primary me-1"></i> Facturación{% if request.ciudad_facturacion %} <span class="text-muted fw-normal">· {{ request.ciudad_facturacion }}</span>{% endif %}
 {% endblock %}

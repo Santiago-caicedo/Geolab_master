@@ -91,6 +91,18 @@ geolab_master/
 - **RegistroServicio**: Servicio realizado con precio congelado (price freezing)
 - **Factura**: Generada por periodo, con PDF vía WeasyPrint
 
+**Ciudad (sede) activa:** al entrar al módulo (el enlace del sidebar de staff apunta a
+`seleccionar_ciudad_facturacion`) se elige una ciudad, guardada en sesión
+(`facturacion/sede.py`, clave `facturacion_ciudad`). El decorador `staff_required` de
+`facturacion/views.py` exige ciudad (redirige al selector; las APIs `/facturacion/api/*`
+devuelven 403 JSON) y la deja en `request.ciudad_facturacion`. Todas las vistas filtran
+constructoras/obras/registros/facturas con los helpers `sede.constructoras_de(ciudad)`,
+`obras_de`, `registros_de`, `facturas_de` (match por `Constructora.ciudad__iexact`); los
+objetos de otra ciudad dan 404. Las ciudades disponibles son los valores distintos de
+`Constructora.ciudad` (no hay modelo Sede); constructoras sin ciudad no aparecen en
+Facturación. Catálogo e impuestos son globales. Al agregar una vista nueva al módulo,
+usar `staff_required` y los helpers de `sede`, nunca `Obra.objects`/`Factura.objects` a secas.
+
 **Relaciones clave:**
 ```
 Constructora 1:N Obra 1:N Informe
@@ -154,7 +166,7 @@ automáticamente su fila de permisos sobre ella. La matriz de accesos por área
 | solicitudes | `/remisiones/`, `/obras/<pk>/nueva-remision/`, `/remitente/`, `/notificaciones/` |
 | ensayos | `/ensayos/hojas-trabajo/`, `/ensayos/dashboard-tecnico/`, `/ensayos/hojas-trabajo/obra/<pk>/` |
 | calidad | `/calidad/`, `/calidad/area/<pk>/`, `/calidad/carpeta/<pk>/` |
-| facturacion | `/facturacion/`, `/facturacion/catalogo/`, `/facturacion/generar/`, `/facturacion/repositorio/` |
+| facturacion | `/facturacion/ciudad/` (puerta de entrada), `/facturacion/`, `/facturacion/catalogo/`, `/facturacion/generar/`, `/facturacion/repositorio/` |
 
 ## Sistema de Macros de Cálculo por Geometría
 

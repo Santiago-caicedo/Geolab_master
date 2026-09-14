@@ -5,6 +5,7 @@ import os
 
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
@@ -14,6 +15,7 @@ from django.db.models.functions import TruncMonth
 from django.http import JsonResponse, Http404, HttpResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.conf import settings
 
@@ -28,20 +30,94 @@ from .forms import (
 )
 from users.models import Constructora
 from core.models import Obra
+from . import sede
 
 logger = logging.getLogger(__name__)
 
 
-def staff_required(view_func):
-    """Decorador: requiere login + es_geolab + es_admin_geolab."""
+def _rechazo_staff(request):
+    """Respuesta de rechazo si el usuario no es staff de Geolab; None si pasa."""
+    if not request.user.is_authenticated:
+        return redirect('login')
+    if not request.user.es_geolab or not request.user.es_admin_geolab:
+        messages.error(request, 'No tienes permiso para acceder a Facturación.')
+        return redirect('home')
+    return None
+
+
+def staff_sin_ciudad(view_func):
+    """Decorador: requiere login + es_geolab + es_admin_geolab (sin ciudad)."""
     def wrapper(request, *args, **kwargs):
-        if not request.user.is_authenticated:
-            return redirect('login')
-        if not request.user.es_geolab or not request.user.es_admin_geolab:
-            messages.error(request, 'No tienes permiso para acceder a Facturación.')
-            return redirect('home')
+        rechazo = _rechazo_staff(request)
+        if rechazo:
+            return rechazo
         return view_func(request, *args, **kwargs)
     return wrapper
+
+
+def staff_required(view_func):
+    """
+    Decorador: staff + ciudad seleccionada.
+
+    Todo el módulo trabaja sobre una ciudad (sede) guardada en la sesión.
+    Si no hay ciudad, redirige a seleccionar_ciudad (las APIs JSON devuelven
+    403 en vez de redirigir). Deja la ciudad en `request.ciudad_facturacion`
+    para vistas y templates.
+    """
+    def wrapper(request, *args, **kwargs):
+        rechazo = _rechazo_staff(request)
+        if rechazo:
+            return rechazo
+        ciudad = sede.ciudad_actual(request)
+        if not ciudad:
+            if request.path.startswith('/facturacion/api/'):
+                return JsonResponse(
+                    {'status': 'error', 'message': 'Selecciona una ciudad primero.'},
+                    status=403,
+                )
+            url = reverse('seleccionar_ciudad_facturacion')
+            return redirect(f'{url}?next={request.get_full_path()}')
+        request.ciudad_facturacion = ciudad
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+# ═══════════════════════════════════════════════════════════════════════════════
+# SELECCIÓN DE CIUDAD (SEDE)
+# ═══════════════════════════════════════════════════════════════════════════════
+
+@staff_sin_ciudad
+def seleccionar_ciudad(request):
+    """
+    Puerta de entrada del módulo: elegir la ciudad con la que se trabaja.
+    Se vuelve a pasar por aquí cada vez que se entra desde el portal o al
+    pulsar "Cambiar" en el sidebar.
+    """
+    ciudades = sede.ciudades_disponibles()
+    siguiente = request.POST.get('next') or request.GET.get('next') or ''
+    if not url_has_allowed_host_and_scheme(siguiente, allowed_hosts={request.get_host()}):
+        siguiente = ''
+
+    if request.method == 'POST':
+        ciudad = (request.POST.get('ciudad') or '').strip()
+        if ciudad not in ciudades:
+            messages.error(request, 'Selecciona una ciudad válida.')
+        else:
+            sede.fijar_ciudad(request, ciudad)
+            return redirect(siguiente or 'dashboard_facturacion')
+
+    conteo = {
+        fila['ciudad']: fila['n']
+        for fila in Constructora.objects.exclude(ciudad__isnull=True).exclude(ciudad='')
+        .values('ciudad').annotate(n=Count('id'))
+    }
+    context = {
+        'ciudades': [(c, conteo.get(c, 0)) for c in ciudades],
+        'ciudad_actual': sede.ciudad_actual(request),
+        'sin_ciudad': Constructora.objects.filter(Q(ciudad__isnull=True) | Q(ciudad='')).count(),
+        'next': siguiente,
+    }
+    return render(request, 'facturacion/seleccionar_ciudad.html', context)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -53,12 +129,13 @@ def dashboard_facturacion(request):
     """Dashboard de facturación con KPIs y gráfica."""
     hoy = timezone.now().date()
     primer_dia_mes = hoy.replace(day=1)
+    ciudad = request.ciudad_facturacion
 
-    # KPIs
-    total_constructoras = Constructora.objects.count()
-    total_obras = Obra.objects.count()
+    # KPIs (todo acotado a la ciudad activa)
+    total_constructoras = sede.constructoras_de(ciudad).count()
+    total_obras = sede.obras_de(ciudad).count()
 
-    facturas_mes = Factura.objects.filter(
+    facturas_mes = sede.facturas_de(ciudad).filter(
         fecha_emision__gte=primer_dia_mes
     ).exclude(estado='ANULADA')
     facturas_mes_count = facturas_mes.count()
@@ -66,16 +143,16 @@ def dashboard_facturacion(request):
         total=Sum('total')
     )['total'] or Decimal('0')
 
-    registros_mes = RegistroServicio.objects.filter(
+    registros_mes = sede.registros_de(ciudad).filter(
         fecha_creacion__date__gte=primer_dia_mes
     ).count()
 
-    registros_pendientes = RegistroServicio.objects.filter(
+    registros_pendientes = sede.registros_de(ciudad).filter(
         factura__isnull=True
     ).count()
 
     # Top 3 clientes por facturación histórica
-    top_clientes = Constructora.objects.filter(
+    top_clientes = sede.constructoras_de(ciudad).filter(
         facturas__isnull=False
     ).exclude(
         facturas__estado='ANULADA'
@@ -86,7 +163,8 @@ def dashboard_facturacion(request):
     # Top 3 servicios más registrados (últimos 90 días)
     hace_90_dias = hoy - timezone.timedelta(days=90)
     top_servicios = TipoServicio.objects.filter(
-        registros__fecha_realizacion__gte=hace_90_dias
+        registros__fecha_realizacion__gte=hace_90_dias,
+        registros__obra__constructora__ciudad__iexact=ciudad,
     ).annotate(
         total_registros=Count('registros')
     ).order_by('-total_registros')[:3]
@@ -110,7 +188,7 @@ def api_facturacion_mensual(request):
     hoy = timezone.now().date()
     hace_6_meses = hoy.replace(day=1) - timezone.timedelta(days=180)
 
-    datos = Factura.objects.filter(
+    datos = sede.facturas_de(request.ciudad_facturacion).filter(
         fecha_emision__gte=hace_6_meses
     ).exclude(
         estado='ANULADA'
@@ -259,7 +337,8 @@ def precios_obras(request):
     Listado de obras para entrar a su lista de precios.
     Es la puerta de entrada del modulo a gestionar_precios_obra.
     """
-    obras = Obra.objects.select_related('constructora').annotate(
+    ciudad = request.ciudad_facturacion
+    obras = sede.obras_de(ciudad).select_related('constructora').annotate(
         servicios_con_precio=Count(
             'lista_de_precios', filter=Q(lista_de_precios__precio__isnull=False)
         )
@@ -280,7 +359,7 @@ def precios_obras(request):
 
     context = {
         'page_obj': page_obj,
-        'constructoras': Constructora.objects.all().order_by('nombre'),
+        'constructoras': sede.constructoras_de(ciudad).order_by('nombre'),
         'constructora_id': constructora_id,
         'query': query,
         'total_servicios': TipoServicio.objects.count(),
@@ -294,7 +373,9 @@ def gestionar_precios_obra(request, obra_pk):
     Gestionar lista de precios de una obra.
     Crea PrecioServicio para cada TipoServicio que no exista.
     """
-    obra = get_object_or_404(Obra.objects.select_related('constructora'), pk=obra_pk)
+    obra = get_object_or_404(
+        sede.obras_de(request.ciudad_facturacion).select_related('constructora'), pk=obra_pk
+    )
 
     # Asegurar que exista un PrecioServicio para cada TipoServicio
     servicios_existentes = set(
@@ -419,7 +500,7 @@ def crear_registro(request):
             }, status=400)
 
         try:
-            obra = Obra.objects.get(pk=obra_id)
+            obra = sede.obras_de(request.ciudad_facturacion).get(pk=obra_id)
         except Obra.DoesNotExist:
             return JsonResponse({
                 'status': 'error', 'message': 'Obra no encontrada.'
@@ -497,7 +578,7 @@ def crear_registro(request):
         return JsonResponse({'status': 'success', 'message': msg})
 
     # GET: renderizar formulario
-    constructoras = Constructora.objects.all().order_by('nombre')
+    constructoras = sede.constructoras_de(request.ciudad_facturacion).order_by('nombre')
     servicios = TipoServicio.objects.select_related('categoria').order_by(
         'categoria__clave_orden', 'clave_orden'
     )
@@ -516,14 +597,15 @@ def editar_registro(request, pk):
     Editar registro no facturado.
     Al guardar, re-congela el precio desde PrecioServicio actual.
     """
-    registro = get_object_or_404(RegistroServicio, pk=pk)
+    ciudad = request.ciudad_facturacion
+    registro = get_object_or_404(sede.registros_de(ciudad), pk=pk)
 
     if registro.esta_facturado:
         messages.error(request, 'No se puede editar un registro ya facturado.')
         return redirect('historico_facturacion')
 
     if request.method == 'POST':
-        form = RegistroServicioForm(request.POST, instance=registro)
+        form = RegistroServicioForm(request.POST, instance=registro, ciudad=ciudad)
         if form.is_valid():
             registro = form.save(commit=False)
             # Re-congelar precio
@@ -538,7 +620,7 @@ def editar_registro(request, pk):
             messages.success(request, 'Registro actualizado correctamente.')
             return redirect('historico_facturacion')
     else:
-        form = RegistroServicioForm(instance=registro)
+        form = RegistroServicioForm(instance=registro, ciudad=ciudad)
 
     return render(request, 'facturacion/registro_editar.html', {
         'form': form, 'registro': registro,
@@ -549,7 +631,7 @@ def editar_registro(request, pk):
 @require_POST
 def eliminar_registro(request, pk):
     """Eliminar registro no facturado."""
-    registro = get_object_or_404(RegistroServicio, pk=pk)
+    registro = get_object_or_404(sede.registros_de(request.ciudad_facturacion), pk=pk)
     if registro.esta_facturado:
         messages.error(request, 'No se puede eliminar un registro facturado.')
     else:
@@ -565,12 +647,13 @@ def eliminar_registro(request, pk):
 @staff_required
 def historico_facturacion(request):
     """Histórico de todos los registros de servicio con filtros."""
-    registros = RegistroServicio.objects.select_related(
+    ciudad = request.ciudad_facturacion
+    registros = sede.registros_de(ciudad).select_related(
         'obra', 'obra__constructora', 'tipo_servicio',
         'tipo_servicio__categoria', 'factura',
-    ).all()
+    )
 
-    form = FiltroHistoricoForm(request.GET or None)
+    form = FiltroHistoricoForm(request.GET or None, ciudad=ciudad)
 
     # Aplicar filtros
     constructora = request.GET.get('constructora')
@@ -615,7 +698,8 @@ def generar_factura(request):
     Preview de factura.
     Muestra registros pendientes separados en normales y transporte.
     """
-    form = GenerarFacturaForm(request.GET or None)
+    ciudad = request.ciudad_facturacion
+    form = GenerarFacturaForm(request.GET or None, ciudad=ciudad)
     registros_normales = []
     registros_transporte = []
     subtotal_normales = Decimal('0')
@@ -630,7 +714,7 @@ def generar_factura(request):
         fecha_fin = request.GET.get('fecha_fin')
 
         try:
-            obra = Obra.objects.select_related('constructora').get(pk=obra_id)
+            obra = sede.obras_de(ciudad).select_related('constructora').get(pk=obra_id)
         except Obra.DoesNotExist:
             messages.error(request, 'Obra no encontrada.')
             return render(request, 'facturacion/generar_factura.html', {'form': form})
@@ -694,7 +778,9 @@ def finalizar_factura(request):
         messages.error(request, 'Datos incompletos.')
         return redirect('generar_factura')
 
-    obra = get_object_or_404(Obra.objects.select_related('constructora'), pk=obra_id)
+    obra = get_object_or_404(
+        sede.obras_de(request.ciudad_facturacion).select_related('constructora'), pk=obra_id
+    )
 
     try:
         with transaction.atomic():
@@ -823,7 +909,7 @@ def anular_factura(request, pk):
     Anula una factura: desvincula registros y marca como ANULADA.
     Los registros quedan disponibles para re-facturación.
     """
-    factura = get_object_or_404(Factura, pk=pk)
+    factura = get_object_or_404(sede.facturas_de(request.ciudad_facturacion), pk=pk)
 
     if factura.esta_anulada:
         messages.warning(request, 'Esta factura ya está anulada.')
@@ -853,7 +939,7 @@ def anular_factura(request, pk):
 @require_POST
 def marcar_factura_pagada(request, pk):
     """Marca una factura como pagada."""
-    factura = get_object_or_404(Factura, pk=pk)
+    factura = get_object_or_404(sede.facturas_de(request.ciudad_facturacion), pk=pk)
     if factura.esta_anulada:
         messages.error(request, 'No se puede marcar como pagada una factura anulada.')
     else:
@@ -870,7 +956,7 @@ def marcar_factura_pagada(request, pk):
 @staff_required
 def repositorio_clientes(request):
     """Nivel 1: Constructoras con facturas."""
-    constructoras = Constructora.objects.filter(
+    constructoras = sede.constructoras_de(request.ciudad_facturacion).filter(
         facturas__isnull=False
     ).distinct().annotate(
         total_facturas=Count('facturas'),
@@ -886,7 +972,9 @@ def repositorio_clientes(request):
 @staff_required
 def repositorio_obras_cliente(request, constructora_pk):
     """Nivel 2: Obras de una constructora con facturas."""
-    constructora = get_object_or_404(Constructora, pk=constructora_pk)
+    constructora = get_object_or_404(
+        sede.constructoras_de(request.ciudad_facturacion), pk=constructora_pk
+    )
 
     obras = Obra.objects.filter(
         constructora=constructora,
@@ -906,7 +994,9 @@ def repositorio_obras_cliente(request, constructora_pk):
 @staff_required
 def repositorio_facturas_obra(request, obra_pk):
     """Nivel 3: Facturas de una obra."""
-    obra = get_object_or_404(Obra.objects.select_related('constructora'), pk=obra_pk)
+    obra = get_object_or_404(
+        sede.obras_de(request.ciudad_facturacion).select_related('constructora'), pk=obra_pk
+    )
 
     facturas = Factura.objects.filter(obra=obra).order_by('-fecha_emision')
 
@@ -920,7 +1010,7 @@ def repositorio_facturas_obra(request, obra_pk):
 @staff_required
 def descargar_factura_pdf(request, pk):
     """Descarga el PDF de una factura."""
-    factura = get_object_or_404(Factura, pk=pk)
+    factura = get_object_or_404(sede.facturas_de(request.ciudad_facturacion), pk=pk)
 
     if not factura.pdf_archivo:
         # Intentar regenerar
@@ -945,7 +1035,7 @@ def api_get_obras(request):
     constructora_id = request.GET.get('constructora_id')
     if not constructora_id:
         return JsonResponse({'obras': []})
-    obras = Obra.objects.filter(
+    obras = sede.obras_de(request.ciudad_facturacion).filter(
         constructora_id=constructora_id
     ).values('id', 'nombre', 'codigo_obra').order_by('nombre')
     return JsonResponse({'obras': list(obras)})

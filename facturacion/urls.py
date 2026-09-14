@@ -4,6 +4,7 @@ from . import views
 urlpatterns = [
     # Dashboard
     path('facturacion/', views.dashboard_facturacion, name='dashboard_facturacion'),
+    path('facturacion/ciudad/', views.seleccionar_ciudad, name='seleccionar_ciudad_facturacion'),
     path('facturacion/api/facturacion-mensual/', views.api_facturacion_mensual, name='api_facturacion_mensual'),
 
     # Catálogo de servicios
