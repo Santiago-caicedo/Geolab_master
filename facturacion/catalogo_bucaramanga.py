@@ -6,13 +6,15 @@ Generado desde la hoja "LISTA DE PRECIO" de BASE DATOS BUCARAMANGA.xlsm
 
 Limpieza aplicada sobre el Excel:
 - Separadores de código normalizados a guion ("2.11" -> "2-11", "11,1,1L" -> "11-1-1L").
-- Códigos "13-8"/"13-9" dentro de CONCRETOS (error de digitación) -> "1-3-9"/"1-3-10".
+- Código cuyo primer segmento no es el número de la categoría pero empieza por él
+  ("13-8" dentro de CONCRETOS) se corrige reinsertando el guion ("1-3-8"; si ya existe, "-2").
 - Filas con el mismo nombre dentro de una categoría se fusionan (normas unidas con " / ").
 - Nombres repetidos entre categorías reciben sufijo: "(Laboratorista)", "(Auxiliar)", etc.
 - Códigos repetidos con distinto nombre reciben sufijo "-2".
 - Norma "N/A" o vacía se guarda como cadena vacía.
 
-Se carga con: python manage.py cargar_catalogo_bucaramanga
+Generado con facturacion.importar_excel.leer_lista_precios (misma limpieza que
+`importar_catalogo_excel`). Se carga con: python manage.py cargar_catalogo_bucaramanga
 """
 
 # (codigo_categoria, nombre_categoria)
@@ -68,8 +70,8 @@ SERVICIOS = [
     ('1', '1-3-5-2', 'Extracción, corte y resistencia a la compresión de núcleos de concreto de 2 1/4 y 3" (incluye refrentado)', 'NTC 3658-2018'),
     ('1', '1-3-6-2', 'Módulo de Elasticidad Estático del concreto en cilindros a compresión', 'NTC 4025'),
     ('1', '1-3-7-2', 'Extracción de núcleos de concreto de 2 1/2" mas compresion', 'NTC 3658 - 1995'),
-    ('1', '1-3-9', 'Extracción, Corte y resistencia a la compresion de núcleos de concreto de 2 a 3" (no incluye reparacion ) (2UND)', 'NTC 3658-1994'),
-    ('1', '1-3-10', 'Traccion indirecta de especimenes de concreto', 'NTC -122-2000'),
+    ('1', '1-3-8-2', 'Extracción, Corte y resistencia a la compresion de núcleos de concreto de 2 a 3" (no incluye reparacion ) (2UND)', 'NTC 3658-1994'),
+    ('1', '1-3-9', 'Traccion indirecta de especimenes de concreto', 'NTC -122-2000'),
     # ── 2 ─────
     ('2', '2-1', 'Contenido de Humedad', 'INV-E 122-2013'),
     ('2', '2-2', 'Límite líquido, plástico e índice de plasticidad', 'INV-E 125-126-2013 / NTC 4630 - 1999'),
@@ -132,7 +134,7 @@ SERVICIOS = [
     ('3', '3-15', 'Densidades con Densimetro (menos de 5 unidades)', 'INV E 164-2013--166-2013'),
     ('3', '3-15-1', 'Densidades con Densimetro (mas de 6 unidades)', 'INV E 164-2013--166-2013'),
     ('3', '3-17', 'Ensayo de Deformación Plástica', 'INV E 756 - 2013'),
-    ('3', '3-18', 'Ensayo de Módulo Resiliente en muestras de mezcla asfáltica (3 Temperaturas y 3 Frecuencias)', 'INV E 749-2013 / EN -12697-26'),
+    ('3', '3-18', 'Ensayo de Módulo Resiliente en muestras de mezcla asfáltica (3 Temperaturas y 3 Frecuencias)', 'EN -12697-26 / INV E 749-2013'),
     ('3', '3-19', 'Contenido de agua en una emulsión asfáltica', 'INV E 761 - 2013'),
     ('3', '3-20', 'Ensayo Leyes de Fatiga, empleando probetas cilíndricas', 'EN -12697-24'),
     ('3', '3-21', 'Ensayo de Riego de Liga', 'IDU SECCIÓN 502-11'),
@@ -283,7 +285,7 @@ SERVICIOS = [
     ('8A', '8-25B', 'Termometro dia', ''),
     ('8A', '8-26B', 'Carretilla( dia)', ''),
     ('8A', '8-27B', 'Equipo de acentamiento(varilla, cuchara)', ''),
-    ('8A', '828-B', 'Olla para masa unitaria 5L, 10L', 'NTC 1926'),
+    ('8A', '8-28-B', 'Olla para masa unitaria 5L, 10L', 'NTC 1926'),
     # ── 8V ─────
     ('8V', '8-1V', 'Molde cilíndrico para ensayo de resistencia a compresión de concreto. Ø=6" metalico', ''),
     ('8V', '8-2V', 'Molde cilíndrico para ensayo de resistencia a compresión de concreto. Ø=4" metalico', ''),

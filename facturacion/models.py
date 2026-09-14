@@ -12,7 +12,10 @@ class CategoriaServicio(models.Model):
     Ej: "CONCRETOS", "SUELOS", "TRANSPORTE"
     IMPORTANTE: La categoría con codigo='7' es TRANSPORTE (tratamiento especial de IVA).
     """
-    codigo = models.CharField(max_length=20, unique=True, verbose_name='Código')
+    # Cada sede (ciudad) tiene su propio catálogo: el mismo código puede ser
+    # otro servicio en otra ciudad. Coincide con Constructora.ciudad.
+    ciudad = models.CharField(max_length=100, db_index=True, verbose_name='Ciudad (sede)')
+    codigo = models.CharField(max_length=20, verbose_name='Código')
     nombre = models.CharField(max_length=255, verbose_name='Nombre')
     # Orden natural derivado del código ("2" antes de "10"); ver facturacion/orden.py
     clave_orden = models.CharField(max_length=60, editable=False, db_index=True, default='')
@@ -21,6 +24,9 @@ class CategoriaServicio(models.Model):
         ordering = ['clave_orden', 'codigo']
         verbose_name = 'Categoría de Servicio'
         verbose_name_plural = 'Categorías de Servicio'
+        constraints = [
+            models.UniqueConstraint(fields=['ciudad', 'codigo'], name='categoria_codigo_unico_por_ciudad'),
+        ]
 
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
@@ -43,8 +49,11 @@ class TipoServicio(models.Model):
         CategoriaServicio, on_delete=models.CASCADE,
         related_name='servicios', verbose_name='Categoría'
     )
-    codigo = models.CharField(max_length=20, unique=True, verbose_name='Código')
-    nombre = models.CharField(max_length=255, unique=True, verbose_name='Nombre')
+    # Copia de categoria.ciudad (se fija en save) para poder exigir unicidad
+    # de código y nombre POR CIUDAD y filtrar sin joins.
+    ciudad = models.CharField(max_length=100, db_index=True, editable=False, verbose_name='Ciudad (sede)')
+    codigo = models.CharField(max_length=20, verbose_name='Código')
+    nombre = models.CharField(max_length=255, verbose_name='Nombre')
     norma = models.CharField(
         max_length=100, blank=True,
         verbose_name='Norma técnica', help_text='Norma técnica aplicable'
@@ -56,11 +65,16 @@ class TipoServicio(models.Model):
         ordering = ['categoria__clave_orden', 'categoria__codigo', 'clave_orden', 'codigo']
         verbose_name = 'Tipo de Servicio'
         verbose_name_plural = 'Tipos de Servicio'
+        constraints = [
+            models.UniqueConstraint(fields=['ciudad', 'codigo'], name='servicio_codigo_unico_por_ciudad'),
+            models.UniqueConstraint(fields=['ciudad', 'nombre'], name='servicio_nombre_unico_por_ciudad'),
+        ]
 
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
 
     def save(self, *args, **kwargs):
+        self.ciudad = self.categoria.ciudad
         self.clave_orden = clave_orden(self.codigo)
         super().save(*args, **kwargs)
 

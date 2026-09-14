@@ -19,9 +19,11 @@ from django.db import IntegrityError, transaction
 from facturacion.catalogo_bucaramanga import CATEGORIAS, SERVICIOS
 from facturacion.models import CategoriaServicio, TipoServicio
 
+CIUDAD = 'Bucaramanga'
+
 
 class Command(BaseCommand):
-    help = 'Carga/actualiza categorías y servicios de la sede Bucaramanga (sin precios).'
+    help = 'Carga/actualiza categorías y servicios de la sede Bucaramanga (sin precios). Para otras sedes o precios: importar_catalogo_excel.'
 
     def add_arguments(self, parser):
         parser.add_argument(
@@ -59,7 +61,7 @@ class Command(BaseCommand):
         """
         codigo_por_nombre = {n.lower(): c for _, c, n, _ in SERVICIOS}
         conflictos = []
-        for s in TipoServicio.objects.all():
+        for s in TipoServicio.objects.filter(ciudad=CIUDAD):
             esperado = codigo_por_nombre.get(s.nombre.lower())
             if esperado and esperado != s.codigo:
                 conflictos.append(f'  [{s.codigo}] "{s.nombre}"  (en el catálogo es [{esperado}])')
@@ -78,7 +80,7 @@ class Command(BaseCommand):
         # bajo un nombre que no les corresponde.
         codigos_catalogo = {c for _, c, _, _ in SERVICIOS}
         for cat_codigo, nombre in CATEGORIAS:
-            cat = CategoriaServicio.objects.filter(codigo=cat_codigo).first()
+            cat = CategoriaServicio.objects.filter(ciudad=CIUDAD, codigo=cat_codigo).first()
             if cat is None:
                 continue
             ajenos = cat.servicios.exclude(codigo__in=codigos_catalogo).count()
@@ -92,7 +94,7 @@ class Command(BaseCommand):
         categorias = {}
         for codigo, nombre in CATEGORIAS:
             cat, creada = CategoriaServicio.objects.get_or_create(
-                codigo=codigo, defaults={'nombre': nombre},
+                ciudad=CIUDAD, codigo=codigo, defaults={'nombre': nombre},
             )
             if creada:
                 stats['cat_creadas'] += 1
@@ -106,7 +108,7 @@ class Command(BaseCommand):
 
         for cat_codigo, codigo, nombre, norma in SERVICIOS:
             cat = categorias[cat_codigo]
-            srv = TipoServicio.objects.filter(codigo=codigo).first()
+            srv = TipoServicio.objects.filter(ciudad=CIUDAD, codigo=codigo).first()
             if srv is None:
                 TipoServicio.objects.create(
                     categoria=cat, codigo=codigo, nombre=nombre, norma=norma,

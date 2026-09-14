@@ -7,14 +7,15 @@ from .models import (
 
 @admin.register(CategoriaServicio)
 class CategoriaServicioAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre')
+    list_display = ('ciudad', 'codigo', 'nombre')
+    list_filter = ('ciudad',)
     search_fields = ('codigo', 'nombre')
 
 
 @admin.register(TipoServicio)
 class TipoServicioAdmin(admin.ModelAdmin):
-    list_display = ('codigo', 'nombre', 'categoria', 'norma')
-    list_filter = ('categoria',)
+    list_display = ('ciudad', 'codigo', 'nombre', 'categoria', 'norma')
+    list_filter = ('ciudad', 'categoria')
     search_fields = ('codigo', 'nombre', 'norma')
 
 

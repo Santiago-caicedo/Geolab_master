@@ -218,13 +218,14 @@ def api_facturacion_mensual(request):
 
 @staff_required
 def catalogo_servicios(request):
-    """Lista de servicios agrupados por categoría."""
-    categorias = CategoriaServicio.objects.prefetch_related('servicios').all()
+    """Lista de servicios agrupados por categoría (catálogo de la ciudad activa)."""
+    ciudad = request.ciudad_facturacion
+    categorias = sede.categorias_de(ciudad).prefetch_related('servicios')
 
     # Búsqueda
     q = request.GET.get('q', '')
     if q:
-        servicios_filtrados = TipoServicio.objects.filter(
+        servicios_filtrados = sede.servicios_de(ciudad).filter(
             Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(norma__icontains=q)
         ).select_related('categoria')
         context = {
@@ -243,15 +244,16 @@ def catalogo_servicios(request):
 
 @staff_required
 def crear_categoria(request):
-    """Crear nueva categoría de servicio."""
+    """Crear nueva categoría de servicio (en la ciudad activa)."""
+    ciudad = request.ciudad_facturacion
     if request.method == 'POST':
-        form = CategoriaServicioForm(request.POST)
+        form = CategoriaServicioForm(request.POST, ciudad=ciudad)
         if form.is_valid():
             form.save()
             messages.success(request, 'Categoría creada exitosamente.')
             return redirect('catalogo_servicios')
     else:
-        form = CategoriaServicioForm()
+        form = CategoriaServicioForm(ciudad=ciudad)
     return render(request, 'facturacion/categoria_form.html', {
         'form': form, 'titulo': 'Nueva Categoría'
     })
@@ -260,7 +262,7 @@ def crear_categoria(request):
 @staff_required
 def editar_categoria(request, pk):
     """Editar categoría existente."""
-    categoria = get_object_or_404(CategoriaServicio, pk=pk)
+    categoria = get_object_or_404(sede.categorias_de(request.ciudad_facturacion), pk=pk)
     if request.method == 'POST':
         form = CategoriaServicioForm(request.POST, instance=categoria)
         if form.is_valid():
@@ -276,15 +278,16 @@ def editar_categoria(request, pk):
 
 @staff_required
 def crear_servicio(request):
-    """Crear nuevo tipo de servicio."""
+    """Crear nuevo tipo de servicio (en la ciudad activa)."""
+    ciudad = request.ciudad_facturacion
     if request.method == 'POST':
-        form = TipoServicioForm(request.POST)
+        form = TipoServicioForm(request.POST, ciudad=ciudad)
         if form.is_valid():
             form.save()
             messages.success(request, 'Servicio creado exitosamente.')
             return redirect('catalogo_servicios')
     else:
-        form = TipoServicioForm()
+        form = TipoServicioForm(ciudad=ciudad)
     return render(request, 'facturacion/servicio_form.html', {
         'form': form, 'titulo': 'Nuevo Servicio'
     })
@@ -293,7 +296,7 @@ def crear_servicio(request):
 @staff_required
 def editar_servicio(request, pk):
     """Editar tipo de servicio existente."""
-    servicio = get_object_or_404(TipoServicio, pk=pk)
+    servicio = get_object_or_404(sede.servicios_de(request.ciudad_facturacion), pk=pk)
     if request.method == 'POST':
         form = TipoServicioForm(request.POST, instance=servicio)
         if form.is_valid():
@@ -310,7 +313,7 @@ def editar_servicio(request, pk):
 @staff_required
 def eliminar_servicio(request, pk):
     """Eliminar tipo de servicio (solo si no tiene registros)."""
-    servicio = get_object_or_404(TipoServicio, pk=pk)
+    servicio = get_object_or_404(sede.servicios_de(request.ciudad_facturacion), pk=pk)
     if request.method == 'POST':
         if servicio.registros.exists():
             messages.error(
@@ -362,7 +365,7 @@ def precios_obras(request):
         'constructoras': sede.constructoras_de(ciudad).order_by('nombre'),
         'constructora_id': constructora_id,
         'query': query,
-        'total_servicios': TipoServicio.objects.count(),
+        'total_servicios': sede.servicios_de(ciudad).count(),
     }
     return render(request, 'facturacion/precios_obras.html', context)
 
@@ -381,7 +384,7 @@ def gestionar_precios_obra(request, obra_pk):
     servicios_existentes = set(
         PrecioServicio.objects.filter(obra=obra).values_list('tipo_servicio_id', flat=True)
     )
-    todos_servicios = TipoServicio.objects.all()
+    todos_servicios = sede.servicios_de(request.ciudad_facturacion)
 
     nuevos = [
         PrecioServicio(obra=obra, tipo_servicio=s)
@@ -521,7 +524,7 @@ def crear_registro(request):
                         continue
 
                     try:
-                        tipo_servicio = TipoServicio.objects.get(pk=tipo_id)
+                        tipo_servicio = sede.servicios_de(request.ciudad_facturacion).get(pk=tipo_id)
                     except TipoServicio.DoesNotExist:
                         errores.append(f"Línea {i}: servicio no encontrado.")
                         continue
@@ -579,7 +582,7 @@ def crear_registro(request):
 
     # GET: renderizar formulario
     constructoras = sede.constructoras_de(request.ciudad_facturacion).order_by('nombre')
-    servicios = TipoServicio.objects.select_related('categoria').order_by(
+    servicios = sede.servicios_de(request.ciudad_facturacion).select_related('categoria').order_by(
         'categoria__clave_orden', 'clave_orden'
     )
 
@@ -1065,7 +1068,7 @@ def api_buscar_servicios(request):
     q = request.GET.get('q', '')
     if len(q) < 2:
         return JsonResponse({'servicios': []})
-    servicios = TipoServicio.objects.filter(
+    servicios = sede.servicios_de(request.ciudad_facturacion).filter(
         Q(codigo__icontains=q) | Q(nombre__icontains=q)
     ).values('id', 'codigo', 'nombre', 'categoria__nombre')[:20]
     return JsonResponse({'servicios': list(servicios)})

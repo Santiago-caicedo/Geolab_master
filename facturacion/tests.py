@@ -85,7 +85,7 @@ from django.urls import reverse
 from core.models import Obra
 from users.models import Constructora, FuncionarioGeolab, UsuarioBase
 
-from .models import Factura, RegistroServicio
+from .models import Factura, PrecioServicio, RegistroServicio
 from .sede import SESSION_KEY
 
 
@@ -210,3 +210,181 @@ class CiudadFacturacionTests(TestCase):
         r = self.client.get(reverse('dashboard_facturacion'))
         self.assertContains(r, 'Bucaramanga')
         self.assertContains(r, reverse('seleccionar_ciudad_facturacion'))
+
+
+import tempfile
+from decimal import Decimal
+from pathlib import Path
+
+from django.core.management import call_command
+from django.core.management.base import CommandError
+from io import StringIO
+
+from .importar_excel import leer_lista_precios, resolver_obra
+
+
+def _libro_de_prueba(ruta):
+    """Libro mínimo con la estructura de BASE DATOS <CIUDAD>.xlsm."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'LISTA DE PRECIO'
+    ws.append(['', '', 'LISTA DE PRECIOS 2023'])
+    ws.append([])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', 'DESCUENTO ', '8-1', 0, '10-2', '8-1'])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', 'DESCUENTO ', '8-1', None, '10-2', '8-1'])
+    ws.append(['\xa0       1', 'CONCRETOS'])
+    ws.append(['1-1', 'Compresión de cilindros', 'NTC 673', 4500, -4500, 5000, None, 5500, None])
+    ws.append(['1-2', 'Diseño de mezclas', 'N/A', 420000, -420000, None, None, 0, 350000])
+    ws.append(['1-2', 'Diseño de mezclas', 'NTC 999', None, None, 111, None, None, None])   # dup nombre: fusiona
+    ws.append(['13-8', 'Tracción indirecta', 'NTC 722', 20000, None, 21000, None, None, None])  # falta guion
+    ws.append(['2', 'SUELOS'])
+    ws.append(['2.1', 'Humedad', 'INV E-122', 5000, None, 6000, None, 6500, None])
+    ws.append(['2-2', 'Compresión de cilindros', 'X', 1, None, None, None, None, None])       # mismo nombre otra cat.
+    ws2 = wb.create_sheet('LISTA EMPRESAS REGULARES')
+    ws2.append(['8', 'DYCO SAS', '10', 'ASFALTEMOS', '11', 'Columna1'])
+    ws2.append(['8-1', 'AMBALA', '10-2', 'JORDAN'])
+    wb.save(ruta)
+
+
+class LecturaExcelTests(SimpleTestCase):
+
+    @classmethod
+    def setUpClass(cls):
+        super().setUpClass()
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.ruta = str(Path(cls.tmp.name) / 'base.xlsx')
+        _libro_de_prueba(cls.ruta)
+        cls.lectura = leer_lista_precios(cls.ruta)
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+        super().tearDownClass()
+
+    def test_categorias_y_columnas(self):
+        self.assertEqual(self.lectura.categorias, [('1', 'CONCRETOS'), ('2', 'SUELOS')])
+        self.assertEqual(self.lectura.obras, ['8-1', '10-2'])          # la "8-1" repetida no se duplica
+        self.assertEqual(self.lectura.nombres_obras, {'8-1': 'AMBALA', '10-2': 'JORDAN'})
+        self.assertEqual(self.lectura.nombres_empresas, {'8': 'DYCO SAS', '10': 'ASFALTEMOS'})
+
+    def test_limpieza_de_codigos_y_nombres(self):
+        por_codigo = {s.codigo: s for s in self.lectura.servicios}
+        self.assertEqual(set(por_codigo), {'1-1', '1-2', '1-3-8', '2-1', '2-2'})
+        self.assertEqual(por_codigo['1-2'].norma, 'NTC 999')                       # 'N/A' + fusión
+        self.assertEqual(por_codigo['2-2'].nombre, 'Compresión de cilindros (cód. 2-2)')
+
+    def test_precios_por_obra(self):
+        por_codigo = {s.codigo: s for s in self.lectura.servicios}
+        self.assertEqual(por_codigo['1-1'].precios, {'8-1': Decimal('5000'), '10-2': Decimal('5500')})
+        # 0 se ignora; la columna 8-1 repetida aporta 350000; la fila fusionada aporta 111 solo si faltaba
+        self.assertEqual(por_codigo['1-2'].precios, {'8-1': Decimal('350000')})
+        self.assertEqual(por_codigo['2-1'].precios, {'8-1': Decimal('6000'), '10-2': Decimal('6500')})
+
+    def test_hoja_inexistente(self):
+        with self.assertRaises(ValueError):
+            leer_lista_precios(self.ruta, hoja='NO EXISTE')
+
+
+class ImportarCatalogoExcelTests(TestCase):
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.ruta = str(Path(cls.tmp.name) / 'base.xlsx')
+        _libro_de_prueba(cls.ruta)
+        dyco = Constructora.objects.create(codigo='IBA8', nombre='DYCO SAS', ciudad='Ibagué')
+        cls.ambala = Obra.objects.create(constructora=dyco, nombre='AMBALA', codigo_obra='IBA8-1')
+        asf = Constructora.objects.create(codigo='IBA10', nombre='ASFALTEMOS', ciudad='Ibagué')
+        cls.jordan = Obra.objects.create(constructora=asf, nombre='Jordan', codigo_obra='IBA10-555')
+        Obra.objects.create(constructora=asf, nombre='Otra', codigo_obra='IBA10-556')
+        # mismo código en otra ciudad: no debe mezclarse
+        cat_buc = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='1', nombre='CONCRETOS')
+        TipoServicio.objects.create(categoria=cat_buc, codigo='1-1', nombre='Otro servicio con código 1-1')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+        super().tearDownClass()
+
+    def _run(self, *extra):
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'ibague', *extra, stdout=out)
+        return out.getvalue()
+
+    def test_importa_catalogo_y_precios_resolviendo_obras(self):
+        salida = self._run()
+        self.assertEqual(TipoServicio.objects.filter(ciudad='Ibagué').count(), 5)
+        self.assertEqual(TipoServicio.objects.filter(ciudad='Bucaramanga', codigo='1-1').count(), 1)
+        precio = PrecioServicio.objects.get(obra=self.ambala, tipo_servicio__codigo='1-1', tipo_servicio__ciudad='Ibagué')
+        self.assertEqual(precio.precio, Decimal('5000'))
+        # 10-2 se resolvió por nombre de proyecto (JORDAN) aunque el código no coincide
+        self.assertTrue(PrecioServicio.objects.filter(obra=self.jordan, precio=Decimal('5500')).exists())
+        self.assertIn('Importación guardada', salida)
+
+    def test_es_idempotente_y_dry_run_no_escribe(self):
+        self._run()
+        antes = PrecioServicio.objects.count()
+        salida = self._run()
+        self.assertIn('0 nuevos', salida)
+        self.assertEqual(PrecioServicio.objects.count(), antes)
+        PrecioServicio.objects.all().delete()
+        salida = self._run('--dry-run')
+        self.assertIn('DRY-RUN', salida)
+        self.assertEqual(PrecioServicio.objects.count(), 0)
+
+    def test_no_sobrescribir_conserva_precio_manual(self):
+        self._run()
+        ps = PrecioServicio.objects.get(obra=self.ambala, tipo_servicio__codigo='1-1', tipo_servicio__ciudad='Ibagué')
+        ps.precio = Decimal('1')
+        ps.save()
+        self._run('--no-sobrescribir')
+        ps.refresh_from_db()
+        self.assertEqual(ps.precio, Decimal('1'))
+        self._run()
+        ps.refresh_from_db()
+        self.assertEqual(ps.precio, Decimal('5000'))
+
+    def test_obra_manual_y_no_resuelta(self):
+        # ya no coincide ni por código ni por nombre de proyecto: cae en 'única obra'
+        Obra.objects.filter(codigo_obra='IBA8-1').update(codigo_obra='IBA8-999', nombre='Bodega')
+        salida = self._run()
+        self.assertIn('única obra de DYCO SAS', salida)
+        salida = self._run('--obra', '8-1=IBA10-556')
+        self.assertIn('--obra', salida)
+        self.assertTrue(PrecioServicio.objects.filter(obra__codigo_obra='IBA10-556', precio=Decimal('5000')).exists())
+
+    def test_conflicto_de_nombre_aborta(self):
+        cat = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='9', nombre='OTRA')
+        TipoServicio.objects.create(categoria=cat, codigo='9-1', nombre='Humedad')
+        with self.assertRaises(CommandError):
+            self._run()
+        self.assertEqual(TipoServicio.objects.filter(ciudad='Ibagué').count(), 1)
+
+
+class CatalogoPorCiudadTests(TestCase):
+
+    def test_mismo_codigo_en_dos_ciudades(self):
+        for ciudad in ('Bucaramanga', 'Ibagué'):
+            cat = CategoriaServicio.objects.create(ciudad=ciudad, codigo='1', nombre='CONCRETOS')
+            TipoServicio.objects.create(categoria=cat, codigo='1-8', nombre=f'Servicio 1-8 de {ciudad}')
+        self.assertEqual(TipoServicio.objects.filter(codigo='1-8').count(), 2)
+        self.assertEqual(TipoServicio.objects.get(codigo='1-8', ciudad='Ibagué').nombre, 'Servicio 1-8 de Ibagué')
+
+    def test_servicio_hereda_ciudad_de_su_categoria(self):
+        cat = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='2', nombre='SUELOS')
+        s = TipoServicio.objects.create(categoria=cat, codigo='2-1', nombre='Humedad')
+        self.assertEqual(s.ciudad, 'Ibagué')
+
+    def test_formulario_de_servicio_rechaza_duplicado_solo_en_su_ciudad(self):
+        from .forms import TipoServicioForm
+        cat_i = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='1', nombre='CONCRETOS')
+        cat_b = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='1', nombre='CONCRETOS')
+        TipoServicio.objects.create(categoria=cat_b, codigo='1-1', nombre='Compresión')
+        datos = {'categoria': cat_i.pk, 'codigo': '1-1', 'nombre': 'Compresión', 'norma': ''}
+        self.assertTrue(TipoServicioForm(datos, ciudad='Ibagué').is_valid())
+        form = TipoServicioForm({**datos, 'categoria': cat_b.pk}, ciudad='Bucaramanga')
+        self.assertFalse(form.is_valid())
+        self.assertIn('codigo', form.errors)
+        # el select de categoría solo ofrece las de la ciudad
+        self.assertEqual(list(TipoServicioForm(ciudad='Ibagué').fields['categoria'].queryset), [cat_i])

@@ -83,8 +83,8 @@ geolab_master/
 - **AccesoCarpetaUsuario**: Permisos POR CARPETA de los Usuarios de Calidad (`puede_ver/puede_cargar/puede_eliminar`; cargar/eliminar implican ver). Sin fila = carpeta bloqueada. Sin herencia en BD: la matriz marca subcarpetas en cascada vía JS, pero lo que vale es lo guardado. Los ancestros de una carpeta permitida son "de paso" (navegables, sin documentos ni acciones) — lógica en `calidad/permisos.py`
 
 ### facturacion
-- **CategoriaServicio**: Categorías (ej: CONCRETOS, SUELOS, TRANSPORTE)
-- **TipoServicio**: Servicios específicos con norma técnica
+- **CategoriaServicio**: Categorías (ej: CONCRETOS, SUELOS, TRANSPORTE). Tiene `ciudad`: **el catálogo es por sede** (el mismo código es otro servicio en otra ciudad, p. ej. `1-8`). Único por (ciudad, codigo).
+- **TipoServicio**: Servicios específicos con norma técnica. `ciudad` se copia de la categoría en `save()`; único por (ciudad, codigo) y (ciudad, nombre). Los formularios reciben `ciudad=` y validan la unicidad por ciudad (las UniqueConstraint no se validan solas en ModelForm porque `ciudad` no está en el form).
 - Ambos tienen `clave_orden` (calculada en `save()` desde `codigo` vía `facturacion/orden.py`): orden natural 1, 2, … 8A, 8V, 9, 10, 11A… y `1-2` antes de `1-10`. `Meta.ordering` la usa; en `order_by()` usar `clave_orden`/`categoria__clave_orden`, nunca `codigo`.
 - **PrecioServicio**: Precio personalizado por obra
 - **Impuesto**: Configuración IVA
@@ -100,7 +100,7 @@ constructoras/obras/registros/facturas con los helpers `sede.constructoras_de(ci
 `obras_de`, `registros_de`, `facturas_de` (match por `Constructora.ciudad__iexact`); los
 objetos de otra ciudad dan 404. Las ciudades disponibles son los valores distintos de
 `Constructora.ciudad` (no hay modelo Sede); constructoras sin ciudad no aparecen en
-Facturación. Catálogo e impuestos son globales. Al agregar una vista nueva al módulo,
+Facturación. El catálogo también es por ciudad (`sede.categorias_de` / `servicios_de`); solo los impuestos son globales. Al agregar una vista nueva al módulo,
 usar `staff_required` y los helpers de `sede`, nunca `Obra.objects`/`Factura.objects` a secas.
 
 **Relaciones clave:**
@@ -279,6 +279,15 @@ python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
+# Importa catálogo + precios por obra de CUALQUIER sede leyendo el Excel directamente
+# (hoja "LISTA DE PRECIO"; columnas F+ = una obra por columna, encabezado = código de obra
+# del Excel "8-1" = empresa 8, obra 1). Resuelve cada columna a una Obra por código
+# (IBA8-1 / 8-1), razón social + nombre de proyecto (hoja LISTA EMPRESAS REGULARES) o
+# única obra de la constructora; lo que no resuelve lo lista con sugerencias --obra.
+# Idempotente, transaccional. Lógica en facturacion/importar_excel.py.
+python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --dry-run
+python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --obra 8-1=IBA8-1 --obra 10-2=IBA10-4321
+#   Flags: --sin-precios, --no-sobrescribir (conserva precios ya cargados), --detalle, --hoja
 
 # Crea el rol Coordinador de Calidad (usuario + perfil en una transacción,
 # evitando la ventana en que es_admin_geolab lo dejaría como admin total).

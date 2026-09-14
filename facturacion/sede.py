@@ -15,7 +15,7 @@ constructora.
 from core.models import Obra
 from users.models import Constructora
 
-from .models import Factura, RegistroServicio
+from .models import CategoriaServicio, Factura, RegistroServicio, TipoServicio
 
 SESSION_KEY = 'facturacion_ciudad'
 
@@ -50,3 +50,11 @@ def registros_de(ciudad):
 
 def facturas_de(ciudad):
     return Factura.objects.filter(obra__constructora__ciudad__iexact=ciudad)
+
+
+def categorias_de(ciudad):
+    return CategoriaServicio.objects.filter(ciudad__iexact=ciudad)
+
+
+def servicios_de(ciudad):
+    return TipoServicio.objects.filter(ciudad__iexact=ciudad)

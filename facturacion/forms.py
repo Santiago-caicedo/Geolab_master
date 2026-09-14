@@ -10,6 +10,7 @@ from core.models import Obra
 
 
 class CategoriaServicioForm(forms.ModelForm):
+    """La ciudad no se edita: viene de la ciudad activa del módulo."""
     class Meta:
         model = CategoriaServicio
         fields = ['codigo', 'nombre']
@@ -22,8 +23,23 @@ class CategoriaServicioForm(forms.ModelForm):
             }),
         }
 
+    def __init__(self, *args, ciudad=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ciudad = ciudad or self.instance.ciudad
+        self.instance.ciudad = self.ciudad
+
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get('codigo') or '').strip()
+        repetida = CategoriaServicio.objects.filter(
+            ciudad__iexact=self.ciudad, codigo=codigo
+        ).exclude(pk=self.instance.pk).exists()
+        if repetida:
+            raise forms.ValidationError(f'Ya existe la categoría {codigo} en {self.ciudad}.')
+        return codigo
+
 
 class TipoServicioForm(forms.ModelForm):
+    """La ciudad no se edita: viene de la ciudad activa (y de la categoría)."""
     class Meta:
         model = TipoServicio
         fields = ['categoria', 'codigo', 'nombre', 'norma']
@@ -39,6 +55,30 @@ class TipoServicioForm(forms.ModelForm):
                 'class': 'form-control', 'placeholder': 'Norma técnica (opcional)'
             }),
         }
+
+    def __init__(self, *args, ciudad=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.ciudad = ciudad or self.instance.ciudad
+        self.fields['categoria'].queryset = CategoriaServicio.objects.filter(
+            ciudad__iexact=self.ciudad
+        )
+
+    def _repetido(self, campo, valor):
+        return TipoServicio.objects.filter(
+            ciudad__iexact=self.ciudad, **{campo: valor}
+        ).exclude(pk=self.instance.pk).exists()
+
+    def clean_codigo(self):
+        codigo = (self.cleaned_data.get('codigo') or '').strip()
+        if self._repetido('codigo', codigo):
+            raise forms.ValidationError(f'Ya existe el servicio {codigo} en {self.ciudad}.')
+        return codigo
+
+    def clean_nombre(self):
+        nombre = (self.cleaned_data.get('nombre') or '').strip()
+        if self._repetido('nombre__iexact', nombre):
+            raise forms.ValidationError(f'Ya existe un servicio con ese nombre en {self.ciudad}.')
+        return nombre
 
 
 class PrecioServicioForm(forms.ModelForm):
@@ -101,6 +141,9 @@ class RegistroServicioForm(forms.ModelForm):
         obras = Obra.objects.select_related('constructora')
         if ciudad:
             obras = obras.filter(constructora__ciudad__iexact=ciudad)
+            self.fields['tipo_servicio'].queryset = TipoServicio.objects.filter(
+                ciudad__iexact=ciudad
+            ).select_related('categoria')
         self.fields['obra'].queryset = obras.order_by('constructora__nombre', 'nombre')
         self.fields['obra'].label_from_instance = (
             lambda obj: f"{obj.constructora.nombre} → {obj.nombre}"
@@ -153,11 +196,15 @@ class FiltroHistoricoForm(forms.Form):
 
 
 def _acotar_a_ciudad(form, ciudad):
-    """Limita el select de constructoras a la ciudad activa del módulo."""
+    """Limita los selects de constructora (y servicio) a la ciudad activa."""
     if ciudad:
         form.fields['constructora'].queryset = Constructora.objects.filter(
             ciudad__iexact=ciudad
         ).order_by('nombre')
+        if 'tipo_servicio' in form.fields:
+            form.fields['tipo_servicio'].queryset = TipoServicio.objects.filter(
+                ciudad__iexact=ciudad
+            ).select_related('categoria')
 
 
 class GenerarFacturaForm(forms.Form):
