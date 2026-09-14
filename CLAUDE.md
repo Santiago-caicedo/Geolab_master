@@ -265,6 +265,7 @@ python manage.py migrar_geolab      # Migración desde WordPress
 python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
+python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
 
 # Crea el rol Coordinador de Calidad (usuario + perfil en una transacción,
 # evitando la ventana en que es_admin_geolab lo dejaría como admin total).

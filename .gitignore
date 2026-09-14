@@ -9,6 +9,9 @@ datos_calidad/
 *.sql
 *.dump
 
+# Base de datos Excel de la sede (datos reales de clientes y precios)
+BASE DATOS *.xlsm
+
 ### Django ###
 *.log
 *.pot
