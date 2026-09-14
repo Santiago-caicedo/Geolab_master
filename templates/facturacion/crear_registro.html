@@ -102,9 +102,12 @@ let obraSeleccionada = null;
 const tsConstructora = new TomSelect('#select-constructora', {
     placeholder: 'Buscar constructora...',
     onChange: function(value) {
+        // El <select> de obra nace disabled y Tom Select conserva ese estado:
+        // hay que habilitarlo explícitamente cuando llegan las obras.
         tsObra.clear();
         tsObra.clearOptions();
         tsObra.addOption({value: '', text: '-- Seleccionar obra --'});
+        tsObra.disable();
         if (!value) return;
         fetch(`{% url 'api_get_obras_facturacion' %}?constructora_id=${value}`)
             .then(r => r.json())
@@ -112,7 +115,13 @@ const tsConstructora = new TomSelect('#select-constructora', {
                 data.obras.forEach(o => {
                     tsObra.addOption({value: o.id, text: `${o.codigo_obra} - ${o.nombre}`});
                 });
-            });
+                tsObra.enable();
+                if (!data.obras.length) {
+                    tsObra.settings.placeholder = 'Esta constructora no tiene obras';
+                    tsObra.inputState();
+                }
+            })
+            .catch(() => alert('No se pudieron cargar las obras. Recarga la página e intenta de nuevo.'));
     }
 });
 
