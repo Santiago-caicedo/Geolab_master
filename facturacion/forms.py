@@ -121,7 +121,7 @@ class FiltroHistoricoForm(forms.Form):
         widget=forms.Select(attrs={'class': 'form-select'})
     )
     tipo_servicio = forms.ModelChoiceField(
-        queryset=TipoServicio.objects.all().order_by('codigo'),
+        queryset=TipoServicio.objects.select_related('categoria'),
         required=False,
         empty_label='-- Todos los servicios --',
         widget=forms.Select(attrs={'class': 'form-select'})

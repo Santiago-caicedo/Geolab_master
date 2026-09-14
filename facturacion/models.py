@@ -1,4 +1,6 @@
 from django.db import models
+
+from .orden import clave_orden
 from django.conf import settings
 from django.utils import timezone
 from decimal import Decimal
@@ -12,14 +14,20 @@ class CategoriaServicio(models.Model):
     """
     codigo = models.CharField(max_length=20, unique=True, verbose_name='Código')
     nombre = models.CharField(max_length=255, verbose_name='Nombre')
+    # Orden natural derivado del código ("2" antes de "10"); ver facturacion/orden.py
+    clave_orden = models.CharField(max_length=60, editable=False, db_index=True, default='')
 
     class Meta:
-        ordering = ['codigo']
+        ordering = ['clave_orden', 'codigo']
         verbose_name = 'Categoría de Servicio'
         verbose_name_plural = 'Categorías de Servicio'
 
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
+
+    def save(self, *args, **kwargs):
+        self.clave_orden = clave_orden(self.codigo)
+        super().save(*args, **kwargs)
 
     @property
     def es_transporte(self):
@@ -41,14 +49,20 @@ class TipoServicio(models.Model):
         max_length=100, blank=True,
         verbose_name='Norma técnica', help_text='Norma técnica aplicable'
     )
+    # Orden natural derivado del código ("1-2" antes de "1-10"); ver facturacion/orden.py
+    clave_orden = models.CharField(max_length=60, editable=False, db_index=True, default='')
 
     class Meta:
-        ordering = ['categoria__codigo', 'codigo']
+        ordering = ['categoria__clave_orden', 'categoria__codigo', 'clave_orden', 'codigo']
         verbose_name = 'Tipo de Servicio'
         verbose_name_plural = 'Tipos de Servicio'
 
     def __str__(self):
         return f"{self.codigo} - {self.nombre}"
+
+    def save(self, *args, **kwargs):
+        self.clave_orden = clave_orden(self.codigo)
+        super().save(*args, **kwargs)
 
 
 class PrecioServicio(models.Model):

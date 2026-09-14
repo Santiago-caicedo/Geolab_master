@@ -314,7 +314,7 @@ def gestionar_precios_obra(request, obra_pk):
         obra=obra
     ).select_related(
         'tipo_servicio', 'tipo_servicio__categoria'
-    ).order_by('tipo_servicio__categoria__codigo', 'tipo_servicio__codigo')
+    ).order_by('tipo_servicio__categoria__clave_orden', 'tipo_servicio__clave_orden')
 
     if request.method == 'POST':
         formset = PrecioServicioFormSet(request.POST, queryset=precios)
@@ -499,7 +499,7 @@ def crear_registro(request):
     # GET: renderizar formulario
     constructoras = Constructora.objects.all().order_by('nombre')
     servicios = TipoServicio.objects.select_related('categoria').order_by(
-        'categoria__codigo', 'codigo'
+        'categoria__clave_orden', 'clave_orden'
     )
 
     context = {
@@ -642,7 +642,7 @@ def generar_factura(request):
             factura__isnull=True,
         ).select_related(
             'tipo_servicio', 'tipo_servicio__categoria'
-        ).order_by('fecha_realizacion', 'tipo_servicio__codigo')
+        ).order_by('fecha_realizacion', 'tipo_servicio__clave_orden')
 
         for r in registros:
             if r.es_transporte:
@@ -782,7 +782,7 @@ def _generar_pdf_factura(factura, request):
 
     registros = factura.registros.select_related(
         'tipo_servicio', 'tipo_servicio__categoria'
-    ).order_by('tipo_servicio__categoria__codigo', 'fecha_realizacion')
+    ).order_by('tipo_servicio__categoria__clave_orden', 'fecha_realizacion')
 
     logo_file = os.path.join(settings.BASE_DIR, 'static', 'img', 'geolab-logo.png')
     logo_path = 'file:///' + logo_file.replace('\\', '/')

@@ -85,6 +85,7 @@ geolab_master/
 ### facturacion
 - **CategoriaServicio**: Categorías (ej: CONCRETOS, SUELOS, TRANSPORTE)
 - **TipoServicio**: Servicios específicos con norma técnica
+- Ambos tienen `clave_orden` (calculada en `save()` desde `codigo` vía `facturacion/orden.py`): orden natural 1, 2, … 8A, 8V, 9, 10, 11A… y `1-2` antes de `1-10`. `Meta.ordering` la usa; en `order_by()` usar `clave_orden`/`categoria__clave_orden`, nunca `codigo`.
 - **PrecioServicio**: Precio personalizado por obra
 - **Impuesto**: Configuración IVA
 - **RegistroServicio**: Servicio realizado con precio congelado (price freezing)
