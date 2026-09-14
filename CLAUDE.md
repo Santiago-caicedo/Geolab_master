@@ -49,7 +49,7 @@ geolab_master/
 
 ### users
 - **UsuarioBase**: Custom User (AbstractUser) con `es_geolab`, `es_cliente`
-- **Constructora**: Empresas clientes (nombre, codigo, nit, ciudad)
+- **Constructora**: Empresas clientes (nombre, codigo, nit, ciudad). `ciudad` es texto libre pero `save()` lo normaliza con `users/ciudades.py` (`normalizar_ciudad`: canónicas `Bucaramanga`/`Bogotá`/`Ibagué` sin importar mayúsculas ni tildes; otras quedan con mayúscula inicial). `Constructora.CIUDADES` es la fuente única de ciudad → prefijo de código. Migración `users.0006` unificó los datos viejos. Ojo: `bulk_create`/`update` saltan `save()`.
 - **FuncionarioGeolab**: Perfil empleados (area: admin/lab/recepcion/tecnico)
 - **ClienteExterno**: Perfil clientes (empresa FK, rol: director/residente/remitente)
 

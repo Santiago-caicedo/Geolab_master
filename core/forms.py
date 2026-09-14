@@ -75,12 +75,9 @@ class InformeForm(forms.ModelForm):
 
 
 class ConstructoraForm(forms.ModelForm):
-    # Prefijo del código interno según la ciudad. El código se arma como PREFIJO + número.
-    CIUDAD_PREFIJOS = {
-        'Bucaramanga': 'BUC',
-        'Bogotá': 'BOG',
-        'Ibagué': 'IBA',
-    }
+    # Prefijo del código interno según la ciudad (fuente única: users/ciudades.py).
+    # El código se arma como PREFIJO + número.
+    CIUDAD_PREFIJOS = Constructora.CIUDADES
     CIUDAD_CHOICES = [('', '-- Seleccionar --')] + [(c, c) for c in CIUDAD_PREFIJOS]
 
     ciudad = forms.ChoiceField(

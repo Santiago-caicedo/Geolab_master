@@ -88,3 +88,39 @@ class CrearCoordinadorCalidadTest(TestCase):
         user = crear_coordinador('cli', actualizar=True)
         self.assertFalse(user.es_cliente)
         self.assertTrue(user.es_coordinador_calidad)
+
+
+from users.ciudades import normalizar_ciudad
+from users.models import Constructora
+
+
+class NormalizarCiudadTest(TestCase):
+    """Constructora.ciudad se guarda siempre en su forma canónica."""
+
+    def test_variantes_de_mayusculas_y_espacios(self):
+        for valor in ['bucaramanga', 'BUCARAMANGA', '  Bucaramanga ', 'bucaramanga\t']:
+            self.assertEqual(normalizar_ciudad(valor), 'Bucaramanga', valor)
+
+    def test_sin_tilde_se_lleva_a_la_canonica(self):
+        self.assertEqual(normalizar_ciudad('bogota'), 'Bogotá')
+        self.assertEqual(normalizar_ciudad('IBAGUE'), 'Ibagué')
+
+    def test_ciudad_desconocida_solo_capitaliza(self):
+        self.assertEqual(normalizar_ciudad('san gil'), 'San Gil')
+        self.assertEqual(normalizar_ciudad('barrancabermeja'), 'Barrancabermeja')
+
+    def test_vacios(self):
+        self.assertIsNone(normalizar_ciudad(None))
+        self.assertEqual(normalizar_ciudad('   '), '')
+
+    def test_save_normaliza(self):
+        c = Constructora.objects.create(nombre='X', codigo='X1', ciudad='bucaramanga ')
+        c.refresh_from_db()
+        self.assertEqual(c.ciudad, 'Bucaramanga')
+
+    def test_variantes_cuentan_como_una_sola_ciudad(self):
+        Constructora.objects.create(nombre='A', codigo='A1', ciudad='bucaramanga')
+        Constructora.objects.create(nombre='B', codigo='B1', ciudad='Bucaramanga')
+        Constructora.objects.create(nombre='C', codigo='C1', ciudad='BUCARAMANGA')
+        ciudades = Constructora.objects.values_list('ciudad', flat=True).distinct()
+        self.assertEqual(list(ciudades), ['Bucaramanga'])

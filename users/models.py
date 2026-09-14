@@ -1,12 +1,19 @@
 from django.db import models
 from django.contrib.auth.models import AbstractUser
 
+from .ciudades import CIUDADES, normalizar_ciudad
+
 # 1. LA EMPRESA (La entidad Marval)
 class Constructora(models.Model):
+    # Ciudades canónicas (sede -> prefijo de código); ver users/ciudades.py
+    CIUDADES = CIUDADES
+
     nombre = models.CharField(max_length=200) # "Marval"
     codigo = models.CharField(max_length=50, unique=True, help_text="Ej: 52")
     nit = models.CharField(max_length=20, blank=True, null=True)
 
+    # Texto libre por herencia de WordPress; save() lo normaliza a la forma
+    # canónica ("bucaramanga" -> "Bucaramanga") para que no haya duplicados.
     ciudad = models.CharField(max_length=100, blank=True, null=True, db_index=True)
     
     # Campo para migración
@@ -14,6 +21,10 @@ class Constructora(models.Model):
 
     def __str__(self):
         return f"{self.nombre} ({self.codigo})"
+
+    def save(self, *args, **kwargs):
+        self.ciudad = normalizar_ciudad(self.ciudad)
+        super().save(*args, **kwargs)
 
 # 2. USUARIO BASE (Solo para Login)
 class UsuarioBase(AbstractUser):
