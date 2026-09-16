@@ -54,7 +54,7 @@ geolab_master/
 - **ClienteExterno**: Perfil clientes (empresa FK, rol: director/residente/remitente)
 
 ### core
-- **Obra**: Proyectos (nombre, codigo_obra, constructora FK, residentes_asignados M2M)
+- **Obra**: Proyectos (nombre, codigo_obra, constructora FK, residentes_asignados M2M, id_wp_original, direccion/telefono/contacto/celular opcionales). Convención de código: `PREFIJO_CIUDAD + nº empresa - nº obra` (`BUC46-9`, `IBA8-1`); clientes varios `BUC0-12-1`. `Constructora.codigo` = `BUC46` / `IBA8`; clientes varios `BUC0-12` (+ sufijo `B`, `C` si el mismo 0-N tiene otra razón social).
 - **Informe**: PDFs técnicos (titulo, obra FK, archivo FileField)
 
 ### solicitudes
@@ -274,7 +274,9 @@ python manage.py makemigrations [app]
 python manage.py migrate
 python manage.py createsuperuser
 python manage.py sincronizar_hojas  # Crea hojas faltantes
-python manage.py migrar_geolab      # Migración desde WordPress
+python manage.py sincronizar_wordpress --dry-run   # Trae y NORMALIZA constructoras/obras/informes desde el WordPress vivo (WP_DB_* del .env). Idempotente. Reemplaza a migrar_geolab.
+python manage.py sincronizar_wordpress             # Flags: --dump portal.sql (volcado en vez de la base viva), --sin-informes, --omitir ID_WP, --detalle
+python manage.py migrar_geolab      # DEPRECADO (mutila códigos, pone el código como nombre): usar sincronizar_wordpress
 python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
@@ -300,6 +302,22 @@ python manage.py crear_coordinador_calidad <usuario> \
 # un usuario existente, conserva su clave si no se pasa --password), --noinput.
 ```
 
+### Sincronización desde WordPress (`core/management/commands/sincronizar_wordpress.py`)
+
+WordPress sigue vivo y recibe obras nuevas, así que el comando se corre cuantas veces haga falta.
+Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .sql); reglas en
+`core/wp_normalizar.py`. Campos de WP: `codigo-cliente_743` (empresa, a veces con guion = obra),
+`codigo-proyecto`/`post_title` (código de obra), `nombre-proyecto` (nombre real), `razon-social`,
+`municipio`, `direccion`, `telefono`, `persona-de-contacto-1`, `celular-1`.
+- Obra: identidad `id_wp_original`, se actualiza en sitio, NUNCA se borra (FKs PROTECT desde
+  facturación). Excepción: obras de proyectos basura (código irreconocible) sin nada colgado.
+- Constructora: si el código correcto no existe y una constructora vieja tiene todas sus obras
+  en ese grupo, se RENOMBRA (conserva `ClienteExterno.empresa` y `Factura.constructora`); las
+  que quedan sin obras, usuarios ni facturas se eliminan. Razón social = variante más frecuente.
+- Informes: identidad `id_wp_original`, título = nombre del PDF; los PDF nuevos se bajan con
+  `descargar_archivos`.
+- Todo lo dudoso sale en "Avisos" (códigos de obra repetidos en WP, obras sin nombre, etc.).
+
 ## Variables de Entorno (.env)
 
 ```env
@@ -315,6 +333,7 @@ DB_PORT=5432
 # Linux:   LIBREOFFICE_PATH=/usr/bin/soffice
 LIBREOFFICE_PATH=
 # Producción: AWS_ACCESS_KEY_ID, AWS_SECRET_ACCESS_KEY, EMAIL_HOST_*
+# WordPress viejo (para sincronizar_wordpress): WP_DB_HOST, WP_DB_NAME, WP_DB_USER, WP_DB_PASSWORD
 # Producción (opcional): BEHIND_PROXY=True, SECURE_HSTS_SECONDS=3600
 ```
 

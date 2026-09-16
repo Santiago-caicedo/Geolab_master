@@ -20,6 +20,12 @@ class Obra(models.Model):
     fecha_creacion = models.DateTimeField(null=True, blank=True)
     id_wp_original = models.IntegerField(unique=True, null=True)
 
+    # Datos de contacto de la obra (vienen del formulario de WordPress; opcionales)
+    direccion = models.CharField(max_length=255, blank=True)
+    telefono = models.CharField(max_length=50, blank=True)
+    contacto = models.CharField(max_length=150, blank=True, verbose_name='Persona de contacto')
+    celular = models.CharField(max_length=50, blank=True)
+
     def __str__(self):
         return f"{self.nombre} ({self.codigo_obra})"
 

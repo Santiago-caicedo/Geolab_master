@@ -11,7 +11,7 @@ from users.models import Constructora
 from core.models import Obra, Informe
 
 class Command(BaseCommand):
-    help = 'Migración Limpia: Empresas, Obras e Informes (Títulos = Nombre de Archivo)'
+    help = 'DEPRECADO: usar sincronizar_wordpress (este mutila los códigos y pone el código como nombre de obra).'
 
     def handle(self, *args, **kwargs):
         self.stdout.write(self.style.WARNING('Iniciando Migración Estructural...'))
