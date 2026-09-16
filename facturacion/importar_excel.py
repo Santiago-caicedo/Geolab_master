@@ -221,7 +221,20 @@ def _leer_nombres(wb):
 # Resolución de obras del Excel -> Obra del sistema
 # ═══════════════════════════════════════════════════════════════════════════
 
-def resolver_obra(ciudad, codigo_excel, lectura, overrides=None):
+def _clave_obra(nombre):
+    """
+    "IBA 14-1", "IBA14-1", "iba 14 - 1" -> "14-1". Las obras migradas desde
+    WordPress se llaman así (el código del Excel con el prefijo de la ciudad).
+    """
+    s = _norm(nombre).upper().replace(' ', '')
+    for prefijo in CIUDADES.values():
+        if s.startswith(prefijo):
+            s = s[len(prefijo):]
+            break
+    return s.lstrip('-')
+
+
+def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_empresa=None):
     """
     Devuelve (obra, motivo, candidatas). obra es None si no se pudo resolver.
 
@@ -229,8 +242,10 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None):
     1. --obra CODIGO_EXCEL=CODIGO_OBRA pasado por el usuario.
     2. Constructora de la ciudad con código IBA8 / 8 / IBA-8 (prefijo de la
        ciudad + número de empresa) o con la razón social del Excel; dentro de
-       ella, obra con codigo_obra IBA8-1 / 8-1, o con el nombre del proyecto
-       del Excel, o la única obra que tenga.
+       ella, la obra cuyo codigo_obra es IBA8-1 / 8-1, o cuyo NOMBRE es el
+       código del Excel ("IBA 8-1"), o cuyo nombre es el proyecto del Excel.
+    3. Si la constructora tiene una sola obra y el Excel también tiene una
+       sola columna para esa empresa, se asume que es esa (motivo "supuesto").
     """
     overrides = overrides or {}
     if codigo_excel in overrides:
@@ -253,16 +268,55 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None):
     proyecto = lectura.nombres_obras.get(codigo_excel)
     candidatas = []
     for c in constructoras:
-        obras = list(Obra.objects.filter(constructora=c))
+        obras = list(Obra.objects.filter(constructora=c).order_by('codigo_obra'))
         candidatas.extend(obras)
-        codigos_obra = {f'{c.codigo}-{num}', codigo_excel, f'{prefijo}{codigo_excel}'}
+        codigos_obra = {x.upper() for x in (f'{c.codigo}-{num}', codigo_excel, f'{prefijo}{codigo_excel}')}
         for o in obras:
-            if o.codigo_obra.upper() in {x.upper() for x in codigos_obra}:
+            if o.codigo_obra.upper() in codigos_obra:
                 return o, f'código de obra {o.codigo_obra}', candidatas
+        for o in obras:
+            if _clave_obra(o.nombre) == codigo_excel:
+                return o, f'nombre de obra "{o.nombre}"', candidatas
         if proyecto:
             for o in obras:
                 if o.nombre.strip().lower() == proyecto.lower():
                     return o, f'nombre de proyecto "{proyecto}"', candidatas
-        if len(obras) == 1:
-            return obras[0], f'única obra de {c.nombre}', candidatas
-    return None, f'{constructoras[0].nombre} tiene {len(candidatas)} obras y ninguna coincide (use --obra {codigo_excel}=CODIGO_OBRA)', candidatas
+    if len(candidatas) == 1 and (columnas_de_la_empresa or 1) == 1:
+        return candidatas[0], f'única obra de {candidatas[0].constructora.nombre} y única columna de la empresa en el Excel (supuesto)', candidatas
+    n_cols = columnas_de_la_empresa or 1
+    if len(candidatas) == 0:
+        return None, f'{constructoras[0].nombre} no tiene obras en el sistema (use --crear-obras o --obra {codigo_excel}=CODIGO_OBRA)', candidatas
+    return None, (
+        f'{constructoras[0].nombre} tiene {len(candidatas)} obra(s) en el sistema y el Excel {n_cols} columna(s); '
+        f'ninguna se llama "{prefijo} {codigo_excel}" (use --crear-obras o --obra {codigo_excel}=CODIGO_OBRA)'
+    ), candidatas
+
+
+def constructora_de(ciudad, codigo_excel, lectura):
+    """Constructora a la que pertenece una columna del Excel (o None). Misma regla que resolver_obra."""
+    emp = codigo_excel.partition('-')[0]
+    prefijo = CIUDADES.get(ciudad, '')
+    filtro = Q(codigo__in={f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'})
+    razon = lectura.nombres_empresas.get(emp)
+    if razon:
+        filtro |= Q(nombre__iexact=razon)
+    return Constructora.objects.filter(filtro, ciudad__iexact=ciudad).first()
+
+
+def crear_obra(ciudad, codigo_excel, lectura):
+    """
+    Crea la obra de una columna del Excel bajo su constructora, con la misma
+    convención de las obras migradas: nombre "IBA 8-1" (o el proyecto del
+    Excel si se conoce) y codigo_obra "IBA8-1". Devuelve None si no hay constructora.
+    """
+    c = constructora_de(ciudad, codigo_excel, lectura)
+    if c is None:
+        return None
+    prefijo = CIUDADES.get(ciudad, '')
+    num = codigo_excel.partition('-')[2]
+    proyecto = lectura.nombres_obras.get(codigo_excel)
+    nombre = f'{proyecto} ({prefijo} {codigo_excel})' if proyecto else f'{prefijo} {codigo_excel}'.strip()
+    codigo_obra = f'{c.codigo}-{num}'
+    if Obra.objects.filter(codigo_obra__iexact=codigo_obra).exists():
+        codigo_obra = f'{c.codigo}-{codigo_excel}'
+    return Obra.objects.create(constructora=c, nombre=nombre, codigo_obra=codigo_obra)

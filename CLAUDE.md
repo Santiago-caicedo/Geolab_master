@@ -281,12 +281,15 @@ python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flag
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
 # Importa catálogo + precios por obra de CUALQUIER sede leyendo el Excel directamente
 # (hoja "LISTA DE PRECIO"; columnas F+ = una obra por columna, encabezado = código de obra
-# del Excel "8-1" = empresa 8, obra 1). Resuelve cada columna a una Obra por código
-# (IBA8-1 / 8-1), razón social + nombre de proyecto (hoja LISTA EMPRESAS REGULARES) o
-# única obra de la constructora; lo que no resuelve lo lista con sugerencias --obra.
+# del Excel "8-1" = empresa 8, obra 1). Resuelve cada columna a una Obra de la constructora
+# IBA8 / 8 (o razón social del Excel) por: codigo_obra IBA8-1, NOMBRE de obra "IBA 8-1" (así
+# se llaman las migradas de WordPress; codigo_obra es IBA8-<id_wp>), nombre de proyecto de la
+# hoja LISTA EMPRESAS REGULARES, o única obra si el Excel también tiene una sola columna
+# ("supuesto"). Una obra recibe UNA sola columna. Lo no resuelto se lista con sugerencias.
+# --crear-obras crea las que falten (nombre "IBA 1-2", codigo IBA1-2) bajo su constructora.
 # Idempotente, transaccional. Lógica en facturacion/importar_excel.py.
 python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --dry-run
-python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --obra 8-1=IBA8-1 --obra 10-2=IBA10-4321
+python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --crear-obras --obra 2-2=IBA2-42065
 #   Flags: --sin-precios, --no-sobrescribir (conserva precios ya cargados), --detalle, --hoja
 
 # Crea el rol Coordinador de Calidad (usuario + perfil en una transacción,

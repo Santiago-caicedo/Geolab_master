@@ -22,7 +22,9 @@ resultado completo y no se guarda nada.
 from django.core.management.base import BaseCommand, CommandError
 from django.db import transaction
 
-from facturacion.importar_excel import leer_lista_precios, resolver_obra
+from collections import Counter
+
+from facturacion.importar_excel import crear_obra, leer_lista_precios, resolver_obra
 from facturacion.models import CategoriaServicio, PrecioServicio, TipoServicio
 from users.ciudades import normalizar_ciudad
 
@@ -45,6 +47,9 @@ class Command(BaseCommand):
         parser.add_argument('--obra', action='append', default=[], metavar='CODIGO_EXCEL=CODIGO_OBRA',
                             help='Asignación manual de una columna del Excel a una obra del sistema (repetible)')
         parser.add_argument('--detalle', action='store_true', help='Lista cada servicio y precio escrito')
+        parser.add_argument('--crear-obras', action='store_true',
+                            help='Crea en el sistema las obras del Excel que no existan (bajo su constructora), '
+                                 'con nombre "IBA 8-1" y código IBA8-1')
 
     # ─────────────────────────────────────────────────────────────────
     def handle(self, *args, **o):
@@ -76,7 +81,7 @@ class Command(BaseCommand):
             with transaction.atomic():
                 servicios_db = self._cargar_catalogo(ciudad, lectura, o['detalle'])
                 if not o['sin_precios']:
-                    self._cargar_precios(ciudad, lectura, servicios_db, overrides, o['no_sobrescribir'], o['detalle'])
+                    self._cargar_precios(ciudad, lectura, servicios_db, overrides, o['no_sobrescribir'], o['detalle'], o['crear_obras'])
                 if o['dry_run']:
                     self.stdout.write(self.style.WARNING('\n[DRY-RUN] No se escribió nada en la base de datos.'))
                     raise _Rollback
@@ -151,18 +156,49 @@ class Command(BaseCommand):
         ))
         return servicios_db
 
-    def _cargar_precios(self, ciudad, lectura, servicios_db, overrides, no_sobrescribir, detalle):
+    def _cargar_precios(self, ciudad, lectura, servicios_db, overrides, no_sobrescribir, detalle, crear_obras):
         self.stdout.write(self.style.MIGRATE_HEADING('\nPrecios por obra'))
-        resueltas, sin_resolver = {}, []
+        columnas_por_empresa = Counter(cod.partition('-')[0] for cod in lectura.obras)
+        resueltas, sin_resolver, creadas = {}, [], 0
         for cod_excel in lectura.obras:
-            obra, motivo, candidatas = resolver_obra(ciudad, cod_excel, lectura, overrides)
+            obra, motivo, candidatas = resolver_obra(
+                ciudad, cod_excel, lectura, overrides, columnas_por_empresa[cod_excel.partition('-')[0]],
+            )
+            if obra is None and crear_obras and candidatas is not None:
+                nueva = crear_obra(ciudad, cod_excel, lectura)
+                if nueva is not None:
+                    obra, motivo, creadas = nueva, f'obra CREADA (--crear-obras) bajo {nueva.constructora.nombre}', creadas + 1
             n_precios = sum(1 for s in lectura.servicios if cod_excel in s.precios)
             etiqueta = lectura.nombres_obras.get(cod_excel, '')
             if obra:
-                resueltas[cod_excel] = obra
-                self.stdout.write(f'  ✓ {cod_excel:>6} {etiqueta[:28]:28} -> {obra.codigo_obra} · {obra.nombre[:40]}  ({n_precios} precios; {motivo})')
+                resueltas[cod_excel] = (obra, motivo, n_precios, etiqueta)
             else:
                 sin_resolver.append((cod_excel, etiqueta, n_precios, motivo, candidatas))
+
+        # Una obra del sistema solo puede recibir UNA columna del Excel: si dos
+        # columnas caen en la misma obra, se conserva la más confiable y las
+        # demás pasan a "sin resolver" (se pisarían los precios entre sí).
+        por_obra = {}
+        for cod_excel, (obra, motivo, n, etiqueta) in resueltas.items():
+            por_obra.setdefault(obra.pk, []).append(cod_excel)
+        for pk, cods in por_obra.items():
+            if len(cods) < 2:
+                continue
+            prioridad = lambda c: 0 if resueltas[c][1].startswith(('--obra', 'código de obra', 'nombre de obra')) else 1
+            cods_orden = sorted(cods, key=prioridad)
+            for cod_excel in cods_orden[1:]:
+                obra, motivo, n, etiqueta = resueltas.pop(cod_excel)
+                sin_resolver.append((cod_excel, etiqueta, n,
+                                     f'la obra {obra.codigo_obra} ya quedó asignada a la columna {cods_orden[0]} '
+                                     f'(use --crear-obras o --obra {cod_excel}=CODIGO_OBRA)', []))
+
+        for cod_excel in lectura.obras:
+            if cod_excel in resueltas:
+                obra, motivo, n, etiqueta = resueltas[cod_excel]
+                self.stdout.write(f'  ✓ {cod_excel:>6} {etiqueta[:28]:28} -> {obra.codigo_obra} · {obra.nombre[:40]}  ({n} precios; {motivo})')
+        if creadas:
+            self.stdout.write(self.style.NOTICE(f'  {creadas} obra(s) creadas con --crear-obras'))
+        resueltas = {k: v[0] for k, v in resueltas.items()}
 
         creados = actualizados = iguales = conservados = 0
         for s in lectura.servicios:

@@ -388,3 +388,63 @@ class CatalogoPorCiudadTests(TestCase):
         self.assertIn('codigo', form.errors)
         # el select de categoría solo ofrece las de la ciudad
         self.assertEqual(list(TipoServicioForm(ciudad='Ibagué').fields['categoria'].queryset), [cat_i])
+
+
+class ResolverObraTests(TestCase):
+    """Cruce de columnas del Excel con obras del sistema (nombres tipo 'IBA 8-1')."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.ruta = str(Path(cls.tmp.name) / 'base.xlsx')
+        _libro_de_prueba(cls.ruta)
+        cls.lectura = leer_lista_precios(cls.ruta)
+        cls.sika = Constructora.objects.create(codigo='IBA8', nombre='SIKA', ciudad='Ibagué')
+        cls.o81 = Obra.objects.create(constructora=cls.sika, nombre='IBA 8-1', codigo_obra='IBA8-5923')
+        cls.asf = Constructora.objects.create(codigo='IBA10', nombre='ASFALTEMOS', ciudad='Ibagué')
+        cls.o102 = Obra.objects.create(constructora=cls.asf, nombre='iba10-2', codigo_obra='IBA10-611')
+        Obra.objects.create(constructora=cls.asf, nombre='IBA 10-1', codigo_obra='IBA10-612')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+        super().tearDownClass()
+
+    def test_por_nombre_de_obra_con_codigo(self):
+        obra, motivo, _ = resolver_obra('Ibagué', '8-1', self.lectura)
+        self.assertEqual(obra, self.o81)
+        self.assertIn('nombre de obra', motivo)
+        obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
+        self.assertEqual(obra, self.o102)
+
+    def test_unica_obra_solo_si_el_excel_tiene_una_sola_columna(self):
+        Obra.objects.filter(pk=self.o81.pk).update(nombre='Bodega')
+        obra, motivo, _ = resolver_obra('Ibagué', '8-1', self.lectura, columnas_de_la_empresa=1)
+        self.assertEqual(obra, self.o81)
+        self.assertIn('supuesto', motivo)
+        obra, motivo, _ = resolver_obra('Ibagué', '8-1', self.lectura, columnas_de_la_empresa=9)
+        self.assertIsNone(obra)
+        self.assertIn('--crear-obras', motivo)
+
+    def test_dos_columnas_no_caen_en_la_misma_obra(self):
+        # empresa 10 tiene 2 columnas en un libro con '10-2' y '10-3'; '10-3' no existe -> sin resolver, no a IBA 10-2
+        obra, motivo, _ = resolver_obra('Ibagué', '10-3', self.lectura, columnas_de_la_empresa=2)
+        self.assertIsNone(obra)
+
+    def test_crear_obras(self):
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Ibagué', '--crear-obras', stdout=out)
+        # 8-1 y 10-2 ya existían: no crea nada
+        self.assertNotIn('obra(s) creadas', out.getvalue())
+        Obra.objects.filter(pk=self.o81.pk).delete()
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Ibagué', '--crear-obras', stdout=out)
+        self.assertIn('1 obra(s) creadas', out.getvalue())
+        nueva = Obra.objects.get(constructora=self.sika, nombre='AMBALA (IBA 8-1)')
+        self.assertEqual(nueva.codigo_obra, 'IBA8-1')
+        self.assertTrue(PrecioServicio.objects.filter(obra=nueva).exists())
+        # sin --crear-obras y sin obra: queda sin resolver, no se inventa nada
+        out = StringIO()
+        Obra.objects.filter(pk=nueva.pk).delete()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Ibagué', '--dry-run', stdout=out)
+        self.assertIn('no tiene obras en el sistema', out.getvalue())
