@@ -287,6 +287,8 @@ python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de factu
 # IBA8 / 8 (o razón social del Excel) por: codigo_obra IBA8-1, NOMBRE de obra "IBA 8-1" (así
 # se llaman las migradas de WordPress; codigo_obra es IBA8-<id_wp>), nombre de proyecto de la
 # hoja LISTA EMPRESAS REGULARES, o única obra si el Excel también tiene una sola columna
+# El CÓDIGO manda sobre la razón social (en WP hay razones mal capturadas: IBA14 dice ASFALTEMOS
+# pero es ARENAS Y GRAVAS); IBA10 e IBA10B (código reutilizado) se buscan juntos.
 # ("supuesto"). Una obra recibe UNA sola columna. Lo no resuelto se lista con sugerencias.
 # --crear-obras crea las que falten (nombre "IBA 1-2", codigo IBA1-2) bajo su constructora.
 # Idempotente, transaccional. Lógica en facturacion/importar_excel.py.
@@ -311,6 +313,10 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
 `municipio`, `direccion`, `telefono`, `persona-de-contacto-1`, `celular-1`.
 - Obra: identidad `id_wp_original`, se actualiza en sitio, NUNCA se borra (FKs PROTECT desde
   facturación). Excepción: obras de proyectos basura (código irreconocible) sin nada colgado.
+- WordPress REUTILIZA códigos de cliente para empresas distintas (BOG3 = PROAR y 4GA; IBA10 =
+  ASFALTEMOS y AP COELLO). `agrupar_por_empresa` separa por empresa real con `misma_empresa`
+  (palabra significativa común o parecido > 0.8: "MARVAL SAS" ~ "MARVAL S.A.S"); la primera
+  conserva el código y las demás reciben sufijo B, C (`BOG3B`). Se avisa para corregir en WP.
 - Constructora: si el código correcto no existe y una constructora vieja tiene todas sus obras
   en ese grupo, se RENOMBRA (conserva `ClienteExterno.empresa` y `Factura.constructora`); las
   que quedan sin obras, usuarios ni facturas se eliminan. Razón social = variante más frecuente.

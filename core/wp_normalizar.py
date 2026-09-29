@@ -12,7 +12,9 @@ Problemas del origen que se corrigen aquí (ver memoria/CLAUDE.md):
 """
 
 import re
+import unicodedata
 from collections import Counter
+from difflib import SequenceMatcher
 
 from users.ciudades import CIUDADES, normalizar_ciudad
 
@@ -81,3 +83,53 @@ def razon_social_canonica(razones):
 
 def ciudad_obra(proyecto):
     return normalizar_ciudad(proyecto.m('municipio')) or ''
+
+
+_PALABRAS_VACIAS = {
+    'SA', 'SAS', 'LTDA', 'LTA', 'CIA', 'COMPANIA', 'CONSTRUCTORA', 'CONSTRUCCIONES',
+    'CONSORCIO', 'UNION', 'TEMPORAL', 'INGENIEROS', 'INGENIERIA', 'DE', 'LA', 'EL', 'Y',
+    'DEL', 'LOS', 'LAS', 'GRUPO', 'PROYECTOS', 'URBANIZADORA', 'DESARROLLOS', 'OBRAS',
+    'SOLUCIONES', 'SERVICIOS',
+}
+
+
+def _tokens_empresa(razon):
+    s = unicodedata.normalize('NFKD', (razon or '').upper()).encode('ascii', 'ignore').decode()
+    s = re.sub(r'[^A-Z0-9 ]', ' ', s)
+    return [w for w in s.split() if len(w) >= 3 and w not in _PALABRAS_VACIAS and not w.isdigit()]
+
+
+def misma_empresa(razon_a, razon_b):
+    """
+    ¿Dos razones sociales son variantes de la misma empresa?
+      "MARVAL SAS" ~ "MARVAL S.A.S"            -> True (mismo nombre significativo)
+      "PRABYC INGENIEROS SAS" ~ "PRAVYC ..."   -> True (parecido > 0.8)
+      "ASFALTEMOS" ~ "UNION TEMPORAL AP COELLO"-> False
+    Regla: comparten alguna palabra significativa, o el texto significativo
+    se parece más de 0.8. Sirve para detectar códigos de cliente reutilizados
+    en WordPress para empresas distintas.
+    """
+    ta, tb = _tokens_empresa(razon_a), _tokens_empresa(razon_b)
+    if not ta or not tb:
+        return _tokens_empresa(razon_a) == _tokens_empresa(razon_b)
+    if set(ta) & set(tb):
+        return True
+    return SequenceMatcher(None, ' '.join(ta), ' '.join(tb)).ratio() > 0.8
+
+
+def agrupar_por_empresa(proyectos):
+    """
+    Divide los proyectos de un mismo código de cliente en grupos de empresa
+    real (lista de listas), en orden de aparición (fecha del primer proyecto).
+    Un proyecto entra en el primer grupo cuya razón social sea la misma empresa.
+    """
+    grupos = []
+    for p in proyectos:
+        razon = p.m('razon-social')
+        for g in grupos:
+            if any(misma_empresa(razon, q.m('razon-social')) for q in g):
+                g.append(p)
+                break
+        else:
+            grupos.append([p])
+    return grupos

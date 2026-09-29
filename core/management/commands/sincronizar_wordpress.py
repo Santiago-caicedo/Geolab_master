@@ -34,7 +34,8 @@ from django.utils.timezone import is_naive, make_aware
 from core.models import Informe, Obra
 from core.wp_fuente import FuenteDump, FuenteMySQL
 from core.wp_normalizar import (
-    ciudad_obra, clave_constructora, codigo_obra, nombre_obra, razon_social_canonica,
+    agrupar_por_empresa, ciudad_obra, clave_constructora, codigo_obra, nombre_obra,
+    razon_social_canonica,
 )
 from facturacion.models import Factura
 from users.models import ClienteExterno, Constructora
@@ -123,21 +124,17 @@ class Command(BaseCommand):
             grupos[(codigo, varios)].append(p)
             obras_wp.append((p, codigo, varios))
 
-        # Clientes varios: mismo "0-N" con razones sociales distintas = empresas distintas
+        # Un mismo código de cliente puede tener en WordPress empresas DISTINTAS
+        # (códigos reutilizados; clientes varios "0-N"). Se separan por empresa
+        # real: la primera conserva el código, las demás reciben sufijo B, C...
         finales = {}
         self.varios_desdoblados = []
         for (codigo, varios), lista in grupos.items():
-            if not varios:
-                finales[codigo] = lista
-                continue
-            por_razon = defaultdict(list)
-            for p in lista:
-                por_razon[_clave_razon(p.m('razon-social'))].append(p)
-            for n, (_, sub) in enumerate(sorted(por_razon.items(), key=lambda kv: min((x.fecha or _MIN) for x in kv[1]))):
+            for n, sub in enumerate(agrupar_por_empresa(lista)):
                 cod = codigo if n == 0 else f'{codigo}{chr(ord("A") + n)}'
                 finales[cod] = sub
                 if n:
-                    self.varios_desdoblados.append((codigo, cod, sub[0].m('razon-social')))
+                    self.varios_desdoblados.append((codigo, cod, sub[0].m('razon-social'), finales[codigo][0].m('razon-social')))
         # mapa proyecto -> código final
         self.codigo_de = {p.id: cod for cod, lista in finales.items() for p in lista}
         return finales, [(p, self.codigo_de[p.id]) for p, _, _ in obras_wp]
@@ -316,8 +313,11 @@ class Command(BaseCommand):
         avisos = []
         for p, motivo in self.saltados:
             avisos.append(f'proyecto WP {p.id} "{p.titulo}" omitido: {motivo}')
-        for base, cod, razon in self.varios_desdoblados:
-            avisos.append(f'cliente varios {base} con otra razón social -> creado como {cod} ("{razon}")')
+        for base, cod, razon, razon_base in self.varios_desdoblados:
+            avisos.append(
+                f'código {base} reutilizado en WordPress para otra empresa: "{razon}" queda como {cod} '
+                f'(el {base} se lo queda "{razon_base}"). Si es la misma empresa, unifica la razón social en WordPress.'
+            )
         for p, cod in self.sin_codigo:
             avisos.append(f'obra WP {p.id} "{p.titulo}" sin código reconocible: se usó {cod}')
         for cod, lista in self.codigos_repetidos.items():

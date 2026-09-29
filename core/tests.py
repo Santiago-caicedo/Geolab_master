@@ -243,3 +243,33 @@ class SincronizarWordpressTests(TestCase):
     def test_omitir(self):
         self._run('--omitir', '501')
         self.assertFalse(Obra.objects.filter(id_wp_original=501).exists())
+
+
+from core.wp_normalizar import agrupar_por_empresa, misma_empresa  # noqa: E402
+
+
+class MismaEmpresaTests(SimpleTestCase):
+
+    def test_variantes_del_mismo_nombre(self):
+        for a, b in [
+            ('MARVAL SAS', 'MARVAL S.A.S'), ('INACAR S.A', 'INACAR S.A.'),
+            ('15 ANDES DESARROLADORA S.A.S', 'ANDES DESARROLLADORA S.A.S'),
+            ('PRABYC INGENIEROS SAS', 'PRAVYC INGENIEROS'), ('G KOI S.A.S', 'KOI CONSTRUCTORA S.A.S'),
+            ('URBANIZADORA MARVAL SAS', '57 URBANIZADORA MARVAL S.A.S AV EL DORADO'),
+        ]:
+            self.assertTrue(misma_empresa(a, b), (a, b))
+
+    def test_empresas_distintas(self):
+        for a, b in [
+            ('ASFALTEMOS', 'UNIÓN TEMPORAL AP COELLO 2021'),
+            ('CONSORCIO OBRAS ACUEDUCTO PROAR', 'PROYECTOS Y SOLUCIONES 4GA S.A.S'),
+            ('CONSTRUCTORA VALU LTA', 'J.GE CONSTRUCCIONES S.A.S'), ('CAG S.A.S', 'GRUPO MIC SAS'),
+            ('CONSORCIO DC 2025', 'INGEOTECNIA'),
+        ]:
+            self.assertFalse(misma_empresa(a, b), (a, b))
+
+    def test_agrupar_conserva_orden(self):
+        ps = [_p('a', **{'razon-social': r}) for r in ['ASFALTEMOS', 'UNIÓN TEMPORAL AP COELLO 2021', 'ASFALTEMOS VIAS']]
+        grupos = agrupar_por_empresa(ps)
+        self.assertEqual([[q.m('razon-social') for q in g] for g in grupos],
+                         [['ASFALTEMOS', 'ASFALTEMOS VIAS'], ['UNIÓN TEMPORAL AP COELLO 2021']])

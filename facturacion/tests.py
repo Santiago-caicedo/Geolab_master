@@ -448,3 +448,40 @@ class ResolverObraTests(TestCase):
         Obra.objects.filter(pk=nueva.pk).delete()
         call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Ibagué', '--dry-run', stdout=out)
         self.assertIn('no tiene obras en el sistema', out.getvalue())
+
+
+class ResolverObraCodigoMandaTests(TestCase):
+    """En WordPress hay razones sociales mal capturadas: el código de empresa manda sobre la razón social."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.ruta = str(Path(cls.tmp.name) / 'base.xlsx')
+        _libro_de_prueba(cls.ruta)          # empresa 8 = 'DYCO SAS', empresa 10 = 'ASFALTEMOS'
+        cls.lectura = leer_lista_precios(cls.ruta)
+        # IBA10 existe pero con OTRA razón social; una constructora ajena se llama 'ASFALTEMOS'
+        cls.iba10 = Constructora.objects.create(codigo='IBA10', nombre='AP COELLO', ciudad='Ibagué')
+        cls.o = Obra.objects.create(constructora=cls.iba10, nombre='IBA 10-2', codigo_obra='IBA10-9')
+        ajena = Constructora.objects.create(codigo='IBA14', nombre='ASFALTEMOS', ciudad='Ibagué')
+        Obra.objects.create(constructora=ajena, nombre='IBA 14-1', codigo_obra='IBA14-1')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+        super().tearDownClass()
+
+    def test_codigo_gana_a_razon_social(self):
+        obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
+        self.assertEqual(obra, self.o)
+
+    def test_razon_social_solo_si_no_hay_codigo(self):
+        Constructora.objects.filter(codigo='IBA10').update(codigo='IBA77')
+        # sin código IBA10, 'ASFALTEMOS' lleva a IBA14; con 2 columnas en el Excel no aplica "única obra"
+        obra, motivo, candidatas = resolver_obra('Ibagué', '10-2', self.lectura, columnas_de_la_empresa=2)
+        self.assertIsNone(obra)
+        self.assertEqual([c.codigo_obra for c in candidatas], ['IBA14-1'])
+
+    def test_sufijo_de_codigo_reutilizado_cuenta(self):
+        Constructora.objects.filter(codigo='IBA10').update(codigo='IBA10B')
+        obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
+        self.assertEqual(obra, self.o)

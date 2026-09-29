@@ -257,11 +257,8 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
     emp, _, num = codigo_excel.partition('-')
     prefijo = CIUDADES.get(ciudad, '')
     codigos_emp = {f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'}
-    filtro = Q(codigo__in=codigos_emp)
     razon = lectura.nombres_empresas.get(emp)
-    if razon:
-        filtro |= Q(nombre__iexact=razon)
-    constructoras = list(Constructora.objects.filter(filtro, ciudad__iexact=ciudad))
+    constructoras = _constructoras_de(ciudad, codigos_emp, razon)
     if not constructoras:
         return None, f'ninguna constructora en {ciudad} con código {", ".join(sorted(codigos_emp))}' + (f' ni razón social "{razon}"' if razon else ''), []
 
@@ -273,7 +270,7 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
         codigos_obra = {x.upper() for x in (f'{c.codigo}-{num}', codigo_excel, f'{prefijo}{codigo_excel}')}
         for o in obras:
             if o.codigo_obra.upper() in codigos_obra:
-                return o, f'código de obra {o.codigo_obra}', candidatas
+                return o, f'código de obra {o.codigo_obra}' + (f' (en {c.codigo} {c.nombre[:30]})' if len(constructoras) > 1 else ''), candidatas
         for o in obras:
             if _clave_obra(o.nombre) == codigo_excel:
                 return o, f'nombre de obra "{o.nombre}"', candidatas
@@ -292,15 +289,32 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
     ), candidatas
 
 
+def _constructoras_de(ciudad, codigos_emp, razon):
+    """
+    El CÓDIGO manda: si hay constructora con ese código (IBA14), es esa aunque
+    su razón social no coincida con el Excel (en WordPress hay razones sociales
+    mal capturadas). La razón social solo se usa cuando ningún código coincide.
+    Los sufijos B, C (códigos reutilizados) también cuentan como el mismo código.
+    """
+    base = Q(ciudad__iexact=ciudad)
+    # IBA10 y sus sufijos IBA10B, IBA10C (código reutilizado en WordPress para otra
+    # empresa) se consideran juntos: la obra "IBA10-1" puede estar en cualquiera.
+    patron = r'^(' + '|'.join(sorted(codigos_emp)) + r')[A-Z]?$'
+    por_codigo = list(Constructora.objects.filter(base, codigo__regex=patron).order_by('codigo'))
+    if por_codigo:
+        return por_codigo
+    if razon:
+        return list(Constructora.objects.filter(base, nombre__iexact=razon))
+    return []
+
+
 def constructora_de(ciudad, codigo_excel, lectura):
     """Constructora a la que pertenece una columna del Excel (o None). Misma regla que resolver_obra."""
     emp = codigo_excel.partition('-')[0]
     prefijo = CIUDADES.get(ciudad, '')
-    filtro = Q(codigo__in={f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'})
-    razon = lectura.nombres_empresas.get(emp)
-    if razon:
-        filtro |= Q(nombre__iexact=razon)
-    return Constructora.objects.filter(filtro, ciudad__iexact=ciudad).first()
+    codigos_emp = {f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'}
+    lista = _constructoras_de(ciudad, codigos_emp, lectura.nombres_empresas.get(emp))
+    return lista[0] if lista else None
 
 
 def crear_obra(ciudad, codigo_excel, lectura):
