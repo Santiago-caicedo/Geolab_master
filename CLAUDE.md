@@ -324,6 +324,18 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
   `descargar_archivos`.
 - Todo lo dudoso sale en "Avisos" (códigos de obra repetidos en WP, obras sin nombre, etc.).
 
+### Script maestro de sincronización (`scripts/`)
+
+- `scripts/sincronizar_produccion.ps1` (Windows, desde la carpeta del proyecto): sube por `scp` el
+  respaldo de WordPress y el Excel de la sede, y lanza por SSH el script del servidor. Host y llave
+  en `scripts/produccion.env` (ignorado; ver `produccion.env.ejemplo`) o `-Servidor`/`-Llave`.
+  `-Ensayo` = todo en `--dry-run`; `-Push` hace `git push` antes.
+  `.\scripts\sincronizar_produccion.ps1 -Dump portal.sql -Excel "BASE DATOS IBAGUE.xlsm" -Ciudad Ibagué -Ensayo`
+- `scripts/servidor_sincronizar.sh` (servidor): git pull → migrate → `pg_dump` a `respaldos/` →
+  `sincronizar_wordpress --dump` → `descargar_archivos` → `importar_catalogo_excel --crear-obras` →
+  borra el .sql. Log en `logs/sincronizacion_<fecha>.log`. Flags: `--ensayo`, `--sin-wordpress`,
+  `--sin-informes`, `--conservar`, `--sin-respaldo`. Se puede correr a mano en el servidor.
+
 ## Variables de Entorno (.env)
 
 ```env
