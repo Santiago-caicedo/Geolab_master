@@ -209,7 +209,7 @@ class SincronizarWordpressTests(TestCase):
         self._run()
         n = (Constructora.objects.count(), Obra.objects.count(), Informe.objects.count())
         salida = self._run()
-        self.assertIn('Obras: 0 creadas, 0 actualizadas', salida)
+        self.assertIn('Obras: 0 creadas, 0 adoptadas del portal, 0 actualizadas', salida)
         self.assertIn('Informes: 0 creados, 0 actualizados', salida)
         self.assertEqual(n, (Constructora.objects.count(), Obra.objects.count(), Informe.objects.count()))
         Obra.objects.filter(id_wp_original=501).delete()
@@ -225,7 +225,7 @@ class SincronizarWordpressTests(TestCase):
                                subtotal=0, monto_iva=0, total=0)
         salida = self._run()
         self.assertTrue(Constructora.objects.filter(codigo='BUC99').exists())
-        self.assertNotIn('BUC99', salida.split('Avisos')[-1] if 'Avisos' in salida else '')   # tiene obra: ni siquiera es candidata
+        self.assertNotIn('constructora BUC99', salida)   # tiene obra: ni siquiera es candidata a borrarse
 
     def test_obra_basura_se_elimina_solo_sin_dependencias(self):
         basura = Constructora.objects.get(codigo='SDDSD')
@@ -243,6 +243,45 @@ class SincronizarWordpressTests(TestCase):
     def test_omitir(self):
         self._run('--omitir', '501')
         self.assertFalse(Obra.objects.filter(id_wp_original=501).exists())
+
+    def test_adopta_obra_creada_en_el_portal(self):
+        # obra creada a mano (sin id de WP, código sin prefijo) que luego aparece en WordPress como IBA 8-1
+        dyco = Constructora.objects.create(codigo='IBA8', nombre='DYCO', ciudad='Ibagué')
+        manual = Obra.objects.create(nombre='AMBALA', codigo_obra='8-1', constructora=dyco)
+        salida = self._run()
+        manual.refresh_from_db()
+        self.assertEqual((manual.id_wp_original, manual.codigo_obra, manual.contacto), (501, 'IBA8-1', 'Javier'))
+        self.assertEqual(Obra.objects.filter(codigo_obra='IBA8-1').count(), 1)
+        self.assertIn('1 adoptadas del portal', salida)
+        self.assertEqual(Informe.objects.get(id_wp_original=900).obra, manual)
+
+    def test_codigo_reutilizado_el_registro_sigue_a_su_empresa(self):
+        # en el portal BUC0-12 quedó con el nombre de la SEGUNDA empresa (CDE) y con su usuario;
+        # en WP el código es primero de DISCON -> el registro de CDE pasa a BUC0-12B con su usuario
+        cde = Constructora.objects.get(codigo='BUC012')
+        cde.codigo, cde.nombre = 'BUC0-12', 'CDE S.A'
+        cde.save()
+        u = UsuarioBase.objects.create_user('cde', password='x', es_cliente=True)
+        cliente = ClienteExterno.objects.create(user=u, empresa=cde, rol='remitente')
+        salida = self._run()
+        cde.refresh_from_db()
+        cliente.refresh_from_db()
+        self.assertEqual((cde.codigo, cde.nombre), ('BUC0-12B', 'CDE S.A'))
+        self.assertEqual(cliente.empresa_id, cde.pk)
+        self.assertEqual(Constructora.objects.get(codigo='BUC0-12').nombre, 'DISCON')
+        self.assertEqual(Obra.objects.get(id_wp_original=503).constructora, cde)
+        self.assertIn('renombrada a BUC0-12B', salida)
+
+    def test_no_adopta_obra_de_otra_ciudad_y_avisa_repetidos(self):
+        otra = Constructora.objects.create(codigo='BUC8', nombre='OTRA', ciudad='Bucaramanga')
+        Obra.objects.create(nombre='X', codigo_obra='BUC8-1', constructora=otra)
+        salida = self._run()
+        self.assertIsNone(Obra.objects.get(codigo_obra='BUC8-1').id_wp_original)
+        self.assertIn('0 adoptadas del portal', salida)
+        self.assertIn('obra del portal sin WordPress: BUC8-1', salida)
+        Obra.objects.create(nombre='copia', codigo_obra='IBA8-1', constructora=otra, id_wp_original=1)
+        salida = self._run()
+        self.assertIn('código de obra IBA8-1 repetido en el PORTAL', salida)
 
 
 from core.wp_normalizar import agrupar_por_empresa, misma_empresa  # noqa: E402

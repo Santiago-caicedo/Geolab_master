@@ -319,6 +319,13 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
   ASFALTEMOS y AP COELLO). `agrupar_por_empresa` separa por empresa real con `misma_empresa`
   (palabra significativa común o parecido > 0.8: "MARVAL SAS" ~ "MARVAL S.A.S"); la primera
   conserva el código y las demás reciben sufijo B, C (`BOG3B`). Se avisa para corregir en WP.
+  Si el registro que YA existe en el portal con ese código es de la otra empresa (su nombre actual
+  coincide con la del sufijo), se renombra al código con sufijo y conserva usuarios/facturas
+  (`_reubicar_codigos_reutilizados`); la empresa dueña del código recibe un registro nuevo.
+- Obras creadas a mano en el portal (sin `id_wp_original`): si WP trae luego un proyecto con el
+  mismo código (comparado sin prefijo: `56-9` = `BUC56-9`), misma ciudad y candidata única, se
+  ADOPTA esa obra (le pone el id de WP) en vez de crear una copia. Al final se avisan los códigos
+  de obra repetidos en el portal y las obras que siguen sin WordPress.
 - Constructora: si el código correcto no existe y una constructora vieja tiene todas sus obras
   en ese grupo, se RENOMBRA (conserva `ClienteExterno.empresa` y `Factura.constructora`); las
   que quedan sin obras, usuarios ni facturas se eliminan. Razón social = variante más frecuente.

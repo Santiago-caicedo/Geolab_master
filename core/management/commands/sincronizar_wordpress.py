@@ -34,7 +34,7 @@ from django.utils.timezone import is_naive, make_aware
 from core.models import Informe, Obra
 from core.wp_fuente import FuenteDump, FuenteMySQL
 from core.wp_normalizar import (
-    agrupar_por_empresa, ciudad_obra, clave_constructora, codigo_obra, nombre_obra,
+    agrupar_por_empresa, ciudad_obra, clave_constructora, codigo_obra, misma_empresa, nombre_obra,
     razon_social_canonica,
 )
 from facturacion.models import Factura
@@ -129,6 +129,7 @@ class Command(BaseCommand):
         # real: la primera conserva el código, las demás reciben sufijo B, C...
         finales = {}
         self.varios_desdoblados = []
+        self.reubicaciones_fallidas = []
         for (codigo, varios), lista in grupos.items():
             for n, sub in enumerate(agrupar_por_empresa(lista)):
                 cod = codigo if n == 0 else f'{codigo}{chr(ord("A") + n)}'
@@ -145,6 +146,9 @@ class Command(BaseCommand):
         self.stdout.write(self.style.MIGRATE_HEADING('\nConstructoras'))
         destino, st = {}, defaultdict(int)
         usados = set()
+        reubicadas = self._reubicar_codigos_reutilizados(grupos)
+        st['renombradas'] += len(reubicadas)
+        usados.update(c.pk for c in reubicadas.values())
         for codigo, lista in sorted(grupos.items()):
             nombre = razon_social_canonica([p.m('razon-social') for p in lista])
             ciudad = razon_social_canonica([ciudad_obra(p) for p in lista])
@@ -154,7 +158,7 @@ class Command(BaseCommand):
                 # ¿Alguna constructora vieja tiene TODAS sus obras en este grupo? -> renombrar
                 candidatas = (
                     Constructora.objects.filter(obras__id_wp_original__in=ids)
-                    .exclude(pk__in=usados).annotate(n=Count('obras', distinct=True)).distinct()
+                    .exclude(pk__in=usados).exclude(pk__in=[c.pk for c in reubicadas.values()]).annotate(n=Count('obras', distinct=True)).distinct()
                 )
                 for c in candidatas:
                     if c.n == Obra.objects.filter(constructora=c, id_wp_original__in=ids).count():
@@ -186,11 +190,47 @@ class Command(BaseCommand):
         ))
         return destino
 
+    def _reubicar_codigos_reutilizados(self, grupos):
+        """
+        Código reutilizado en WP (BUC50 = J.GE y VALU): el registro que ya existe
+        en el portal con ese código pertenece a UNA de las empresas (la de su
+        nombre actual) y tiene sus usuarios y facturas. Si esa empresa no es la
+        que conserva el código, el registro se renombra al código con sufijo
+        (BUC50 -> BUC50B) en vez de quedar pegado a la otra empresa.
+        """
+        reubicadas = {}   # código con sufijo -> constructora ya renombrada
+        for base, cod_sufijo, _razon, _razon_base in self.varios_desdoblados:
+            actual = Constructora.objects.filter(codigo__iexact=base).first()
+            if actual is None:
+                continue
+            nombre_base = razon_social_canonica([p.m('razon-social') for p in grupos[base]])
+            if misma_empresa(actual.nombre, nombre_base):
+                continue
+            nombre_sufijo = razon_social_canonica([p.m('razon-social') for p in grupos[cod_sufijo]])
+            if not misma_empresa(actual.nombre, nombre_sufijo):
+                continue
+            if Constructora.objects.filter(codigo__iexact=cod_sufijo).exists():
+                self.reubicaciones_fallidas.append((actual, cod_sufijo))
+                continue
+            self.stdout.write(f'  ~ {actual.codigo} renombrada a {cod_sufijo}  ({actual.nombre}): '
+                              f'en WordPress el código {base} es de "{nombre_base}"')
+            actual.codigo = cod_sufijo
+            actual.save()
+            reubicadas[cod_sufijo] = actual
+        return reubicadas
+
     # ─────────────────────────────────────────────────────────────────
     def _sincronizar_obras(self, obras_wp, destino):
         self.stdout.write(self.style.MIGRATE_HEADING('\nObras'))
         st = defaultdict(int)
         self.sin_codigo, self.sin_nombre, codigos = [], [], defaultdict(list)
+        self.adopciones_ambiguas = []
+        # Obras creadas a mano en el portal (sin id de WP). Si WordPress trae
+        # luego un proyecto con el mismo código, se ADOPTA esa obra en vez de
+        # crear una copia (sus remisiones, precios y facturas siguen pegados).
+        manuales = defaultdict(list)
+        for o in Obra.objects.filter(id_wp_original__isnull=True).select_related('constructora'):
+            manuales[_clave_codigo(o.codigo_obra)].append(o)
         for p, codigo_c in obras_wp:
             if not p.m('nombre-proyecto'):
                 self.sin_nombre.append(p)
@@ -208,6 +248,19 @@ class Command(BaseCommand):
             )
             obra = Obra.objects.filter(id_wp_original=p.id).first()
             if obra is None:
+                candidatas = [o for o in manuales.get(_clave_codigo(cod), [])
+                              if o.constructora.ciudad == c.ciudad and o.id_wp_original is None]
+                if len(candidatas) == 1:
+                    obra = candidatas[0]
+                    for k, v in datos.items():
+                        setattr(obra, k, v)
+                    obra.id_wp_original = p.id
+                    obra.save()
+                    st['adoptadas'] += 1
+                    self.stdout.write(f'  = {cod:12} {datos["nombre"][:45]:45} adoptada (obra del portal pk={obra.pk}, ahora WP {p.id})')
+                    continue
+                if len(candidatas) > 1:
+                    self.adopciones_ambiguas.append((p, cod, candidatas))
                 Obra.objects.create(id_wp_original=p.id, **datos)
                 st['creadas'] += 1
                 self.stdout.write(f'  + {cod:12} {datos["nombre"][:45]:45} ({c.codigo})')
@@ -224,7 +277,8 @@ class Command(BaseCommand):
                 st['iguales'] += 1
         self.codigos_repetidos = {k: v for k, v in codigos.items() if len(v) > 1}
         self.stdout.write(self.style.SUCCESS(
-            f'Obras: {st["creadas"]} creadas, {st["actualizadas"]} actualizadas, {st["iguales"]} sin cambios.'
+            f'Obras: {st["creadas"]} creadas, {st["adoptadas"]} adoptadas del portal, '
+            f'{st["actualizadas"]} actualizadas, {st["iguales"]} sin cambios.'
         ))
 
     # ─────────────────────────────────────────────────────────────────
@@ -318,6 +372,9 @@ class Command(BaseCommand):
                 f'código {base} reutilizado en WordPress para otra empresa: "{razon}" queda como {cod} '
                 f'(el {base} se lo queda "{razon_base}"). Si es la misma empresa, unifica la razón social en WordPress.'
             )
+        for c, cod in self.reubicaciones_fallidas:
+            avisos.append(f'constructora {c.codigo} "{c.nombre}" debería pasar a {cod} (su código es de otra empresa '
+                          f'en WordPress) pero {cod} ya existe: revisar a mano')
         for p, cod in self.sin_codigo:
             avisos.append(f'obra WP {p.id} "{p.titulo}" sin código reconocible: se usó {cod}')
         for cod, lista in self.codigos_repetidos.items():
@@ -328,6 +385,18 @@ class Command(BaseCommand):
             avisos.append(f'obra basura "{obra.nombre}" ({obra.codigo_obra}) NO se eliminó: tiene {dep}')
         for p in self.sin_nombre:
             avisos.append(f'obra WP {p.id} "{p.titulo}" no tiene nombre-proyecto en WordPress: se usó el título como nombre')
+        for p, cod, candidatas in self.adopciones_ambiguas:
+            avisos.append(f'obra WP {p.id} {cod}: varias obras del portal con ese código '
+                          f'({", ".join(f"pk={o.pk}" for o in candidatas)}); se creó una nueva, unificar a mano')
+        repetidas = (Obra.objects.values('codigo_obra').annotate(n=Count('pk')).filter(n__gt=1)
+                     .values_list('codigo_obra', flat=True))
+        for cod in repetidas:
+            obras = Obra.objects.filter(codigo_obra=cod).annotate(
+                n_rem=Count('remisiones', distinct=True), n_inf=Count('informes', distinct=True))
+            avisos.append(f'código de obra {cod} repetido en el PORTAL: ' + ', '.join(
+                f'pk={o.pk} (WP {o.id_wp_original or "-"}, {o.n_rem} remisiones, {o.n_inf} informes)' for o in obras))
+        for o in Obra.objects.filter(id_wp_original__isnull=True).select_related('constructora'):
+            avisos.append(f'obra del portal sin WordPress: {o.codigo_obra} "{o.nombre}" ({o.constructora.codigo}) se deja como está')
         if avisos:
             self.stdout.write(self.style.WARNING(f'\nAvisos ({len(avisos)}):'))
             for a in avisos:
@@ -347,6 +416,11 @@ def _dependencias(obra):
         if n:
             partes.append(f'{n} {m2m.verbose_name}')
     return ', '.join(partes)
+
+
+def _clave_codigo(codigo):
+    """Código de obra sin prefijo de ciudad ni espacios: 'BUC56-9', '56-9', 'BUC 56-9' -> '56-9'."""
+    return re.sub(r'^[A-Z]+', '', re.sub(r'\s+', '', (codigo or '').upper())).lstrip('-')
 
 
 def _clave_razon(razon):

@@ -281,3 +281,7 @@ scripts/produccion.env
 # Logs y respaldos generados por scripts/servidor_sincronizar.sh
 logs/
 respaldos/
+
+# Llaves SSH / certificados privados (NUNCA a git)
+*.pem
+*.ppk
