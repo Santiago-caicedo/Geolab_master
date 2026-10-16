@@ -67,6 +67,7 @@ class Command(BaseCommand):
         fuente = self._fuente(o['dump'])
         try:
             proyectos = fuente.proyectos()
+            self.ids_wp = {p.id for p in proyectos}
             informes = [] if o['sin_informes'] else fuente.informes()
         finally:
             fuente.cerrar()
@@ -219,6 +220,11 @@ class Command(BaseCommand):
             reubicadas[cod_sufijo] = actual
         return reubicadas
 
+    def _obras_del_portal(self):
+        """Obras sin id de WP o con un id que no existe en WordPress (puesto a mano: 0, 1...)."""
+        return [o for o in Obra.objects.select_related('constructora')
+                if o.id_wp_original is None or o.id_wp_original not in self.ids_wp]
+
     # ─────────────────────────────────────────────────────────────────
     def _sincronizar_obras(self, obras_wp, destino):
         self.stdout.write(self.style.MIGRATE_HEADING('\nObras'))
@@ -228,8 +234,8 @@ class Command(BaseCommand):
         # Obras creadas a mano en el portal (sin id de WP). Si WordPress trae
         # luego un proyecto con el mismo código, se ADOPTA esa obra en vez de
         # crear una copia (sus remisiones, precios y facturas siguen pegados).
-        manuales = defaultdict(list)
-        for o in Obra.objects.filter(id_wp_original__isnull=True).select_related('constructora'):
+        manuales, adoptadas = defaultdict(list), set()
+        for o in self._obras_del_portal():
             manuales[_clave_codigo(o.codigo_obra)].append(o)
         for p, codigo_c in obras_wp:
             if not p.m('nombre-proyecto'):
@@ -249,15 +255,18 @@ class Command(BaseCommand):
             obra = Obra.objects.filter(id_wp_original=p.id).first()
             if obra is None:
                 candidatas = [o for o in manuales.get(_clave_codigo(cod), [])
-                              if o.constructora.ciudad == c.ciudad and o.id_wp_original is None]
+                              if o.constructora.ciudad == c.ciudad and o.pk not in adoptadas]
                 if len(candidatas) == 1:
                     obra = candidatas[0]
                     for k, v in datos.items():
                         setattr(obra, k, v)
+                    previo = obra.id_wp_original
                     obra.id_wp_original = p.id
                     obra.save()
+                    adoptadas.add(obra.pk)
                     st['adoptadas'] += 1
-                    self.stdout.write(f'  = {cod:12} {datos["nombre"][:45]:45} adoptada (obra del portal pk={obra.pk}, ahora WP {p.id})')
+                    self.stdout.write(f'  = {cod:12} {datos["nombre"][:45]:45} adoptada (obra del portal pk={obra.pk}, '
+                                      f'WP {previo if previo is not None else "-"} -> {p.id})')
                     continue
                 if len(candidatas) > 1:
                     self.adopciones_ambiguas.append((p, cod, candidatas))
@@ -395,8 +404,9 @@ class Command(BaseCommand):
                 n_rem=Count('remisiones', distinct=True), n_inf=Count('informes', distinct=True))
             avisos.append(f'código de obra {cod} repetido en el PORTAL: ' + ', '.join(
                 f'pk={o.pk} (WP {o.id_wp_original or "-"}, {o.n_rem} remisiones, {o.n_inf} informes)' for o in obras))
-        for o in Obra.objects.filter(id_wp_original__isnull=True).select_related('constructora'):
-            avisos.append(f'obra del portal sin WordPress: {o.codigo_obra} "{o.nombre}" ({o.constructora.codigo}) se deja como está')
+        for o in self._obras_del_portal():
+            wp = '' if o.id_wp_original is None else f', id WP {o.id_wp_original} inexistente en WordPress'
+            avisos.append(f'obra del portal sin WordPress: {o.codigo_obra} "{o.nombre}" ({o.constructora.codigo}{wp}) se deja como está')
         if avisos:
             self.stdout.write(self.style.WARNING(f'\nAvisos ({len(avisos)}):'))
             for a in avisos:

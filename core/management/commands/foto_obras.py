@@ -100,13 +100,13 @@ class Command(BaseCommand):
                 con_marca.update(f'obra {x}' for x in mo)
                 if o['problemas'] and not mo and not mc:
                     continue
-                linea = f'    {ob.codigo_obra or "":<18} {(ob.nombre or "")[:50]:<50} wp={ob.id_wp_original or "-"}'
+                linea = f'    {ob.codigo_obra or "":<18} {(ob.nombre or "")[:50]:<50} wp={"-" if ob.id_wp_original is None else ob.id_wp_original}'
                 if mo:
                     self.stdout.write(self.style.WARNING(f'{linea}  [{", ".join(mo)}]'))
                 else:
                     self.stdout.write(linea)
                 filas.append([c.ciudad or '', c.codigo, c.nombre, ', '.join(mc), ob.codigo_obra,
-                              ob.nombre, ob.id_wp_original or '', ', '.join(mo),
+                              ob.nombre, '' if ob.id_wp_original is None else ob.id_wp_original, ', '.join(mo),
                               ob.direccion, ob.contacto, ob.celular or ob.telefono])
             if not obras:
                 filas.append([c.ciudad or '', c.codigo, c.nombre, ', '.join(mc), '', '', '', '', '', '', ''])

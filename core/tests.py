@@ -272,6 +272,16 @@ class SincronizarWordpressTests(TestCase):
         self.assertEqual(Obra.objects.get(id_wp_original=503).constructora, cde)
         self.assertIn('renombrada a BUC0-12B', salida)
 
+    def test_adopta_obra_con_id_wp_inventado(self):
+        # id de WP puesto a mano en el admin (1 no es un proyecto de WordPress): también es obra del portal
+        dyco = Constructora.objects.create(codigo='IBA8', nombre='DYCO', ciudad='Ibagué')
+        manual = Obra.objects.create(nombre='AMBALA', codigo_obra='IBA8-1', constructora=dyco, id_wp_original=1)
+        salida = self._run()
+        manual.refresh_from_db()
+        self.assertEqual(manual.id_wp_original, 501)
+        self.assertIn('WP 1 -> 501', salida)
+        self.assertEqual(Obra.objects.filter(codigo_obra='IBA8-1').count(), 1)
+
     def test_no_adopta_obra_de_otra_ciudad_y_avisa_repetidos(self):
         otra = Constructora.objects.create(codigo='BUC8', nombre='OTRA', ciudad='Bucaramanga')
         Obra.objects.create(nombre='X', codigo_obra='BUC8-1', constructora=otra)
