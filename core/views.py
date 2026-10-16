@@ -430,6 +430,34 @@ def lista_informes_obra(request, pk):
     return render(request, 'core/lista_informes_obra.html', context)
 
 
+def _guardar_informes(request, form, obra):
+    """Crea un Informe por cada PDF del formulario (todos o ninguno) y deja el mensaje."""
+    from django.db import transaction
+    from .forms import titulo_desde_archivo
+
+    repetidos = form.informes_repetidos(obra)
+    fecha = form.fecha_creacion()
+    with transaction.atomic():
+        informes = [
+            Informe.objects.create(
+                titulo=titulo_desde_archivo(archivo.name), obra=obra,
+                archivo=archivo, fecha_creacion=fecha,
+            )
+            for archivo in form.cleaned_data['archivos']
+        ]
+    if len(informes) == 1:
+        messages.success(request, f'Informe "{informes[0].titulo}" cargado exitosamente en {obra.nombre}.')
+    else:
+        messages.success(request, f'{len(informes)} informes cargados exitosamente en {obra.nombre}.')
+    if repetidos:
+        messages.warning(
+            request,
+            f'Ya había informes con el mismo nombre en esta obra: {", ".join(repetidos)}. '
+            'Se cargaron igual; revisa si alguno sobra.'
+        )
+    return informes
+
+
 @login_required
 def cargar_informe(request):
     """
@@ -444,15 +472,10 @@ def cargar_informe(request):
     if request.method == 'POST':
         form = InformeForm(request.POST, request.FILES)
         if form.is_valid():
-            informe = form.save(commit=False)
-            informe.fecha_creacion = form.fecha_creacion()
-            informe.save()
-            messages.success(
-                request,
-                f'Informe "{informe.titulo}" cargado exitosamente en {informe.obra.nombre}.'
-            )
+            obra = form.cleaned_data['obra']
+            _guardar_informes(request, form, obra)
             # Redirigir al detalle de la obra
-            return redirect('detalle_obra', pk=informe.obra.pk)
+            return redirect('detalle_obra', pk=obra.pk)
     else:
         # Si viene de una obra específica, pre-seleccionar
         obra_id = request.GET.get('obra')
@@ -490,14 +513,7 @@ def cargar_informe_obra(request, pk):
     if request.method == 'POST':
         form = InformeForm(request.POST, request.FILES, constructora=obra.constructora)
         if form.is_valid():
-            informe = form.save(commit=False)
-            informe.obra = obra  # Forzar la obra
-            informe.fecha_creacion = form.fecha_creacion()
-            informe.save()
-            messages.success(
-                request,
-                f'Informe "{informe.titulo}" cargado exitosamente.'
-            )
+            _guardar_informes(request, form, obra)  # la obra de la URL manda
             return redirect('detalle_obra', pk=obra.pk)
     else:
         form = InformeForm(initial={'obra': obra.pk}, constructora=obra.constructora)

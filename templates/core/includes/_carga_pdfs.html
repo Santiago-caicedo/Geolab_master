@@ -1,0 +1,113 @@
+{% comment %}
+Selector de varios PDF para cargar informes (cargar_informe y cargar_informe_obra).
+Cada archivo será un informe con el nombre del archivo como título.
+Avisa los cambios con el evento "pdfs:cambio" (detail.total) en document.
+{% endcomment %}
+<style>
+    .pdf-lista { list-style: none; padding: 0; margin: 1rem 0 0; max-height: 320px; overflow-y: auto; }
+    .pdf-lista li {
+        display: flex; align-items: center; gap: .75rem;
+        padding: .5rem .75rem; border-radius: 8px; background: #ecfdf5; margin-bottom: .5rem;
+    }
+    .pdf-lista .pdf-titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pdf-resumen { display: none; align-items: center; justify-content: space-between; margin-top: 1rem; }
+    .pdf-resumen.show { display: flex; }
+    .pdf-rechazados { display: none; }
+    .pdf-rechazados.show { display: block; }
+</style>
+
+<div class="file-input-wrapper" id="dropZone">
+    <i class="bi bi-cloud-upload text-muted" style="font-size: 2.5rem;"></i>
+    <p class="mb-1 mt-2 fw-medium">Arrastra tus PDF aquí</p>
+    <p class="text-muted small mb-0">o haz clic para seleccionar (puedes elegir varios a la vez)</p>
+    {{ form.archivos }}
+</div>
+
+<div class="alert alert-warning small mt-3 mb-0 pdf-rechazados" id="pdfRechazados"></div>
+
+<div class="pdf-resumen" id="pdfResumen">
+    <span class="fw-semibold"><i class="bi bi-files me-1 text-primary"></i><span id="pdfTotal">0</span></span>
+    <button type="button" class="btn btn-sm btn-outline-danger" id="pdfQuitarTodos">
+        <i class="bi bi-trash me-1"></i> Quitar todos
+    </button>
+</div>
+<ul class="pdf-lista" id="pdfLista"></ul>
+<div class="form-text">
+    <i class="bi bi-info-circle me-1"></i>
+    Solo PDF. El título de cada informe será el nombre de su archivo.
+</div>
+
+<script>
+(function () {
+    const MAX = 100;
+    const input = document.querySelector('input[name="{{ form.archivos.html_name }}"]');
+    const dropZone = document.getElementById('dropZone');
+    const lista = document.getElementById('pdfLista');
+    const resumen = document.getElementById('pdfResumen');
+    const total = document.getElementById('pdfTotal');
+    const rechazados = document.getElementById('pdfRechazados');
+    let seleccion = [];   // File[] elegidos (se van sumando)
+
+    const esPdf = f => f.name.toLowerCase().endsWith('.pdf') && (f.type === 'application/pdf' || f.type === '');
+    const titulo = nombre => nombre.replace(/\.pdf$/i, '');
+    const clave = f => titulo(f.name).toLowerCase();
+
+    function tamano(bytes) {
+        if (!bytes) return '0 KB';
+        const k = 1024, u = ['Bytes', 'KB', 'MB', 'GB'];
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + u[i];
+    }
+
+    function sincronizar() {
+        const dt = new DataTransfer();
+        seleccion.forEach(f => dt.items.add(f));
+        input.files = dt.files;
+        lista.innerHTML = '';
+        seleccion.forEach((f, i) => {
+            const li = document.createElement('li');
+            li.innerHTML = '<i class="bi bi-file-earmark-pdf text-danger" style="font-size:1.25rem"></i>'
+                + '<span class="pdf-titulo"></span><small class="text-muted"></small>'
+                + '<button type="button" class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-x-lg"></i></button>';
+            li.querySelector('.pdf-titulo').textContent = titulo(f.name);
+            li.querySelector('.pdf-titulo').title = f.name;
+            li.querySelector('small').textContent = tamano(f.size);
+            li.querySelector('button').addEventListener('click', () => { seleccion.splice(i, 1); sincronizar(); });
+            lista.appendChild(li);
+        });
+        total.textContent = seleccion.length + (seleccion.length === 1 ? ' informe por cargar' : ' informes por cargar');
+        resumen.classList.toggle('show', seleccion.length > 0);
+        document.dispatchEvent(new CustomEvent('pdfs:cambio', { detail: { total: seleccion.length } }));
+    }
+
+    function agregar(archivos) {
+        const malos = [], repetidos = [];
+        Array.from(archivos).forEach(f => {
+            if (!esPdf(f)) { malos.push(f.name); return; }
+            if (seleccion.some(s => clave(s) === clave(f))) { repetidos.push(f.name); return; }
+            seleccion.push(f);
+        });
+        let sobran = 0;
+        if (seleccion.length > MAX) { sobran = seleccion.length - MAX; seleccion = seleccion.slice(0, MAX); }
+        const avisos = [];
+        if (malos.length) avisos.push('No son PDF y no se agregaron: ' + malos.join(', '));
+        if (repetidos.length) avisos.push('Ya estaban en la lista: ' + repetidos.join(', '));
+        if (sobran) avisos.push('Máximo ' + MAX + ' por carga: se dejaron fuera ' + sobran + '.');
+        rechazados.textContent = avisos.join(' · ');
+        rechazados.classList.toggle('show', avisos.length > 0);
+        sincronizar();
+    }
+
+    input.addEventListener('change', () => agregar(input.files));
+    ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
+        e.preventDefault(); dropZone.classList.add('dragover');
+    }));
+    ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
+        e.preventDefault(); dropZone.classList.remove('dragover');
+    }));
+    dropZone.addEventListener('drop', e => agregar(e.dataTransfer.files));
+    document.getElementById('pdfQuitarTodos').addEventListener('click', () => {
+        seleccion = []; rechazados.classList.remove('show'); sincronizar();
+    });
+})();
+</script>

@@ -391,7 +391,7 @@ LIBREOFFICE_PATH=
 6. **Firma automática remitente:** Datos del firmante se toman del usuario logueado
 7. **Notificación dual:** Email + campana al crear remisión
 8. **Sidebar condicional:** 5 sidebars según rol (staff, tecnico, calidad, remitente, client)
-9. **Validación PDFs:** Doble validación cliente (JS) y servidor (Django)
+9. **Carga de informes (PDF):** `cargar_informe` y `cargar_informe_obra` aceptan VARIOS PDF a la vez (hasta 100 = `DATA_UPLOAD_MAX_NUMBER_FILES`), una sola obra y una sola fecha editable (default hoy, no futura). Cada archivo es un `Informe` con título = nombre del archivo sin `.pdf` (`forms.titulo_desde_archivo`). `InformeForm.clean_archivos` valida extensión, content-type y que el contenido sea PDF (`%PDF`); si uno falla no se carga ninguno (`_guardar_informes` en `transaction.atomic`). Avisa (sin bloquear) títulos ya existentes en la obra. El selector es `templates/core/includes/_carga_pdfs.html` (compartido por las dos pantallas; emite `pdfs:cambio`).
 10. **HTMX:** Usado para edición inline en hojas de trabajo y toggles
 11. **Campos DEPRECADOS:** `token_acceso` y `email_destinatario` en RemisionMuestras (sistema de tokens eliminado)
 12. **Campos LEGACY:** `diametro_longitud` y `unidad_diametro` en Muestra (reemplazados por `dimension_especimen`)

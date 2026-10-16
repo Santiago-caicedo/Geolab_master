@@ -232,24 +232,11 @@
                             </div>
                         </div>
 
-                        <!-- Titulo del informe (auto-completado desde el archivo) -->
-                        <div class="mb-4" id="titulo-section" style="display: none;">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-tag me-1 text-primary"></i>
-                                3. Titulo del Informe
-                            </label>
-                            {{ form.titulo }}
-                            <div class="form-text">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Se completa automaticamente con el nombre del archivo PDF.
-                            </div>
-                        </div>
-
                         <!-- Fecha del informe (por defecto hoy, editable) -->
                         <div class="mb-4" id="fecha-section" style="display: none;">
                             <label class="form-label fw-semibold" for="{{ form.fecha.id_for_label }}">
                                 <i class="bi bi-calendar-event me-1 text-primary"></i>
-                                4. Fecha del Informe
+                                3. Fecha del Informe
                             </label>
                             {{ form.fecha }}
                             <div class="form-text">
@@ -258,28 +245,13 @@
                             </div>
                         </div>
 
-                        <!-- Archivo PDF -->
+                        <!-- Archivos PDF (uno o varios) -->
                         <div class="mb-4" id="archivo-section" style="display: none;">
                             <label class="form-label fw-semibold">
                                 <i class="bi bi-file-earmark-pdf me-1 text-danger"></i>
-                                5. Archivo PDF
+                                4. Archivos PDF
                             </label>
-                            <div class="file-input-wrapper" id="dropZone">
-                                <i class="bi bi-cloud-upload text-muted" style="font-size: 2.5rem;"></i>
-                                <p class="mb-1 mt-2 fw-medium">Arrastra tu archivo aqui</p>
-                                <p class="text-muted small mb-0">o haz clic para seleccionar</p>
-                                {{ form.archivo }}
-                            </div>
-                            <div class="file-preview" id="filePreview">
-                                <i class="bi bi-file-earmark-pdf text-danger me-2" style="font-size: 1.5rem;"></i>
-                                <div class="flex-grow-1">
-                                    <div class="fw-medium" id="fileName">documento.pdf</div>
-                                    <small class="text-muted" id="fileSize">0 KB</small>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-outline-danger" onclick="clearFile()">
-                                    <i class="bi bi-x-lg"></i>
-                                </button>
-                            </div>
+                            {% include "core/includes/_carga_pdfs.html" %}
                         </div>
 
                         <!-- Botones -->
@@ -288,7 +260,7 @@
                                 <i class="bi bi-arrow-left me-1"></i> Cancelar
                             </a>
                             <button type="submit" class="btn btn-primary flex-fill" id="submitBtn" disabled>
-                                <i class="bi bi-cloud-upload me-1"></i> Cargar Informe
+                                <i class="bi bi-cloud-upload me-1"></i> Cargar Informes
                             </button>
                         </div>
                     </form>
@@ -309,7 +281,11 @@
                         </li>
                         <li class="mb-2">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Usa un titulo descriptivo para facilitar busquedas
+                            Puedes elegir varios PDF a la vez (hasta 100)
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            El título de cada informe es el nombre de su archivo: nómbralos bien antes de subirlos
                         </li>
                         <li>
                             <i class="bi bi-check-circle text-success me-2"></i>
@@ -354,7 +330,6 @@ document.addEventListener('DOMContentLoaded', function() {
     const obraLoading = document.getElementById('obra-loading');
     const obraEmpty = document.getElementById('obra-empty');
 
-    const tituloSection = document.getElementById('titulo-section');
     const archivoSection = document.getElementById('archivo-section');
     const fechaSection = document.getElementById('fecha-section');
     const submitBtn = document.getElementById('submitBtn');
@@ -421,7 +396,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Ocultar y limpiar obra
         clearObra();
         obraSection.style.display = 'none';
-        tituloSection.style.display = 'none';
         fechaSection.style.display = 'none';
         archivoSection.style.display = 'none';
         updateSubmitButton();
@@ -518,7 +492,6 @@ document.addEventListener('DOMContentLoaded', function() {
         obraSelected.style.display = 'block';
 
         // Mostrar campos restantes
-        tituloSection.style.display = 'block';
         fechaSection.style.display = 'block';
         archivoSection.style.display = 'block';
         updateSubmitButton();
@@ -529,7 +502,6 @@ document.addEventListener('DOMContentLoaded', function() {
         obraSearch.value = '';
         obraSearch.style.display = 'block';
         obraSelected.style.display = 'none';
-        tituloSection.style.display = 'none';
         fechaSection.style.display = 'none';
         archivoSection.style.display = 'none';
         updateSubmitButton();
@@ -538,10 +510,9 @@ document.addEventListener('DOMContentLoaded', function() {
     // ========== VALIDACION ==========
     function updateSubmitButton() {
         const hasObra = obraId.value !== '';
-        const hasTitulo = document.querySelector('input[name="titulo"]').value.trim() !== '';
         const hasFile = document.querySelector('input[type="file"]').files.length > 0;
 
-        submitBtn.disabled = !(hasObra && hasTitulo && hasFile);
+        submitBtn.disabled = !(hasObra && hasFile);
     }
 
     // ========== EVENTOS CONSTRUCTORA ==========
@@ -628,105 +599,13 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // ========== DRAG AND DROP ==========
-    const dropZone = document.getElementById('dropZone');
-    const fileInput = document.querySelector('input[type="file"]');
-    const filePreview = document.getElementById('filePreview');
-    const fileName = document.getElementById('fileName');
-    const fileSize = document.getElementById('fileSize');
-
-    ['dragenter', 'dragover'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropZone.classList.add('dragover');
-        });
-    });
-
-    ['dragleave', 'drop'].forEach(eventName => {
-        dropZone.addEventListener(eventName, (e) => {
-            e.preventDefault();
-            dropZone.classList.remove('dragover');
-        });
-    });
-
-    dropZone.addEventListener('drop', (e) => {
-        const files = e.dataTransfer.files;
-        if (files.length) {
-            const file = files[0];
-            if (validatePDF(file)) {
-                fileInput.files = files;
-                showFilePreview(file);
-            }
-        }
-    });
-
-    fileInput.addEventListener('change', function() {
-        if (this.files.length) {
-            const file = this.files[0];
-            if (validatePDF(file)) {
-                showFilePreview(file);
-            } else {
-                this.value = ''; // Limpiar input
-            }
-        }
-        updateSubmitButton();
-    });
-
-    function validatePDF(file) {
-        const validTypes = ['application/pdf'];
-        const validExtension = file.name.toLowerCase().endsWith('.pdf');
-
-        if (!validExtension || !validTypes.includes(file.type)) {
-            alert('Solo se permiten archivos PDF.');
-            return false;
-        }
-        return true;
-    }
-
-    function getFileNameWithoutExtension(filename) {
-        // Remover la extension .pdf del nombre
-        return filename.replace(/\.pdf$/i, '');
-    }
-
-    function showFilePreview(file) {
-        fileName.textContent = file.name;
-        fileSize.textContent = formatFileSize(file.size);
-        filePreview.classList.add('show');
-        dropZone.style.display = 'none';
-
-        // Auto-completar titulo con el nombre del archivo (sin extension)
-        const tituloInput = document.querySelector('input[name="titulo"]');
-        tituloInput.value = getFileNameWithoutExtension(file.name);
-
-        updateSubmitButton();
-    }
-
-    window.clearFile = function() {
-        fileInput.value = '';
-        filePreview.classList.remove('show');
-        dropZone.style.display = 'block';
-
-        // Limpiar tambien el titulo
-        document.querySelector('input[name="titulo"]').value = '';
-
-        updateSubmitButton();
-    };
-
-    function formatFileSize(bytes) {
-        if (bytes === 0) return '0 Bytes';
-        const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-    }
-
-    // ========== VALIDACION EN TITULO ==========
-    document.querySelector('input[name="titulo"]').addEventListener('input', updateSubmitButton);
+    // ========== ARCHIVOS (ver includes/_carga_pdfs.html) ==========
+    document.addEventListener('pdfs:cambio', updateSubmitButton);
 
     // ========== SUBMIT ==========
     document.getElementById('uploadForm').addEventListener('submit', function() {
         submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cargando...';
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cargando informes...';
     });
 });
 </script>

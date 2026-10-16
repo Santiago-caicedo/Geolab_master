@@ -4,7 +4,7 @@ from datetime import datetime, time
 from django import forms
 from django.utils import timezone
 from users.models import Constructora
-from .models import Obra, Informe
+from .models import Obra
 
 
 def _sin_acentos(texto):
@@ -15,38 +15,54 @@ def _sin_acentos(texto):
     ).strip().lower()
 
 
-class InformeForm(forms.ModelForm):
-    """Formulario para cargar nuevos informes técnicos"""
+MAX_INFORMES_POR_CARGA = 100   # = DATA_UPLOAD_MAX_NUMBER_FILES por defecto de Django
+TIPOS_PDF = ('application/pdf', 'application/x-pdf', 'application/acrobat', '')
 
+
+def titulo_desde_archivo(nombre):
+    """'INF 0340-2026 VIGAS.pdf' -> 'INF 0340-2026 VIGAS' (el título del informe es el nombre del archivo)."""
+    base = nombre.replace('\\', '/').rsplit('/', 1)[-1]
+    if base.lower().endswith('.pdf'):
+        base = base[:-4]
+    return base.strip()[:255]
+
+
+class VariosPdfInput(forms.ClearableFileInput):
+    allow_multiple_selected = True
+
+
+class VariosPdfField(forms.FileField):
+    """Campo de archivos múltiples: devuelve una lista de archivos subidos."""
+
+    def __init__(self, *args, **kwargs):
+        kwargs.setdefault('widget', VariosPdfInput(attrs={
+            'class': 'form-control',
+            'accept': '.pdf,application/pdf',
+            'multiple': True,
+        }))
+        super().__init__(*args, **kwargs)
+
+    def clean(self, data, initial=None):
+        if isinstance(data, (list, tuple)):
+            return [super(VariosPdfField, self).clean(d, initial) for d in data if d]
+        return [super().clean(data, initial)] if data else super().clean(data, initial)
+
+
+class InformeForm(forms.Form):
+    """Carga de uno o varios informes técnicos (PDF) a una obra.
+    Cada archivo es un Informe; su título es el nombre del archivo."""
+
+    obra = forms.ModelChoiceField(
+        queryset=Obra.objects.none(), label='Obra destino',
+        widget=forms.Select(attrs={'class': 'form-select'}),
+    )
     # Fecha que se muestra en el portal (Informe.fecha_creacion). Por defecto hoy,
-    # editable para cargar informes de fechas anteriores.
+    # editable para cargar informes de fechas anteriores. Es la misma para todos.
     fecha = forms.DateField(
         label='Fecha del informe',
         widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
     )
-
-    class Meta:
-        model = Informe
-        fields = ['titulo', 'obra', 'archivo']
-        widgets = {
-            'titulo': forms.TextInput(attrs={
-                'class': 'form-control',
-                'placeholder': 'Se completara automaticamente con el nombre del archivo...',
-                'readonly': 'readonly'
-            }),
-            'obra': forms.Select(attrs={
-                'class': 'form-select'
-            }),
-            'archivo': forms.FileInput(attrs={
-                'class': 'form-control',
-                'accept': 'application/pdf'
-            }),
-        }
-        labels = {
-            'titulo': 'Título del Informe',
-            'obra': 'Obra destino',
-            'archivo': 'Archivo PDF',
-        }
+    archivos = VariosPdfField(label='Archivos PDF')
 
     def __init__(self, *args, **kwargs):
         # Permitir filtrar obras por constructora si se pasa
@@ -84,20 +100,43 @@ class InformeForm(forms.ModelForm):
             return timezone.now()
         return timezone.make_aware(datetime.combine(fecha, time(12, 0)))
 
-    def clean_archivo(self):
-        """Validar que el archivo sea un PDF"""
-        archivo = self.cleaned_data.get('archivo')
-        if archivo:
-            # Verificar extensión
-            if not archivo.name.lower().endswith('.pdf'):
-                raise forms.ValidationError('Solo se permiten archivos PDF.')
+    def clean_archivos(self):
+        """Todos deben ser PDF de verdad (extensión, tipo y contenido); si uno falla no se carga ninguno."""
+        archivos = self.cleaned_data.get('archivos') or []
+        if len(archivos) > MAX_INFORMES_POR_CARGA:
+            raise forms.ValidationError(
+                f'Máximo {MAX_INFORMES_POR_CARGA} informes por carga (elegiste {len(archivos)}).')
+        errores, vistos = [], set()
+        for archivo in archivos:
+            nombre = archivo.name
+            if not nombre.lower().endswith('.pdf'):
+                errores.append(f'"{nombre}" no es un PDF.')
+                continue
+            if getattr(archivo, 'content_type', '') not in TIPOS_PDF:
+                errores.append(f'"{nombre}" no es un PDF válido.')
+                continue
+            archivo.seek(0)
+            inicio = archivo.read(1024)
+            archivo.seek(0)
+            if b'%PDF' not in inicio:
+                errores.append(f'"{nombre}" no es un PDF válido (el contenido no es PDF).')
+                continue
+            titulo = titulo_desde_archivo(nombre)
+            if not titulo:
+                errores.append(f'"{nombre}" no tiene nombre.')
+            elif titulo.lower() in vistos:
+                errores.append(f'"{nombre}" está repetido en la selección.')
+            vistos.add(titulo.lower())
+        if errores:
+            raise forms.ValidationError(errores)
+        return archivos
 
-            # Verificar content type
-            content_type = getattr(archivo, 'content_type', '')
-            if content_type and content_type != 'application/pdf':
-                raise forms.ValidationError('El archivo debe ser un PDF válido.')
-
-        return archivo
+    def informes_repetidos(self, obra):
+        """Títulos que la obra ya tiene (se cargan igual, pero se avisa)."""
+        titulos = [titulo_desde_archivo(a.name) for a in self.cleaned_data['archivos']]
+        existentes = set(
+            obra.informes.filter(titulo__in=titulos).values_list('titulo', flat=True))
+        return [t for t in titulos if t in existentes]
 
 
 class ConstructoraForm(forms.ModelForm):

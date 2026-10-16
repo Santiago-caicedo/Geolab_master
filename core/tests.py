@@ -399,13 +399,13 @@ class FechaInformeTests(TestCase):
         self.media.disable()
         self.tmp.cleanup()
 
-    def _pdf(self):
+    def _pdf(self, nombre='INF-0001.pdf', contenido=b'%PDF-1.4 prueba', tipo='application/pdf'):
         from django.core.files.uploadedfile import SimpleUploadedFile
-        return SimpleUploadedFile('INF-0001.pdf', b'%PDF-1.4 prueba', content_type='application/pdf')
+        return SimpleUploadedFile(nombre, contenido, content_type=tipo)
 
-    def _subir(self, url, fecha):
-        return self.client.post(url, {'titulo': 'INF-0001', 'obra': self.obra.pk, 'fecha': fecha,
-                                      'archivo': self._pdf()})
+    def _subir(self, url, fecha, archivos=None):
+        return self.client.post(url, {'obra': self.obra.pk, 'fecha': fecha,
+                                      'archivos': archivos or [self._pdf()]})
 
     def test_paginas_muestran_fecha_de_hoy(self):
         from django.urls import reverse
@@ -416,6 +416,8 @@ class FechaInformeTests(TestCase):
             self.assertEqual(r.status_code, 200)
             self.assertContains(r, f'value="{hoy}"')
             self.assertContains(r, 'type="date"')
+            self.assertContains(r, 'multiple')
+            self.assertContains(r, 'accept=".pdf,application/pdf"')
 
     def test_guarda_la_fecha_elegida(self):
         from django.urls import reverse
@@ -436,3 +438,36 @@ class FechaInformeTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'no puede ser futura')
         self.assertFalse(Informe.objects.exists())
+
+    def test_carga_varios_pdf_con_su_nombre_como_titulo(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        archivos = [self._pdf('INF 0340-2026 VIGAS.pdf'), self._pdf('INF-0341.PDF'), self._pdf('INF-0342.pdf')]
+        r = self._subir(reverse('cargar_informe_obra', args=[self.obra.pk]), '2025-03-14', archivos)
+        self.assertEqual(r.status_code, 302)
+        self.assertEqual(sorted(Informe.objects.values_list('titulo', flat=True)),
+                         ['INF 0340-2026 VIGAS', 'INF-0341', 'INF-0342'])
+        self.assertTrue(all(timezone.localtime(i.fecha_creacion).date().isoformat() == '2025-03-14'
+                            for i in Informe.objects.all()))
+        self.assertTrue(all(i.obra_id == self.obra.pk for i in Informe.objects.all()))
+
+    def test_si_uno_no_es_pdf_no_se_carga_ninguno(self):
+        from django.urls import reverse
+        malos = [
+            self._pdf('foto.jpg', b'\xff\xd8', 'image/jpeg'),            # otra extensión
+            self._pdf('falso.pdf', b'MZ ejecutable', 'application/pdf'),  # .pdf pero no es PDF
+        ]
+        for malo in malos:
+            r = self._subir(reverse('cargar_informe'), '2025-03-14', [self._pdf(), malo])
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, malo.name)
+            self.assertFalse(Informe.objects.exists())
+
+    def test_avisa_si_la_obra_ya_tiene_un_informe_con_ese_nombre(self):
+        from django.urls import reverse
+        Informe.objects.create(titulo='INF-0001', obra=self.obra)
+        r = self._subir(reverse('cargar_informe_obra', args=[self.obra.pk]), '2025-03-14')
+        self.assertEqual(Informe.objects.filter(titulo='INF-0001').count(), 2)
+        mensajes = [str(m) for m in r.wsgi_request._messages]
+        self.assertTrue(any('mismo nombre' in m for m in mensajes), mensajes)
+
