@@ -278,6 +278,8 @@ python manage.py sincronizar_wordpress --dry-run   # Trae y NORMALIZA constructo
 python manage.py sincronizar_wordpress             # Flags: --dump portal.sql (volcado en vez de la base viva), --sin-informes, --omitir ID_WP, --detalle
 python manage.py migrar_geolab      # DEPRECADO (mutila códigos, pone el código como nombre): usar sincronizar_wordpress
 python manage.py descargar_archivos # Descarga PDFs pendientes
+python manage.py foto_obras         # SOLO LECTURA: constructoras + obras como están hoy, con marcas [código] [código-wp] [sin nombre] [duplicada]… Flags: --ciudad, --problemas, --csv archivo.csv
+python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la base (ver "Script maestro" abajo)
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
