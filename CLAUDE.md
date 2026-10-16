@@ -331,6 +331,13 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
   en `scripts/produccion.env` (ignorado; ver `produccion.env.ejemplo`) o `-Servidor`/`-Llave`.
   `-Ensayo` = todo en `--dry-run`; `-Push` hace `git push` antes.
   `.\scripts\sincronizar_produccion.ps1 -Dump portal.sql -Excel "BASE DATOS IBAGUE.xlsm" -Ciudad Ibagué -Ensayo`
+- `scripts/estado_produccion.ps1` (Windows) → `scripts/servidor_estado.sh` (servidor) →
+  `python manage.py estado_sistema`: diagnóstico de SOLO LECTURA (transacción `READ ONLY` + rollback)
+  de servidor, código desplegado, servicios, logs/respaldos, `check --deploy` y la base (usuarios,
+  constructoras, obras, informes, remisiones, ensayos, calidad, facturación) con hallazgos
+  [OK]/[AVISO]/[RIESGO]. Guarda el informe en `logs/estado_produccion_<fecha>.txt`. Flags: `-Detalle`,
+  `-Seccion facturacion,obras`, `-VerificarS3` (¿PDF descargables sin credenciales?), `-VerificarArchivos N`,
+  `-Actualizar` (git pull antes; la primera vez hace falta para que exista el comando allá).
 - `scripts/servidor_sincronizar.sh` (servidor): git pull → migrate → `pg_dump` a `respaldos/` →
   `sincronizar_wordpress --dump` → `descargar_archivos` → `importar_catalogo_excel --crear-obras` →
   borra el .sql. Log en `logs/sincronizacion_<fecha>.log`. Flags: `--ensayo`, `--sin-wordpress`,
