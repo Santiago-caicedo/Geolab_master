@@ -1,6 +1,8 @@
 import unicodedata
+from datetime import datetime, time
 
 from django import forms
+from django.utils import timezone
 from users.models import Constructora
 from .models import Obra, Informe
 
@@ -15,6 +17,13 @@ def _sin_acentos(texto):
 
 class InformeForm(forms.ModelForm):
     """Formulario para cargar nuevos informes técnicos"""
+
+    # Fecha que se muestra en el portal (Informe.fecha_creacion). Por defecto hoy,
+    # editable para cargar informes de fechas anteriores.
+    fecha = forms.DateField(
+        label='Fecha del informe',
+        widget=forms.DateInput(attrs={'class': 'form-control', 'type': 'date'}, format='%Y-%m-%d'),
+    )
 
     class Meta:
         model = Informe
@@ -57,6 +66,23 @@ class InformeForm(forms.ModelForm):
 
         # Mostrar nombre completo con constructora en el select
         self.fields['obra'].label_from_instance = lambda obj: f"{obj.constructora.nombre} → {obj.nombre}"
+
+        hoy = timezone.localdate()
+        self.fields['fecha'].initial = hoy
+        self.fields['fecha'].widget.attrs['max'] = hoy.isoformat()
+
+    def clean_fecha(self):
+        fecha = self.cleaned_data['fecha']
+        if fecha > timezone.localdate():
+            raise forms.ValidationError('La fecha del informe no puede ser futura.')
+        return fecha
+
+    def fecha_creacion(self):
+        """Fecha elegida como datetime: hoy = hora actual; otro día = mediodía de ese día."""
+        fecha = self.cleaned_data['fecha']
+        if fecha == timezone.localdate():
+            return timezone.now()
+        return timezone.make_aware(datetime.combine(fecha, time(12, 0)))
 
     def clean_archivo(self):
         """Validar que el archivo sea un PDF"""

@@ -377,3 +377,62 @@ class UnirObrasTests(TestCase):
         with self.assertRaises(CommandError):
             self._run()
 
+
+
+
+class FechaInformeTests(TestCase):
+    """La fecha del informe se elige al cargarlo (por defecto hoy, nunca futura)."""
+
+    def setUp(self):
+        from django.test import override_settings
+        from users.models import FuncionarioGeolab
+        self.tmp = tempfile.TemporaryDirectory()
+        self.media = override_settings(MEDIA_ROOT=self.tmp.name)
+        self.media.enable()
+        u = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=u, area='admin')
+        self.client.force_login(u)
+        c = Constructora.objects.create(codigo='BUC46', nombre='JAIMES', ciudad='Bucaramanga')
+        self.obra = Obra.objects.create(nombre='LA GRANJA', codigo_obra='BUC46-5', constructora=c)
+
+    def tearDown(self):
+        self.media.disable()
+        self.tmp.cleanup()
+
+    def _pdf(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+        return SimpleUploadedFile('INF-0001.pdf', b'%PDF-1.4 prueba', content_type='application/pdf')
+
+    def _subir(self, url, fecha):
+        return self.client.post(url, {'titulo': 'INF-0001', 'obra': self.obra.pk, 'fecha': fecha,
+                                      'archivo': self._pdf()})
+
+    def test_paginas_muestran_fecha_de_hoy(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        hoy = timezone.localdate().isoformat()
+        for url in (reverse('cargar_informe'), reverse('cargar_informe_obra', args=[self.obra.pk])):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 200)
+            self.assertContains(r, f'value="{hoy}"')
+            self.assertContains(r, 'type="date"')
+
+    def test_guarda_la_fecha_elegida(self):
+        from django.urls import reverse
+        from django.utils import timezone
+        for url in (reverse('cargar_informe'), reverse('cargar_informe_obra', args=[self.obra.pk])):
+            Informe.objects.all().delete()
+            r = self._subir(url, '2025-03-14')
+            self.assertEqual(r.status_code, 302)
+            inf = Informe.objects.get()
+            self.assertEqual(timezone.localtime(inf.fecha_creacion).date().isoformat(), '2025-03-14')
+
+    def test_rechaza_fecha_futura(self):
+        from datetime import timedelta
+        from django.urls import reverse
+        from django.utils import timezone
+        manana = (timezone.localdate() + timedelta(days=1)).isoformat()
+        r = self._subir(reverse('cargar_informe_obra', args=[self.obra.pk]), manana)
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'no puede ser futura')
+        self.assertFalse(Informe.objects.exists())

@@ -245,11 +245,24 @@
                             </div>
                         </div>
 
+                        <!-- Fecha del informe (por defecto hoy, editable) -->
+                        <div class="mb-4" id="fecha-section" style="display: none;">
+                            <label class="form-label fw-semibold" for="{{ form.fecha.id_for_label }}">
+                                <i class="bi bi-calendar-event me-1 text-primary"></i>
+                                4. Fecha del Informe
+                            </label>
+                            {{ form.fecha }}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Por defecto es hoy. Cámbiala si el informe es de otra fecha.
+                            </div>
+                        </div>
+
                         <!-- Archivo PDF -->
                         <div class="mb-4" id="archivo-section" style="display: none;">
                             <label class="form-label fw-semibold">
                                 <i class="bi bi-file-earmark-pdf me-1 text-danger"></i>
-                                4. Archivo PDF
+                                5. Archivo PDF
                             </label>
                             <div class="file-input-wrapper" id="dropZone">
                                 <i class="bi bi-cloud-upload text-muted" style="font-size: 2.5rem;"></i>
@@ -343,6 +356,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const tituloSection = document.getElementById('titulo-section');
     const archivoSection = document.getElementById('archivo-section');
+    const fechaSection = document.getElementById('fecha-section');
     const submitBtn = document.getElementById('submitBtn');
 
     // ========== FUNCIONES CONSTRUCTORA ==========
@@ -408,6 +422,7 @@ document.addEventListener('DOMContentLoaded', function() {
         clearObra();
         obraSection.style.display = 'none';
         tituloSection.style.display = 'none';
+        fechaSection.style.display = 'none';
         archivoSection.style.display = 'none';
         updateSubmitButton();
     };
@@ -504,6 +519,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Mostrar campos restantes
         tituloSection.style.display = 'block';
+        fechaSection.style.display = 'block';
         archivoSection.style.display = 'block';
         updateSubmitButton();
     }
@@ -514,6 +530,7 @@ document.addEventListener('DOMContentLoaded', function() {
         obraSearch.style.display = 'block';
         obraSelected.style.display = 'none';
         tituloSection.style.display = 'none';
+        fechaSection.style.display = 'none';
         archivoSection.style.display = 'none';
         updateSubmitButton();
     };

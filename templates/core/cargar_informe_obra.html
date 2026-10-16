@@ -140,6 +140,19 @@
                             </div>
                         </div>
 
+                        <!-- Fecha del informe (por defecto hoy, editable) -->
+                        <div class="mb-4">
+                            <label class="form-label fw-semibold" for="{{ form.fecha.id_for_label }}">
+                                <i class="bi bi-calendar-event me-1 text-primary"></i>
+                                Fecha del Informe
+                            </label>
+                            {{ form.fecha }}
+                            <div class="form-text">
+                                <i class="bi bi-info-circle me-1"></i>
+                                Por defecto es hoy. Cambiala si el informe es de otra fecha.
+                            </div>
+                        </div>
+
                         <!-- Archivo PDF -->
                         <div class="mb-4">
                             <label class="form-label fw-semibold">

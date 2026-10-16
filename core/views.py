@@ -437,7 +437,6 @@ def cargar_informe(request):
     Solo accesible para Staff Geolab.
     """
     from .forms import InformeForm
-    from django.utils import timezone
 
     if not request.user.es_geolab:
         return redirect('home')
@@ -446,7 +445,7 @@ def cargar_informe(request):
         form = InformeForm(request.POST, request.FILES)
         if form.is_valid():
             informe = form.save(commit=False)
-            informe.fecha_creacion = timezone.now()
+            informe.fecha_creacion = form.fecha_creacion()
             informe.save()
             messages.success(
                 request,
@@ -482,7 +481,6 @@ def cargar_informe_obra(request, pk):
     Vista para cargar informe directamente a una obra específica.
     """
     from .forms import InformeForm
-    from django.utils import timezone
 
     if not request.user.es_geolab:
         return redirect('home')
@@ -494,7 +492,7 @@ def cargar_informe_obra(request, pk):
         if form.is_valid():
             informe = form.save(commit=False)
             informe.obra = obra  # Forzar la obra
-            informe.fecha_creacion = timezone.now()
+            informe.fecha_creacion = form.fecha_creacion()
             informe.save()
             messages.success(
                 request,
