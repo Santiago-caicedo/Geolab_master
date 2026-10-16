@@ -280,6 +280,7 @@ python manage.py migrar_geolab      # DEPRECADO (mutila códigos, pone el códig
 python manage.py descargar_archivos # Descarga PDFs pendientes
 python manage.py foto_obras         # SOLO LECTURA: constructoras + obras como están hoy, con marcas [código] [código-wp] [sin nombre] [duplicada]… Flags: --ciudad, --problemas, --csv archivo.csv
 python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la base (ver "Script maestro" abajo)
+python manage.py unir_obras --origen 171 --destino 164 [--aplicar]  # Une obras duplicadas: mueve remisiones/informes/precios/facturas/residentes al destino y borra el origen. Sin --aplicar es ensayo. Aborta si chocaría (misma OT, mismo precio...) o si son de constructoras distintas (--forzar)
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run

@@ -9,6 +9,7 @@ from io import StringIO
 from pathlib import Path
 
 from django.core.management import call_command
+from django.core.management.base import CommandError
 from django.test import SimpleTestCase, TestCase
 
 from core.models import Informe, Obra
@@ -322,3 +323,57 @@ class MismaEmpresaTests(SimpleTestCase):
         grupos = agrupar_por_empresa(ps)
         self.assertEqual([[q.m('razon-social') for q in g] for g in grupos],
                          [['ASFALTEMOS', 'ASFALTEMOS VIAS'], ['UNIÓN TEMPORAL AP COELLO 2021']])
+
+
+class UnirObrasTests(TestCase):
+
+    def setUp(self):
+        from solicitudes.models import RemisionMuestras
+        self.c = Constructora.objects.create(codigo='BUC53', nombre='MARTINEZ', ciudad='Bucaramanga')
+        self.destino = Obra.objects.create(nombre='ALTOS DEL DIAMANTE', codigo_obra='BUC53-4', constructora=self.c, id_wp_original=44746)
+        self.origen = Obra.objects.create(nombre='BUC53-4', codigo_obra='BUC53-4', constructora=self.c, id_wp_original=1,
+                                          contacto='Ana')
+        Informe.objects.create(titulo='inf.pdf', obra=self.destino)
+        self.rem = RemisionMuestras.objects.create(obra=self.origen, estado='completada')
+        u = UsuarioBase.objects.create_user('res', password='x', es_cliente=True)
+        self.residente = ClienteExterno.objects.create(user=u, empresa=self.c, rol='residente')
+        self.origen.residentes_asignados.add(self.residente)
+
+    def _run(self, *extra):
+        out = StringIO()
+        call_command('unir_obras', '--origen', str(self.origen.pk), '--destino', str(self.destino.pk), *extra, stdout=out)
+        return out.getvalue()
+
+    def test_ensayo_no_cambia_nada(self):
+        salida = self._run()
+        self.assertIn('[ENSAYO]', salida)
+        self.assertTrue(Obra.objects.filter(pk=self.origen.pk).exists())
+        self.rem.refresh_from_db()
+        self.assertEqual(self.rem.obra_id, self.origen.pk)
+
+    def test_aplicar_mueve_todo_y_borra_origen(self):
+        salida = self._run('--aplicar')
+        self.assertIn('Obras unidas y guardadas', salida)
+        self.assertFalse(Obra.objects.filter(pk=self.origen.pk).exists())
+        self.rem.refresh_from_db()
+        self.assertEqual(self.rem.obra_id, self.destino.pk)
+        self.destino.refresh_from_db()
+        self.assertEqual((self.destino.nombre, self.destino.id_wp_original, self.destino.contacto),
+                         ('ALTOS DEL DIAMANTE', 44746, 'Ana'))
+        self.assertIn(self.residente, self.destino.residentes_asignados.all())
+        self.assertEqual(self.destino.informes.count(), 1)
+
+    def test_choque_de_orden_de_trabajo_no_hace_nada(self):
+        from solicitudes.models import RemisionMuestras
+        RemisionMuestras.objects.create(obra=self.destino, estado='completada', orden_trabajo=self.rem.orden_trabajo)
+        with self.assertRaises(CommandError):
+            self._run('--aplicar')
+        self.assertTrue(Obra.objects.filter(pk=self.origen.pk).exists())
+
+    def test_constructoras_distintas_requiere_forzar(self):
+        otra = Constructora.objects.create(codigo='BUC54', nombre='OTRA', ciudad='Bucaramanga')
+        self.destino.constructora = otra
+        self.destino.save()
+        with self.assertRaises(CommandError):
+            self._run()
+
