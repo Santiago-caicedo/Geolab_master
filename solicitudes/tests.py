@@ -57,3 +57,11 @@ class NotificacionesTests(TestCase):
         self.assertEqual(list(Notificacion.objects.filter(leida=False)), [self.n_staff])
         call_command('marcar_notificaciones_leidas', stdout=out)
         self.assertFalse(Notificacion.objects.filter(leida=False).exists())
+
+    def test_la_campana_muestra_hora_de_colombia(self):
+        from datetime import datetime, timezone as tz
+        # 20:30 UTC del 1 de marzo = 15:30 en Bogotá
+        Notificacion.objects.filter(pk=self.n_staff.pk).update(fecha_creacion=datetime(2026, 3, 1, 20, 30, tzinfo=tz.utc))
+        r = self.client.get(reverse('obtener_notificaciones_recientes'))
+        fechas = {n['id']: n['fecha'] for n in r.json()['notificaciones']}
+        self.assertEqual(fechas[self.n_staff.pk], '01/03/2026 15:30')

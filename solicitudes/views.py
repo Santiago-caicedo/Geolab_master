@@ -206,7 +206,7 @@ Remision No: {remision.orden_trabajo}
 Total Muestras: {remision.total_muestras}
 Enviado por: {remision.firmante_nombre}
 
-Fecha: {remision.fecha_creacion.strftime('%d/%m/%Y %H:%M')}
+Fecha: {timezone.localtime(remision.fecha_creacion).strftime('%d/%m/%Y %H:%M')}
 
 Ingrese al sistema para ver los detalles.
 
@@ -885,7 +885,7 @@ def obtener_notificaciones_recientes(request):
             'mensaje': n.mensaje[:100] + '...' if len(n.mensaje) > 100 else n.mensaje,
             'tipo': n.tipo,
             'leida': n.leida,
-            'fecha': n.fecha_creacion.strftime('%d/%m/%Y %H:%M'),
+            'fecha': timezone.localtime(n.fecha_creacion).strftime('%d/%m/%Y %H:%M'),   # hora Colombia, no UTC
             'remision_id': n.remision.pk if n.remision else None,
         })
 
