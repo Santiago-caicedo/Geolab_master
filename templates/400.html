@@ -1,0 +1,19 @@
+{% extends 'errores/base.html' %}
+{% block titulo_pestana %}Solicitud no válida{% endblock %}
+{% block color_estado %}#475569{% endblock %}
+{% block codigo %}400{% endblock %}
+{% block numero %}400{% endblock %}
+{% block estado %}Solicitud no válida{% endblock %}
+{% block titulo %}La solicitud no se pudo procesar.{% endblock %}
+{% block texto %}El navegador envió una petición que el portal no entiende. Recarga la página e inténtalo de nuevo.{% endblock %}
+{% block detalle %}<p class="detalle">Suele pasar con enlaces incompletos o pestañas abiertas desde hace mucho tiempo.</p>{% endblock %}
+{% block especimen %}
+<svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+    <path class="trazo" d="M30 62v118c0 8 22 14 50 14s50-6 50-14V46"/>
+    <path class="trazo grieta" d="M30 62l18-10 14 12 16-16 14 10 18-14 20 8"/>
+    <path class="trazo suave punteado" d="M30 40c0-8 22-14 50-14s50 6 50 14"/>
+    <path class="trazo suave" d="M30 180c0 8 22 14 50 14s50-6 50-14"/>
+</svg>
+{% endblock %}
+{% block acciones %}<button type="button" class="btn btn-principal" onclick="location.reload()">Recargar la página</button>
+                    <a class="btn btn-secundario" href="{% url 'home' %}">Ir al panel</a>{% endblock %}

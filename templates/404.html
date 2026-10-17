@@ -1,0 +1,19 @@
+{% extends 'errores/base.html' %}
+{% block titulo_pestana %}Página no encontrada{% endblock %}
+{% block color_estado %}#0369a1{% endblock %}
+{% block codigo %}404{% endblock %}
+{% block numero %}404{% endblock %}
+{% block estado %}Muestra no encontrada{% endblock %}
+{% block titulo %}Esta página no está en el portal.{% endblock %}
+{% block texto %}Puede que el enlace esté mal escrito o que la obra, el informe o la remisión ya no existan.{% endblock %}
+{% block detalle %}<p class="detalle">Si llegaste desde un enlace del portal, avísanos para corregirlo.</p>{% endblock %}
+{% block especimen %}
+<svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+    <path class="trazo punteado" d="M30 40v140c0 8 22 14 50 14s50-6 50-14V40"/>
+    <ellipse class="trazo punteado" cx="80" cy="40" rx="50" ry="14"/>
+    <path class="trazo suave" d="M30 180c0 8 22 14 50 14s50-6 50-14"/>
+    <text class="etiqueta" x="80" y="118" text-anchor="middle">S/N</text>
+    <path class="trazo suave" d="M20 206h120"/>
+</svg>
+{% endblock %}
+

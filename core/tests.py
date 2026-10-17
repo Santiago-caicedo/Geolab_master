@@ -10,7 +10,7 @@ from pathlib import Path
 
 from django.core.management import call_command
 from django.core.management.base import CommandError
-from django.test import SimpleTestCase, TestCase
+from django.test import Client, SimpleTestCase, TestCase
 
 from core.models import Informe, Obra
 from core.wp_fuente import FuenteDump, ProyectoWP
@@ -788,3 +788,28 @@ class DescargarArchivosTests(TestCase):
             self.assertEqual(Informe.objects.filter(archivo='').count(), 0)
             self._run('--reparar', media=media)
         self.assertEqual(Informe.objects.filter(archivo='').count(), 2)
+
+
+class PaginasErrorTests(TestCase):
+    """Páginas 400/403/404/500 y CSRF con la ficha de Geolab (no las de Django)."""
+
+    def test_404_y_csrf_desde_el_cliente(self):
+        from django.urls import reverse
+        r = self.client.get('/esta-pagina-no-existe/')
+        self.assertEqual(r.status_code, 404)
+        self.assertContains(r, 'F-ERR-404', status_code=404)
+        self.assertContains(r, 'geolab-logo.png', status_code=404)
+        r = Client(enforce_csrf_checks=True).post(reverse('login'), {'username': 'a', 'password': 'b'})
+        self.assertEqual(r.status_code, 403)
+        self.assertContains(r, 'Formulario vencido', status_code=403)
+
+    def test_400_403_500_renderizan_sin_contexto(self):
+        from django.test import RequestFactory
+        from django.views import defaults
+        req = RequestFactory().get('/')
+        self.assertIn('F-ERR-400', defaults.bad_request(req, Exception()).content.decode())
+        self.assertIn('F-ERR-403', defaults.permission_denied(req, Exception()).content.decode())
+        cuerpo = defaults.server_error(req).content.decode()
+        self.assertIn('F-ERR-500', cuerpo)
+        self.assertIn('Reintentar', cuerpo)
+

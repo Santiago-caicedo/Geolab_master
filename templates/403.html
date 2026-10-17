@@ -1,0 +1,21 @@
+{% extends 'errores/base.html' %}
+{% block titulo_pestana %}Acceso restringido{% endblock %}
+{% block color_estado %}#b45309{% endblock %}
+{% block codigo %}403{% endblock %}
+{% block numero %}403{% endblock %}
+{% block estado %}Acceso restringido{% endblock %}
+{% block titulo %}No tienes acceso a esta página.{% endblock %}
+{% block texto %}Tu usuario no tiene permiso para ver este contenido. Si crees que deberías tenerlo, pide acceso a Geolab.{% endblock %}
+{% block detalle %}<p class="detalle">Los directores ven todas las obras de su empresa; los residentes, solo las obras asignadas.</p>{% endblock %}
+{% block especimen %}
+<svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+    <path class="trazo" d="M30 40v140c0 8 22 14 50 14s50-6 50-14V40"/>
+    <ellipse class="trazo" cx="80" cy="40" rx="50" ry="14"/>
+    <path class="trazo suave" d="M30 180c0 8 22 14 50 14s50-6 50-14"/>
+    <rect class="relleno" x="30" y="96" width="100" height="34"/>
+    <path class="trazo" d="M30 96h100M30 130h100"/>
+    <rect class="trazo grieta" x="70" y="108" width="20" height="14" rx="2"/>
+    <path class="trazo grieta" d="M74 108v-4a6 6 0 0 1 12 0v4"/>
+</svg>
+{% endblock %}
+

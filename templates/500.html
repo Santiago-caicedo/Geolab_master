@@ -1,0 +1,22 @@
+{% extends 'errores/base.html' %}
+{% block titulo_pestana %}Error del portal{% endblock %}
+{% block color_estado %}#b91c1c{% endblock %}
+{% block codigo %}500{% endblock %}
+{% block numero %}500{% endblock %}
+{% block estado %}Falla del sistema{% endblock %}
+{% block titulo %}Algo falló en el portal.{% endblock %}
+{% block texto %}El error ya quedó registrado. Inténtalo de nuevo en un momento; si sigue pasando, avisa a Geolab.{% endblock %}
+{% block detalle %}<p class="detalle">Lo que habías guardado antes de este error no se pierde.</p>{% endblock %}
+{% block especimen %}
+<svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+    <path class="trazo" d="M30 40v140c0 8 22 14 50 14s50-6 50-14V40"/>
+    <ellipse class="trazo" cx="80" cy="40" rx="50" ry="14"/>
+    <path class="trazo suave" d="M30 180c0 8 22 14 50 14s50-6 50-14"/>
+    <path class="trazo grieta" d="M58 54l-4 30 6 28-5 32 4 30M86 52l5 26-6 30 4 34-3 26M110 56l-3 28 5 26-4 36 3 26"/>
+</svg>
+{% endblock %}
+{% block acciones %}<button type="button" class="btn btn-principal" onclick="location.reload()">
+                        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M13 8a5 5 0 1 1-1.5-3.6M13 3v2.5h-2.5"/></svg>
+                        Reintentar
+                    </button>
+                    <a class="btn btn-secundario" href="{% url 'home' %}">Ir al panel</a>{% endblock %}

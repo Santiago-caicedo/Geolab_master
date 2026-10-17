@@ -158,7 +158,7 @@ automáticamente su fila de permisos sobre ella. La matriz de accesos por área
   los validadores de Django y verifica el rol resultante antes de terminar.
   A mano desde el admin también se puede, pero es un flujo de 2 pasos (la casilla
   `es_geolab` solo aparece al editar) y hay que asignar el **área antes** de marcar
-  `es_geolab`, o el usuario queda como admin total mientras tanto (ver nota 21).
+  `es_geolab`, o el usuario queda como admin total mientras tanto (ver nota 22).
 
 ## URLs Principales
 
@@ -409,8 +409,9 @@ LIBREOFFICE_PATH=
 17. **Acero sin hoja de trabajo:** tipos `varilla`/`malla_elec` (`Muestra.TIPOS_SIN_HOJA`) → geometría `acero`, se almacenan pero no generan HojaTrabajo/ResultadoMuestra.
 18. **`forma_falla` canónico:** valores `tipo_1`..`tipo_6` (NO `1`..`6`). `informes._tipo_falla_num()` exige el prefijo `tipo_`.
 19. **PDF de informes de ensayo:** XLSX siempre (inyección XML sobre plantilla); el PDF requiere LibreOffice headless. Ruta vía `settings.LIBREOFFICE_PATH` (config desde `.env`, default None) → fallback a `soffice`/`libreoffice` en PATH. Sin LibreOffice, solo se genera el XLSX.
-20. **Layouts / sub-apps:** `base.html` expone `{% block sidebar %}` y `{% block panel_title %}` (defaults por rol). Facturación es un "sub-aplicativo": sus templates extienden `base_facturacion.html` (que sobreescribe esos bloques con `sidebar_facturacion.html`), y el sidebar de staff entra con un solo enlace "Facturación". `factura_pdf.html` NO extiende base (es standalone para WeasyPrint). El técnico usa `base_tecnico.html` (standalone).
-21. **`es_admin_geolab` tiene un fallback peligroso:** si un usuario tiene `es_geolab=True` pero le falta el perfil `FuncionarioGeolab`, la property devuelve `es_geolab` → queda como **admin total**. Por eso todo usuario Geolab (y en especial el Coordinador de Calidad) debe crearse siempre con su perfil. Corregirlo a `return False` es lo correcto, pero antes hay que revisar en producción qué usuarios quedarían sin acceso.
+20. **Páginas de error:** `templates/400.html`, `403.html`, `403_csrf.html`, `404.html`, `500.html` extienden `templates/errores/base.html` (standalone, sin `request` ni context processors: el handler 500 renderiza sin contexto). Ficha "F-ERR-NNN" con un espécimen SVG por código (forma de falla del cilindro). Solo se ven con `DEBUG=False`; con `DEBUG=True` Django muestra sus páginas de depuración. Pruebas en `core/tests.py::PaginasErrorTests`.
+21. **Layouts / sub-apps:** `base.html` expone `{% block sidebar %}` y `{% block panel_title %}` (defaults por rol). Facturación es un "sub-aplicativo": sus templates extienden `base_facturacion.html` (que sobreescribe esos bloques con `sidebar_facturacion.html`), y el sidebar de staff entra con un solo enlace "Facturación". `factura_pdf.html` NO extiende base (es standalone para WeasyPrint). El técnico usa `base_tecnico.html` (standalone).
+22. **`es_admin_geolab` tiene un fallback peligroso:** si un usuario tiene `es_geolab=True` pero le falta el perfil `FuncionarioGeolab`, la property devuelve `es_geolab` → queda como **admin total**. Por eso todo usuario Geolab (y en especial el Coordinador de Calidad) debe crearse siempre con su perfil. Corregirlo a `return False` es lo correcto, pero antes hay que revisar en producción qué usuarios quedarían sin acceso.
 
 ## Seguridad
 

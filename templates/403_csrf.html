@@ -1,0 +1,19 @@
+{% extends '403.html' %}
+{% block titulo_pestana %}Formulario vencido{% endblock %}
+{% block estado %}Formulario vencido{% endblock %}
+{% block titulo %}Este formulario ya venció.{% endblock %}
+{% block texto %}Pasó demasiado tiempo entre abrir la página y enviarla, o la sesión cambió en otra pestaña. Vuelve atrás, recarga la página y envíala de nuevo.{% endblock %}
+{% block detalle %}<p class="detalle">Lo que escribiste no se guardó; tendrás que diligenciarlo otra vez.</p>{% endblock %}
+{% block especimen %}
+<svg viewBox="0 0 160 220" xmlns="http://www.w3.org/2000/svg">
+    <path class="trazo" d="M30 40v140c0 8 22 14 50 14s50-6 50-14V40"/>
+    <ellipse class="trazo" cx="80" cy="40" rx="50" ry="14"/>
+    <path class="trazo suave" d="M30 180c0 8 22 14 50 14s50-6 50-14"/>
+    <rect class="relleno" x="30" y="96" width="100" height="34"/>
+    <path class="trazo" d="M30 96h100M30 130h100"/>
+    <circle class="trazo grieta" cx="80" cy="113" r="10"/>
+    <path class="trazo grieta" d="M80 107v6l4 3"/>
+</svg>
+{% endblock %}
+{% block acciones %}<a class="btn btn-principal" href="{% url 'home' %}" onclick="if (history.length > 1) { history.back(); return false; }">Volver al formulario</a>
+                    <a class="btn btn-secundario" href="{% url 'home' %}">Ir al panel</a>{% endblock %}
