@@ -7,7 +7,9 @@ import requests
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 from django.core.management.base import BaseCommand
+from django.core.files import File
 from django.core.files.base import ContentFile
+from django.core.files.storage import default_storage
 from django.conf import settings
 from django.db import transaction
 from django.db.models import Count
@@ -29,6 +31,30 @@ def clave_url(url):
 def clave_local(ruta_relativa):
     """'informes/2023/08/INF-0425.pdf' -> '2023/08/INF-0425.pdf' (año/mes/nombre)."""
     return '/'.join(ruta_relativa.replace(os.sep, '/').split('/')[-3:])
+
+
+def claves_en_storage():
+    """Rutas (relativas al storage) de todos los archivos bajo informes/.
+
+    En S3 se lista el prefijo una sola vez (29k HEAD serían lentos); en disco se recorre
+    MEDIA_ROOT. Las claves viejas de la migración llevan backslash (informes\\2025\\12\\x.pdf) y
+    así mismo están en la base, por eso no se normalizan.
+    """
+    storage = default_storage
+    if hasattr(storage, 'bucket'):
+        loc = storage.location.strip('/') + '/'
+        return {o.key[len(loc):] for o in storage.bucket.objects.filter(Prefix=loc + 'informes')}
+    base = str(settings.MEDIA_ROOT)
+    return {os.path.relpath(os.path.join(root, f), base).replace(os.sep, '/')
+            for root, _, files in os.walk(base) for f in files}
+
+
+def informes_sin_archivo_en_storage():
+    """Informes cuya ruta `archivo` no existe en el storage (enlazados a un PDF del disco
+    del servidor que nunca se subió a S3)."""
+    claves = claves_en_storage()
+    return [i for i in Informe.objects.exclude(archivo='').exclude(archivo__isnull=True).select_related('obra')
+            if i.archivo.name not in claves]
 
 
 def informes_compartidos():
@@ -67,15 +93,27 @@ class Command(BaseCommand):
             for i in infs:
                 obra = i.obra.codigo_obra if i.obra_id else '-'
                 self.stdout.write(f"    informe {i.pk:>6}  obra {obra:<14} {clave_url(i.url_archivo_original or '')}")
-        if not grupos:
+        faltantes = informes_sin_archivo_en_storage()
+        self.stdout.write(f"\nInformes cuyo archivo NO existe en el storage: {len(faltantes)}")
+        for i in faltantes[:20]:
+            obra = i.obra.codigo_obra if i.obra_id else '-'
+            self.stdout.write(f"    informe {i.pk:>6}  obra {obra:<14} {i.archivo.name}")
+        if len(faltantes) > 20:
+            self.stdout.write(f"    ... y {len(faltantes) - 20} más")
+        if not grupos and not faltantes:
             self.stdout.write(self.style.SUCCESS("Nada que reparar."))
             return
         if not reparar:
             self.stdout.write(self.style.WARNING("\nSolo lectura. Con --reparar se vacía su archivo y luego hay que correr descargar_archivos."))
             return
-        ids = [i.pk for infs in grupos.values() for i in infs if i.url_archivo_original]
+        ids = {i.pk for infs in grupos.values() for i in infs if i.url_archivo_original}
+        ids |= {i.pk for i in faltantes if i.url_archivo_original}
+        sin_url = [i for i in faltantes if not i.url_archivo_original]
+        if sin_url:
+            self.stdout.write(self.style.WARNING(
+                f"{len(sin_url)} informes sin archivo en el storage y SIN URL de WordPress: no se pueden recuperar, se dejan como están"))
         with transaction.atomic():
-            n = Informe.objects.filter(pk__in=ids).update(archivo='')
+            n = Informe.objects.filter(pk__in=list(ids)).update(archivo='')
         self.stdout.write(self.style.SUCCESS(f"\n{n} informes quedaron pendientes. Ahora corre: python manage.py descargar_archivos"))
 
     def descargar(self):
@@ -127,8 +165,14 @@ class Command(BaseCommand):
             if ruta_existente is None and nombres_pendientes[nombre_archivo_url] == 1:
                 ruta_existente = por_nombre.get(nombre_archivo_url)
             if ruta_existente:
-                informe.archivo.name = ruta_existente
-                informe.save(update_fields=['archivo'])
+                if default_storage.exists(ruta_existente):
+                    # Ya está en el storage (disco local en desarrollo): basta enlazarlo
+                    informe.archivo.name = ruta_existente
+                    informe.save(update_fields=['archivo'])
+                else:
+                    # Está en el disco del servidor pero no en S3: hay que subirlo
+                    with open(os.path.join(ruta_base, ruta_existente), 'rb') as fh:
+                        informe.archivo.save(nombre_archivo_url, File(fh), save=True)
 
                 # Feedback visual simple cada 100 registros para no saturar consola
                 if i % 100 == 0:

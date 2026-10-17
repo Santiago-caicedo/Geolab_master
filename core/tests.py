@@ -756,6 +756,30 @@ class DescargarArchivosTests(TestCase):
             self.b.refresh_from_db()
             self.assertNotEqual(self.a.archivo.name, self.b.archivo.name)
 
+    def test_sube_al_storage_lo_que_solo_esta_en_el_disco_del_servidor(self):
+        # En producción MEDIA_ROOT es el disco del servidor (copia de uploads de WP) y el
+        # storage es S3: enlazar la ruta sin subir el archivo deja NoSuchKey en el portal
+        with tempfile.TemporaryDirectory() as disco, tempfile.TemporaryDirectory() as storage:
+            ruta = Path(disco, 'informes', '2023', '08')
+            ruta.mkdir(parents=True)
+            (ruta / 'INF-0425-2023-COMPRESION-CILINDROS.xlsx_.pdf').write_bytes(b'%PDF-a')
+            self.b.delete()
+            with self.settings(STORAGES={'default': {'BACKEND': 'django.core.files.storage.FileSystemStorage',
+                                                     'OPTIONS': {'location': storage}}}):
+                self._run(media=disco)
+                self.a.refresh_from_db()
+                self.assertTrue(self.a.archivo.name.startswith('informes/'))
+                self.assertEqual(self.a.archivo.read(), b'%PDF-a')
+                self.assertTrue(Path(storage, self.a.archivo.name).exists())
+                # --revisar no lo reporta como faltante; uno enlazado a una ruta inexistente sí
+                self.a.archivo.name = 'informes/2025/12/no-esta.pdf'
+                self.a.save(update_fields=['archivo'])
+                salida = self._run('--revisar', media=disco)
+                self.assertIn('NO existe en el storage: 1', salida)
+                self._run('--reparar', media=disco)
+                self.a.refresh_from_db()
+                self.assertEqual(self.a.archivo.name, '')
+
     def test_revisar_y_reparar_pdf_compartido(self):
         Informe.objects.filter(pk__in=[self.a.pk, self.b.pk]).update(archivo='informes/2026/10/x.pdf')
         with tempfile.TemporaryDirectory() as media:

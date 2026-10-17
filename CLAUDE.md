@@ -280,7 +280,7 @@ python manage.py sincronizar_hojas  # Crea hojas faltantes
 python manage.py sincronizar_wordpress --dry-run   # Trae y NORMALIZA constructoras/obras/informes desde el WordPress vivo (WP_DB_* del .env). Idempotente. Reemplaza a migrar_geolab.
 python manage.py sincronizar_wordpress             # Flags: --dump portal.sql (volcado en vez de la base viva), --sin-informes, --omitir ID_WP, --detalle
 python manage.py migrar_geolab      # DEPRECADO (mutila códigos, pone el código como nombre): usar sincronizar_wordpress
-python manage.py descargar_archivos # Descarga PDFs pendientes. Enlaza por año/mes/nombre (WP repite nombres INF entre sedes). --revisar (solo lectura) / --reparar: informes que comparten PDF con otro de URL distinta
+python manage.py descargar_archivos # Descarga PDFs pendientes. Enlaza por año/mes/nombre (WP repite nombres INF entre sedes); lo que está en media/ del servidor pero no en S3 lo SUBE. --revisar (solo lectura) / --reparar: informes que comparten PDF con otro de URL distinta o cuyo archivo no existe en el storage
 python manage.py foto_obras         # SOLO LECTURA: constructoras + obras como están hoy, con marcas [código] [código-wp] [sin nombre] [duplicada]… Flags: --ciudad, --problemas, --csv archivo.csv
 python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la base (ver "Script maestro" abajo)
 python manage.py unir_obras --origen 171 --destino 164 [--aplicar]  # Une obras duplicadas: mueve remisiones/informes/precios/facturas/residentes al destino y borra el origen. Sin --aplicar es ensayo. Aborta si chocaría (misma OT, mismo precio...) o si son de constructoras distintas (--forzar)
