@@ -281,7 +281,16 @@
                     <div class="dropdown-menu dropdown-menu-end p-0" style="width: 320px; max-height: 400px; overflow-y: auto;">
                         <div class="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
                             <span class="fw-semibold small">Notificaciones</span>
-                            <a href="{% url 'lista_notificaciones' %}" class="small text-decoration-none">Ver todas</a>
+                            <span class="d-flex align-items-center gap-2">
+                                <form method="post" action="{% url 'marcar_todas_leidas' %}" class="d-none" id="notificaciones-marcar-todas">
+                                    {% csrf_token %}
+                                    <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                                    <button type="submit" class="btn btn-link btn-sm p-0 small text-decoration-none" title="Marcar todas como leídas">
+                                        <i class="bi bi-check2-all"></i> Marcar todas
+                                    </button>
+                                </form>
+                                <a href="{% url 'lista_notificaciones' %}" class="small text-decoration-none">Ver todas</a>
+                            </span>
                         </div>
                         <div id="notificaciones-lista">
                             <div class="text-center py-4 text-muted small">
@@ -428,7 +437,8 @@
                         data.notificaciones.forEach(n => {
                             const bgClass = n.leida ? '' : 'bg-light';
                             const iconClass = n.tipo === 'nueva_remision' ? 'bi-file-earmark-text text-primary' : 'bi-bell text-secondary';
-                            const url = n.remision_id ? '{% url "detalle_remision" 0 %}'.replace('0', n.remision_id) : '{% url "lista_notificaciones" %}';
+                            // Al hacer clic se marca leída y lleva a la remisión (o a la lista)
+                            const url = '{% url "abrir_notificacion" 0 %}'.replace('/0/', '/' + n.id + '/');
 
                             html += `
                                 <a href="${url}" class="dropdown-item d-flex gap-2 py-2 border-bottom ${bgClass}" style="white-space: normal;">
@@ -445,6 +455,8 @@
                             `;
                         });
                         lista.innerHTML = html;
+                        const marcarTodas = document.getElementById('notificaciones-marcar-todas');
+                        if (marcarTodas) marcarTodas.classList.toggle('d-none', !data.notificaciones.some(n => !n.leida));
                     } else {
                         lista.innerHTML = '<div class="text-center py-4 text-muted small"><i class="bi bi-bell-slash"></i> Sin notificaciones</div>';
                     }

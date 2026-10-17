@@ -286,6 +286,7 @@ python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la 
 python manage.py unir_obras --origen 171 --destino 164 [--aplicar]  # Une obras duplicadas: mueve remisiones/informes/precios/facturas/residentes al destino y borra el origen. Sin --aplicar es ensayo. Aborta si chocaría (misma OT, mismo precio...) o si son de constructoras distintas (--forzar)
 python manage.py importar_calidad   # Areas y carpetas SGC
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
+python manage.py marcar_notificaciones_leidas  # Marca leídas todas las notificaciones pendientes. Flags: --usuario <login>, --dry-run
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
 # Importa catálogo + precios por obra de CUALQUIER sede leyendo el Excel directamente
 # (hoja "LISTA DE PRECIO"; columnas F+ = una obra por columna, encabezado = código de obra

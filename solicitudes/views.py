@@ -6,6 +6,7 @@ from django.template.loader import render_to_string
 from django.utils import timezone
 from django.conf import settings
 from django.http import Http404, JsonResponse, HttpResponse
+from django.utils.http import url_has_allowed_host_and_scheme
 from django.db import models, transaction
 import logging
 import os
@@ -779,17 +780,32 @@ def lista_notificaciones(request):
 
 
 @login_required
-def marcar_notificacion_leida(request, pk):
-    """Marca una notificacion como leida"""
+def _notificacion_del_usuario(request, pk):
+    """La notificación si el usuario puede verla; si no, 404."""
     from .models import Notificacion
 
     notificacion = get_object_or_404(Notificacion, pk=pk)
-
-    # Verificar acceso
     if notificacion.solo_staff and not request.user.es_geolab:
         raise Http404
     if notificacion.destinatario and notificacion.destinatario != request.user:
         raise Http404
+    return notificacion
+
+
+@login_required
+def abrir_notificacion(request, pk):
+    """Clic en una notificación (campana o lista): la marca leída y lleva a su remisión."""
+    notificacion = _notificacion_del_usuario(request, pk)
+    notificacion.marcar_leida()
+    if notificacion.remision_id:
+        return redirect('detalle_remision', pk=notificacion.remision_id)
+    return redirect('lista_notificaciones')
+
+
+@login_required
+def marcar_notificacion_leida(request, pk):
+    """Marca una notificacion como leida"""
+    notificacion = _notificacion_del_usuario(request, pk)
 
     notificacion.marcar_leida()
     messages.success(request, 'Notificacion marcada como leida.')
@@ -821,6 +837,10 @@ def marcar_todas_leidas(request):
         count = notificaciones.update(leida=True, fecha_lectura=timezone.now())
         messages.success(request, f'{count} notificaciones marcadas como leidas.')
 
+    # Desde la campana se vuelve a la página en que estaba el usuario
+    volver = request.POST.get('next')
+    if volver and url_has_allowed_host_and_scheme(volver, allowed_hosts={request.get_host()}):
+        return redirect(volver)
     return redirect('lista_notificaciones')
 
 
