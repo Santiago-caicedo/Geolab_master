@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% load informes_tags %}
+{% load informes_tags humanize %}
 
 {% block title %}{{ obra.nombre }} · Expediente{% endblock %}
 
@@ -91,7 +91,7 @@
     <div class="inf-hero-facts" aria-label="Resumen">
         <div class="dato">
             <div class="eti">Informes</div>
-            <div class="val">{{ total_informes }}</div>
+            <div class="val">{{ total_informes|intcomma }}</div>
             <div class="sub">{% if ultimo_informe %}último del {{ ultimo_informe|date:"j M Y" }}{% else %}ninguno todavía{% endif %}</div>
         </div>
         <div class="dato">
@@ -124,10 +124,10 @@
             <!-- Informes recientes -->
             <section class="inf-panel" aria-labelledby="expInformes">
                 <div class="exp-panel-head">
-                    <h2 id="expInformes"><span class="inf-ico" aria-hidden="true"><i class="bi bi-file-earmark-pdf"></i></span>Informes recientes<span>{{ total_informes }}</span></h2>
+                    <h2 id="expInformes"><span class="inf-ico" aria-hidden="true"><i class="bi bi-file-earmark-pdf"></i></span>Informes recientes<span>{{ total_informes|intcomma }}</span></h2>
                     {% if total_informes %}
                     <a href="{% url 'lista_informes_obra' obra.pk %}" class="exp-more">
-                        {% if total_informes > informes_recientes|length %}Ver los {{ total_informes }}{% else %}Abrir el registro{% endif %} <i class="bi bi-arrow-right"></i>
+                        {% if total_informes > informes_recientes|length %}Ver los {{ total_informes|intcomma }}{% else %}Abrir el registro{% endif %} <i class="bi bi-arrow-right"></i>
                     </a>
                     {% endif %}
                 </div>

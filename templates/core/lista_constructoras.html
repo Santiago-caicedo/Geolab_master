@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 
 {% block title %}Directorio de empresas{% endblock %}
 
@@ -22,7 +23,7 @@
                 <h1 class="inf-title">Constructoras y clientes</h1>
                 <div class="inf-meta">
                     <strong>{{ total_empresas }}</strong> empresas · <strong>{{ total_obras }}</strong> obras ·
-                    <strong>{{ total_informes }}</strong> informes en el portal
+                    <strong>{{ total_informes|intcomma }}</strong> informes en el portal
                 </div>
             </div>
             <div class="inf-actions">
@@ -93,7 +94,7 @@
                             <span class="inf-sub">NIT {{ empresa.nit|default:"sin registrar" }}</span>
                         </td>
                         <td class="dir-col-num"><span class="inf-cifra{% if not empresa.num_obras %} cero{% endif %}">{{ empresa.num_obras }}</span></td>
-                        <td class="dir-col-num dir-ocultable"><span class="inf-cifra{% if not empresa.num_informes %} cero{% endif %}">{{ empresa.num_informes }}</span></td>
+                        <td class="dir-col-num dir-ocultable"><span class="inf-cifra{% if not empresa.num_informes %} cero{% endif %}">{{ empresa.num_informes|intcomma }}</span></td>
                         <td class="dir-col-num dir-ocultable"><span class="inf-cifra{% if not empresa.num_usuarios %} cero{% endif %}">{{ empresa.num_usuarios }}</span></td>
                         <td class="dir-ocultable">
                             {% if empresa.ultimo_informe %}

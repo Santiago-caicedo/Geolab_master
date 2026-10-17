@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 
 {% block title %}{{ empresa.nombre }} · Empresa{% endblock %}
 
@@ -82,7 +83,7 @@
             </div>
             <div class="dato">
                 <div class="eti">Informes</div>
-                <div class="val">{{ total_informes }}</div>
+                <div class="val">{{ total_informes|intcomma }}</div>
                 <div class="sub">{% if ultimo_informe %}último del {{ ultimo_informe|date:"j M Y" }}{% else %}ninguno todavía{% endif %}</div>
             </div>
             <div class="dato">
