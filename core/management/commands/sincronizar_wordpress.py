@@ -329,45 +329,68 @@ class Command(BaseCommand):
         obras = {o.id_wp_original: o for o in Obra.objects.exclude(id_wp_original__isnull=True)}
         st = defaultdict(int)
         self.informes_sin_obra = 0
-        existentes = {i.id_wp_original: i for i in Informe.objects.exclude(id_wp_original__isnull=True)}
-        # Borrados a propósito desde el portal: no se vuelven a traer
-        eliminados = set(InformeEliminado.objects.exclude(id_wp_original__isnull=True)
-                         .values_list('id_wp_original', flat=True))
+        # Identidad = (id del post de WP, id del PDF). Un post con galería trae varios PDF
+        # y cada uno es un Informe. Las filas viejas tienen id_wp_adjunto NULL (se creaban
+        # una por post, sin saber de galerías): la primera del post las adopta.
+        existentes, sin_adjunto = {}, {}
+        for i in Informe.objects.exclude(id_wp_original__isnull=True):
+            if i.id_wp_adjunto is None:
+                sin_adjunto[i.id_wp_original] = i
+            else:
+                existentes[(i.id_wp_original, i.id_wp_adjunto)] = i
+        # Borrados a propósito desde el portal: no se vuelven a traer. Un borrado sin
+        # adjunto (fila vieja) bloquea el post completo.
+        eliminados, posts_eliminados = set(), set()
+        for post, adj in InformeEliminado.objects.exclude(id_wp_original__isnull=True).values_list('id_wp_original', 'id_wp_adjunto'):
+            (posts_eliminados if adj is None else eliminados).add(post if adj is None else (post, adj))
+        self.galerias_bloqueadas = []
         nuevos = []
         for inf in informes:
             if inf.estado != 'publish':
                 st['no_publicados'] += 1
                 continue
-            if inf.id in eliminados and inf.id not in existentes:
-                st['eliminados'] += 1
-                continue
             obra = obras.get(inf.proyecto_id)
             if obra is None:
                 self.informes_sin_obra += 1
                 continue
-            titulo = (inf.url_pdf.rsplit('/', 1)[-1] if inf.url_pdf else inf.titulo)[:255]
-            actual = existentes.get(inf.id)
-            if actual is None:
-                nuevos.append(Informe(
-                    id_wp_original=inf.id, titulo=titulo, obra=obra,
-                    fecha_creacion=_aware(inf.fecha), url_archivo_original=inf.url_pdf,
-                ))
+            if inf.id in posts_eliminados and inf.id not in sin_adjunto:
+                st['eliminados'] += len(inf.adjuntos) or 1
+                if len(inf.adjuntos) > 1:
+                    self.galerias_bloqueadas.append(inf)
                 continue
-            cambios = []
-            if actual.obra_id != obra.pk:
-                actual.obra = obra
-                cambios.append('obra')
-            if actual.titulo != titulo:
-                actual.titulo = titulo
-                cambios.append('titulo')
-            if (actual.url_archivo_original or None) != inf.url_pdf:
-                actual.url_archivo_original = inf.url_pdf
-                cambios.append('url')
-            if cambios:
-                actual.save()
-                st['actualizados'] += 1
-            else:
-                st['iguales'] += 1
+            # Sin PDF en WP: se conserva como fila única con el título del post
+            for adj, url in (inf.adjuntos or [(None, None)]):
+                if (inf.id, adj) in eliminados:
+                    st['eliminados'] += 1
+                    continue
+                titulo = (url.rsplit('/', 1)[-1] if url else inf.titulo)[:255]
+                cambios = []
+                actual = existentes.get((inf.id, adj))
+                if actual is None and inf.id in sin_adjunto:
+                    actual = sin_adjunto.pop(inf.id)
+                    if adj is not None:
+                        actual.id_wp_adjunto = adj
+                        cambios.append('adjunto')
+                if actual is None:
+                    nuevos.append(Informe(
+                        id_wp_original=inf.id, id_wp_adjunto=adj, titulo=titulo, obra=obra,
+                        fecha_creacion=_aware(inf.fecha), url_archivo_original=url,
+                    ))
+                    continue
+                if actual.obra_id != obra.pk:
+                    actual.obra = obra
+                    cambios.append('obra')
+                if actual.titulo != titulo:
+                    actual.titulo = titulo
+                    cambios.append('titulo')
+                if (actual.url_archivo_original or None) != url:
+                    actual.url_archivo_original = url
+                    cambios.append('url')
+                if cambios:
+                    actual.save()
+                    st['actualizados'] += 1
+                else:
+                    st['iguales'] += 1
         Informe.objects.bulk_create(nuevos, batch_size=1000)
         st['creados'] = len(nuevos)
         self.stdout.write(self.style.SUCCESS(
@@ -401,6 +424,9 @@ class Command(BaseCommand):
             avisos.append(f'obra basura "{obra.nombre}" ({obra.codigo_obra}) NO se eliminó: tiene {dep}')
         for p in self.sin_nombre:
             avisos.append(f'obra WP {p.id} "{p.titulo}" no tiene nombre-proyecto en WordPress: se usó el título como nombre')
+        for inf in getattr(self, 'galerias_bloqueadas', []):
+            avisos.append(f'informe WP {inf.id} "{inf.titulo}" es una galería de {len(inf.adjuntos)} PDF pero se borró '
+                          f'en el portal antes de saber de galerías: no se traen (ver InformeEliminado)')
         for p, cod, candidatas in self.adopciones_ambiguas:
             avisos.append(f'obra WP {p.id} {cod}: varias obras del portal con ese código '
                           f'({", ".join(f"pk={o.pk}" for o in candidatas)}); se creó una nueva, unificar a mano')

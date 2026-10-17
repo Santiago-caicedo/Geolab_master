@@ -16,6 +16,8 @@ Estructura en WordPress (tabla wpf3_posts + wpf3_postmeta):
 - post_type 'informes' = informe PDF, ligado al proyecto por
   wpf3_jet_rel_default (rel_id=10, parent=proyecto, child=informe); el PDF es
   un attachment cuyo ID está en el meta galeria-pdf y su URL en posts.guid.
+  Cuando el mismo día se subieron varios PDF (galería), galeria-pdf trae los
+  IDs separados por coma ("123,124,125"): un informe de WP = varios PDF.
 """
 
 import re
@@ -50,7 +52,18 @@ class InformeWP:
     fecha: datetime | None
     estado: str
     proyecto_id: int | None
-    url_pdf: str | None
+    adjuntos: list = field(default_factory=list)   # [(id_attachment, url_pdf), ...] en el orden de la galería
+
+    @property
+    def url_pdf(self):
+        return self.adjuntos[0][1] if self.adjuntos else None
+
+
+def ids_galeria(meta_value):
+    """'950' -> [950]; '950,951' -> [950, 951]; basura -> []."""
+    if not meta_value:
+        return []
+    return [int(x) for x in str(meta_value).split(',') if x.strip().isdigit()]
 
 
 def _fecha(valor):
@@ -91,22 +104,31 @@ class FuenteMySQL:
     def informes(self):
         cur = self.db.cursor()
         cur.execute(f"""
-            SELECT p.ID, p.post_title, p.post_date, p.post_status, rel.parent_object_id, pdf.guid
+            SELECT p.ID, p.post_title, p.post_date, p.post_status, rel.parent_object_id, pm.meta_value
             FROM {self.p}posts p
             LEFT JOIN {self.p}jet_rel_default rel
                    ON rel.child_object_id = p.ID AND rel.rel_id = {REL_INFORME_PROYECTO}
             LEFT JOIN {self.p}postmeta pm ON pm.post_id = p.ID AND pm.meta_key = 'galeria-pdf'
-            LEFT JOIN {self.p}posts pdf ON pdf.ID = pm.meta_value
             WHERE p.post_type = 'informes'
         """)
-        out = []
+        filas = []
         while True:
-            filas = cur.fetchmany(2000)
-            if not filas:
+            lote = cur.fetchmany(2000)
+            if not lote:
                 break
-            for i, t, f, e, padre, guid in filas:
-                out.append(InformeWP(int(i), t or '', _fecha(f), e, int(padre) if padre else None, guid or None))
-        return out
+            filas.extend(lote)
+        # guid de todos los attachments referenciados (una galería trae varios IDs)
+        ids = sorted({a for *_, g in filas for a in ids_galeria(g)})
+        guid = {}
+        for k in range(0, len(ids), 1000):
+            trozo = ids[k:k + 1000]
+            cur.execute(f"SELECT ID, guid FROM {self.p}posts WHERE ID IN ({','.join(['%s'] * len(trozo))})", trozo)
+            guid.update({int(i): g for i, g in cur.fetchall()})
+        return [
+            InformeWP(int(i), t or '', _fecha(f), e, int(padre) if padre else None,
+                      [(a, guid[a]) for a in ids_galeria(g) if guid.get(a)])
+            for i, t, f, e, padre, g in filas
+        ]
 
     def cerrar(self):
         self.db.close()
@@ -245,9 +267,9 @@ class FuenteDump:
         for i, r in self._posts.items():
             if r['post_type'] != 'informes':
                 continue
-            pdf_id = self._meta.get(i, {}).get('galeria-pdf')
-            url = self._guid.get(int(pdf_id)) if pdf_id and str(pdf_id).isdigit() else None
-            out.append(InformeWP(i, r['post_title'] or '', _fecha(r['post_date']), r['post_status'], padre.get(i), url))
+            adjuntos = [(a, self._guid[a]) for a in ids_galeria(self._meta.get(i, {}).get('galeria-pdf'))
+                        if self._guid.get(a)]
+            out.append(InformeWP(i, r['post_title'] or '', _fecha(r['post_date']), r['post_status'], padre.get(i), adjuntos))
         return out
 
     def cerrar(self):

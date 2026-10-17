@@ -38,10 +38,16 @@ class Informe(models.Model):
     url_archivo_original = models.CharField(max_length=500, null=True, blank=True)
     archivo = models.FileField(upload_to='informes/%Y/%m/', null=True, blank=True)
     
-    id_wp_original = models.IntegerField(unique=True, null=True)
+    # Identidad en WordPress: id del post 'informes' + id del PDF (attachment).
+    # Un post de WP con galería trae varios PDF, y cada uno es un Informe aquí.
+    id_wp_original = models.IntegerField(null=True, db_index=True)
+    id_wp_adjunto = models.IntegerField(null=True, blank=True)
 
     class Meta:
         ordering = ['-fecha_creacion']
+        constraints = [
+            models.UniqueConstraint(fields=['id_wp_original', 'id_wp_adjunto'], name='informe_wp_unico'),
+        ]
 
     def __str__(self):
         return f"{self.titulo} - {self.obra.codigo_obra}"
@@ -57,6 +63,7 @@ class InformeEliminado(models.Model):
     obra_codigo = models.CharField(max_length=50, blank=True)
     obra_nombre = models.CharField(max_length=255, blank=True)
     id_wp_original = models.IntegerField(null=True, blank=True, db_index=True)
+    id_wp_adjunto = models.IntegerField(null=True, blank=True)
     archivo = models.CharField(max_length=500, blank=True, help_text='Ruta del PDF que se borró del almacenamiento')
     fecha_informe = models.DateTimeField(null=True, blank=True)
     eliminado_por = models.ForeignKey(

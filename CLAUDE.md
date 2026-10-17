@@ -55,7 +55,7 @@ geolab_master/
 
 ### core
 - **Obra**: Proyectos (nombre, codigo_obra, constructora FK, residentes_asignados M2M, id_wp_original, direccion/telefono/contacto/celular opcionales). Convención de código: `PREFIJO_CIUDAD + nº empresa - nº obra` (`BUC46-9`, `IBA8-1`); clientes varios `BUC0-12-1`. `Constructora.codigo` = `BUC46` / `IBA8`; clientes varios `BUC0-12` (+ sufijo `B`, `C` si el mismo 0-N tiene otra razón social).
-- **Informe**: PDFs técnicos (titulo, obra FK, archivo FileField)
+- **Informe**: PDFs técnicos (titulo, obra FK, archivo FileField). Identidad WP = (`id_wp_original`, `id_wp_adjunto`): un post de WordPress con galería trae varios PDF y cada uno es un Informe. Única por ese par (`informe_wp_unico`).
 - **InformeEliminado**: bitácora de informes borrados desde `/obras/<pk>/informes/` (solo `is_superuser`, POST a `eliminar_informes`; guarda título, obra, id WP, quién y cuándo, y borra el PDF del storage al confirmar la transacción). `sincronizar_wordpress` NO vuelve a traer un `id_wp_original` que esté aquí. Solo lectura en el admin.
 - Directorio (`lista_constructoras.html`, pestañas por sede + punto de actividad), detalle de empresa (`detalle_constructora.html`, obras en orden natural `_orden_natural` + usuarios del portal), expediente (`detalle_obra.html`) y lista de informes comparten el esquema visual "registro" (`includes/_registro_estilos.html`, todo bajo `.inf`: filas compactas, números INF/OT como etiqueta mono). Conteos por empresa con subconsultas (`_con_actividad`; los Count con joins cruzados multiplicaban). Acceso a obra e informes con `_puede_ver_obra` (staff todo; director su empresa; demás clientes solo obras asignadas).
 - Lista de informes de la obra (`lista_informes_obra.html`): 50 por página, agrupada por mes; el filtro `informes_tags.partes_informe` separa el número (`INF 0340-2026`) del tipo de ensayo a partir del título. Búsqueda por palabras sin tildes (`_palabras_busqueda`). Mensajes de Django: `includes/_mensajes.html` (base.html NO los muestra; incluirlo en cada pantalla que reciba un redirect con mensaje).
@@ -280,7 +280,7 @@ python manage.py sincronizar_hojas  # Crea hojas faltantes
 python manage.py sincronizar_wordpress --dry-run   # Trae y NORMALIZA constructoras/obras/informes desde el WordPress vivo (WP_DB_* del .env). Idempotente. Reemplaza a migrar_geolab.
 python manage.py sincronizar_wordpress             # Flags: --dump portal.sql (volcado en vez de la base viva), --sin-informes, --omitir ID_WP, --detalle
 python manage.py migrar_geolab      # DEPRECADO (mutila códigos, pone el código como nombre): usar sincronizar_wordpress
-python manage.py descargar_archivos # Descarga PDFs pendientes
+python manage.py descargar_archivos # Descarga PDFs pendientes. Enlaza por año/mes/nombre (WP repite nombres INF entre sedes). --revisar (solo lectura) / --reparar: informes que comparten PDF con otro de URL distinta
 python manage.py foto_obras         # SOLO LECTURA: constructoras + obras como están hoy, con marcas [código] [código-wp] [sin nombre] [duplicada]… Flags: --ciudad, --problemas, --csv archivo.csv
 python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la base (ver "Script maestro" abajo)
 python manage.py unir_obras --origen 171 --destino 164 [--aplicar]  # Une obras duplicadas: mueve remisiones/informes/precios/facturas/residentes al destino y borra el origen. Sin --aplicar es ensayo. Aborta si chocaría (misma OT, mismo precio...) o si son de constructoras distintas (--forzar)
@@ -333,8 +333,11 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
 - Constructora: si el código correcto no existe y una constructora vieja tiene todas sus obras
   en ese grupo, se RENOMBRA (conserva `ClienteExterno.empresa` y `Factura.constructora`); las
   que quedan sin obras, usuarios ni facturas se eliminan. Razón social = variante más frecuente.
-- Informes: identidad `id_wp_original`, título = nombre del PDF; los PDF nuevos se bajan con
-  `descargar_archivos`.
+- Informes: identidad (`id_wp_original`, `id_wp_adjunto`), título = nombre del PDF; los PDF nuevos se
+  bajan con `descargar_archivos`. El meta `galeria-pdf` trae IDs separados por coma cuando el mismo
+  día se subieron varios PDF (3.476 posts / 13.575 PDF en el dump de 2026-10-16): cada PDF es un
+  Informe. Las filas viejas sin `id_wp_adjunto` las adopta el primer PDF del post (conservan pk).
+  Un `InformeEliminado` sin adjunto bloquea el post completo; con adjunto, solo ese PDF.
 - Todo lo dudoso sale en "Avisos" (códigos de obra repetidos en WP, obras sin nombre, etc.).
 
 ### Script maestro de sincronización (`scripts/`)

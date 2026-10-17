@@ -549,7 +549,8 @@ def eliminar_informes(request, pk):
         InformeEliminado.objects.bulk_create([
             InformeEliminado(
                 titulo=i.titulo, obra_codigo=obra.codigo_obra, obra_nombre=obra.nombre,
-                id_wp_original=i.id_wp_original, archivo=i.archivo.name if i.archivo else '',
+                id_wp_original=i.id_wp_original, id_wp_adjunto=i.id_wp_adjunto,
+                archivo=i.archivo.name if i.archivo else '',
                 fecha_informe=i.fecha_creacion, eliminado_por=request.user,
             )
             for i in informes

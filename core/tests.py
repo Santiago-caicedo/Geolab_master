@@ -76,7 +76,10 @@ INSERT INTO `wpf3_posts` (`ID`, `post_date`, `post_title`, `post_status`, `post_
 (505, '2023-05-06 10:00:00', 'IBA 8-2', 'draft', 'proyectos', ''),
 (900, '2024-01-01 10:00:00', 'Informe 1', 'publish', 'informes', ''),
 (901, '2024-01-02 10:00:00', 'Informe 2', 'publish', 'informes', ''),
-(950, '2024-01-01 10:00:00', 'INF-0001.pdf', 'inherit', 'attachment', 'https://portal/wp-content/uploads/INF-0001.pdf');
+(902, '2024-01-03 10:00:00', 'IBA 8-1', 'publish', 'informes', ''),
+(950, '2024-01-01 10:00:00', 'INF-0001.pdf', 'inherit', 'attachment', 'https://portal/wp-content/uploads/INF-0001.pdf'),
+(951, '2024-01-03 10:00:00', 'INF-0002.pdf', 'inherit', 'attachment', 'https://portal/wp-content/uploads/INF-0002.pdf'),
+(952, '2024-01-03 10:00:00', 'INF-0003.pdf', 'inherit', 'attachment', 'https://portal/wp-content/uploads/INF-0003.pdf');
 
 CREATE TABLE `wpf3_postmeta` (
   `meta_id` bigint(20) UNSIGNED NOT NULL,
@@ -109,7 +112,8 @@ INSERT INTO `wpf3_postmeta` (`meta_id`, `post_id`, `meta_key`, `meta_value`) VAL
 (21, 504, 'municipio', 'bucaramanga'),
 (22, 900, 'galeria-pdf', '950'),
 (23, 505, 'codigo-cliente_743', 'IBA 8'),
-(24, 505, 'municipio', 'ibague');
+(24, 505, 'municipio', 'ibague'),
+(25, 902, 'galeria-pdf', '951,952');
 
 CREATE TABLE `wpf3_jet_rel_default` (
   `_ID` bigint(20) UNSIGNED NOT NULL,
@@ -121,7 +125,8 @@ CREATE TABLE `wpf3_jet_rel_default` (
 INSERT INTO `wpf3_jet_rel_default` (`_ID`, `rel_id`, `parent_object_id`, `child_object_id`) VALUES
 (1, 10, 501, 900),
 (2, 10, 501, 901),
-(3, 99, 501, 900);
+(3, 99, 501, 900),
+(4, 10, 501, 902);
 """
 
 
@@ -150,6 +155,9 @@ class FuenteDumpTests(SimpleTestCase):
         self.assertEqual(informes[900].proyecto_id, 501)
         self.assertEqual(informes[900].url_pdf, 'https://portal/wp-content/uploads/INF-0001.pdf')
         self.assertIsNone(informes[901].url_pdf)
+        # galería: varios PDF en el mismo post, en el orden de la galería
+        self.assertEqual(informes[902].adjuntos, [(951, 'https://portal/wp-content/uploads/INF-0002.pdf'),
+                                                  (952, 'https://portal/wp-content/uploads/INF-0003.pdf')])
 
 
 class SincronizarWordpressTests(TestCase):
@@ -204,7 +212,35 @@ class SincronizarWordpressTests(TestCase):
         # informes ligados por id de WP, título = nombre del PDF
         self.assertEqual(Informe.objects.get(id_wp_original=900).titulo, 'INF-0001.pdf')
         self.assertEqual(Informe.objects.get(id_wp_original=901).obra, ambala)
+        # galería de WP = un Informe por PDF, cada uno con el nombre de su PDF (no el código de la obra)
+        galeria = Informe.objects.filter(id_wp_original=902).order_by('id_wp_adjunto')
+        self.assertEqual([(i.id_wp_adjunto, i.titulo, i.url_archivo_original) for i in galeria], [
+            (951, 'INF-0002.pdf', 'https://portal/wp-content/uploads/INF-0002.pdf'),
+            (952, 'INF-0003.pdf', 'https://portal/wp-content/uploads/INF-0003.pdf'),
+        ])
+        self.assertEqual(Informe.objects.get(id_wp_original=900).id_wp_adjunto, 950)
         self.assertIn('Sincronización guardada', salida)
+
+    def test_galeria_adopta_la_fila_vieja_sin_adjunto(self):
+        # Antes de conocer galerías el sync creaba UNA fila por post, con el código de la obra como título
+        self._run('--sin-informes')
+        vieja = Informe.objects.create(titulo='IBA 8-1', obra=Obra.objects.get(id_wp_original=501), id_wp_original=902)
+        salida = self._run()
+        vieja.refresh_from_db()
+        self.assertEqual((vieja.id_wp_adjunto, vieja.titulo), (951, 'INF-0002.pdf'))
+        self.assertEqual(Informe.objects.filter(id_wp_original=902).count(), 2)
+        self.assertIn('1 actualizados', salida)
+        self.assertIn('0 creados', self._run())   # idempotente
+
+    def test_borrar_un_pdf_de_la_galeria_no_bloquea_los_demas(self):
+        from core.models import InformeEliminado
+        self._run()
+        uno = Informe.objects.get(id_wp_original=902, id_wp_adjunto=952)
+        InformeEliminado.objects.create(titulo=uno.titulo, id_wp_original=902, id_wp_adjunto=952)
+        uno.delete()
+        salida = self._run()
+        self.assertEqual(list(Informe.objects.filter(id_wp_original=902).values_list('id_wp_adjunto', flat=True)), [951])
+        self.assertIn('1 eliminados en el portal', salida)
 
     def test_idempotente_y_dry_run(self):
         self._run()
@@ -675,3 +711,56 @@ class DirectorioEmpresasTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertTemplateUsed(r, 'core/pending.html')
 
+
+class DescargarArchivosTests(TestCase):
+    """WordPress repite nombres de PDF entre carpetas (las sedes comparten la
+    numeración INF): el nombre solo no debe cruzar el PDF de una obra a otra."""
+
+    URL = 'https://portal.geolabsas.co/wp-content/uploads/{}/INF-0425-2023-COMPRESION-CILINDROS.xlsx_.pdf'
+
+    def setUp(self):
+        c1 = Constructora.objects.create(codigo='IBA8', nombre='UNO', ciudad='Ibagué')
+        c2 = Constructora.objects.create(codigo='BUC53', nombre='DOS', ciudad='Bucaramanga')
+        o1 = Obra.objects.create(nombre='A', codigo_obra='IBA8-1', constructora=c1)
+        o2 = Obra.objects.create(nombre='B', codigo_obra='BUC53-1', constructora=c2)
+        self.a = Informe.objects.create(titulo='a', obra=o1, url_archivo_original=self.URL.format('2023/08'))
+        self.b = Informe.objects.create(titulo='b', obra=o2, url_archivo_original=self.URL.format('2024/02'))
+
+    def _run(self, *extra, media):
+        out = StringIO()
+        with self.settings(MEDIA_ROOT=media):
+            call_command('descargar_archivos', *extra, stdout=out)
+        return out.getvalue()
+
+    def test_enlaza_local_por_carpeta_y_no_por_nombre(self):
+        with tempfile.TemporaryDirectory() as media:
+            for carpeta in ('2023/08', '2024/02'):
+                ruta = Path(media, 'informes', carpeta)
+                ruta.mkdir(parents=True)
+                (ruta / 'INF-0425-2023-COMPRESION-CILINDROS.xlsx_.pdf').write_bytes(b'%PDF')
+            self._run(media=media)
+        self.a.refresh_from_db()
+        self.b.refresh_from_db()
+        self.assertEqual(self.a.archivo.name, 'informes/2023/08/INF-0425-2023-COMPRESION-CILINDROS.xlsx_.pdf')
+        self.assertEqual(self.b.archivo.name, 'informes/2024/02/INF-0425-2023-COMPRESION-CILINDROS.xlsx_.pdf')
+
+    def test_descarga_cada_uno_aunque_compartan_nombre(self):
+        from unittest import mock
+        respuesta = mock.Mock(status_code=200, content=b'%PDF')
+        with tempfile.TemporaryDirectory() as media, \
+                mock.patch('requests.Session.get', return_value=respuesta) as get, \
+                mock.patch('time.sleep'):
+            self._run(media=media)
+            self.assertEqual(get.call_count, 2)
+            self.a.refresh_from_db()
+            self.b.refresh_from_db()
+            self.assertNotEqual(self.a.archivo.name, self.b.archivo.name)
+
+    def test_revisar_y_reparar_pdf_compartido(self):
+        Informe.objects.filter(pk__in=[self.a.pk, self.b.pk]).update(archivo='informes/2026/10/x.pdf')
+        with tempfile.TemporaryDirectory() as media:
+            salida = self._run('--revisar', media=media)
+            self.assertIn('1 archivos, 2 informes', salida)
+            self.assertEqual(Informe.objects.filter(archivo='').count(), 0)
+            self._run('--reparar', media=media)
+        self.assertEqual(Informe.objects.filter(archivo='').count(), 2)
