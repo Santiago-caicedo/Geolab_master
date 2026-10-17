@@ -1,85 +1,204 @@
 {% extends 'base.html' %}
 
-{% block content %}
-<nav aria-label="breadcrumb" class="mb-4">
-    <ol class="breadcrumb small">
-        <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none text-muted">Empresas</a></li>
-        <li class="breadcrumb-item active" aria-current="page">{{ empresa.nombre }}</li>
-    </ol>
-</nav>
+{% block title %}{{ empresa.nombre }} · Empresa{% endblock %}
 
-<div class="card card-custom mb-4 border-start border-5 border-primary">
-    <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-            <div class="d-flex gap-3">
-                <div class="bg-primary text-white rounded p-3 d-flex align-items-center justify-content-center" style="width: 60px; height: 60px;">
-                    <span class="h4 mb-0 fw-bold">{{ empresa.nombre|slice:":1" }}</span>
-                </div>
-                <div>
-                    <h3 class="fw-bold text-dark mb-0">{{ empresa.nombre }}</h3>
-                    <div class="d-flex gap-3 text-muted mt-1 small">
-                        <span><i class="bi bi-qr-code me-1"></i> Cod: {{ empresa.codigo }}</span>
-                        <span><i class="bi bi-card-text me-1"></i> NIT: {{ empresa.nit|default:"--" }}</span>
-                    </div>
-                </div>
+{% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
+<style>
+    .emp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
+    .emp-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .emp-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem;
+                padding: .7rem .75rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .emp-head h2 { display: flex; align-items: center; font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .emp-head h2 > span:not(.inf-ico) { color: var(--inf-muted); font-weight: 500; margin-left: .25rem; }
+    .emp-head .inf-ico { vertical-align: 0; }
+    .emp-more { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
+    .emp-more:hover { text-decoration: underline; }
+    .emp-col-num { width: 84px; text-align: right; }
+
+    .emp-ficha { margin: 0; padding: .35rem .75rem .6rem; }
+    .emp-ficha > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: .5rem; padding: .4rem 0; border-bottom: 1px dashed var(--inf-line); }
+    .emp-ficha > div:last-child { border-bottom: 0; }
+    .emp-ficha dt { font-size: .75rem; font-weight: 500; color: var(--inf-muted); }
+    .emp-ficha dd { margin: 0; overflow-wrap: anywhere; }
+    .emp-ficha dd.vacio { color: #cbd5e1; }
+    .emp-ficha .mono { font-family: var(--inf-mono); font-size: .78rem; }
+
+    .emp-usuarios { list-style: none; margin: 0; padding: .25rem 0; }
+    .emp-usuarios li { display: flex; align-items: center; gap: .6rem; padding: .45rem .75rem; border-bottom: 1px solid var(--inf-line); }
+    .emp-usuarios li:last-child { border-bottom: 0; }
+    .emp-usuarios li:hover { background: #f2f8fd; }
+    .emp-avatar { width: 28px; height: 28px; border-radius: 50%; flex: none; display: inline-flex; align-items: center; justify-content: center;
+                  font-size: .75rem; font-weight: 600; color: #fff; background: #1c2e4a; }
+    .emp-avatar.director { background: #0077b6; }
+    .emp-avatar.residente { background: #16a085; }
+    .emp-avatar.remitente { background: #e3920b; }
+    .emp-usuarios .quien { min-width: 0; flex: 1; }
+    .emp-usuarios .quien a { color: var(--inf-ink); font-weight: 500; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .emp-usuarios .quien a:hover { color: var(--inf-link); text-decoration: underline; }
+    .emp-rol { font-size: .7rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--inf-muted); }
+    .emp-inactivo { font-size: .7rem; color: var(--inf-danger); }
+    .emp-empty { padding: 1.5rem 1rem; text-align: center; color: var(--inf-muted); }
+    .emp-empty p { margin: 0 0 .75rem; }
+
+    @media (max-width: 991.98px) { .emp-grid { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 767.98px) { .emp-ocultable { display: none; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="inf">
+    {% include "includes/_mensajes.html" %}
+
+    <nav class="inf-crumbs" aria-label="Ruta">
+        <a href="{% url 'lista_constructoras' %}">Empresas</a><span class="sep">/</span>
+        {% if empresa.ciudad %}<a href="{% url 'lista_constructoras' %}?ciudad={{ empresa.ciudad|urlencode }}">{{ empresa.ciudad }}</a><span class="sep">/</span>{% endif %}
+        <span aria-current="page">{{ empresa.nombre }}</span>
+    </nav>
+
+    <section class="inf-hero">
+        <header class="inf-head">
+            <div>
+                <div class="inf-eyebrow">Empresa{% if empresa.ciudad %} · {{ empresa.ciudad }}{% endif %}</div>
+                <h1 class="inf-title">{{ empresa.nombre }}<span class="inf-code">{{ empresa.codigo }}</span></h1>
+                <div class="inf-meta">NIT {{ empresa.nit|default:"sin registrar" }}</div>
             </div>
-            <div class="d-flex gap-2">
-                <button class="btn btn-outline-secondary btn-sm"><a href="{% url 'editar_constructora' empresa.pk %}" class="btn btn-outline-secondary btn-sm">
-    <i class="bi bi-pencil me-1"></i> Editar Datos
-</a></button>
+            {% if user.es_geolab %}
+            <div class="inf-actions">
+                <a href="{% url 'editar_constructora' empresa.pk %}" class="btn btn-sm btn-hero">
+                    <i class="bi bi-pencil me-1"></i>Editar datos
+                </a>
+                <a href="{% url 'crear_obra' empresa.pk %}" class="btn btn-sm btn-hero-primary">
+                    <i class="bi bi-plus-lg me-1"></i>Nueva obra
+                </a>
+            </div>
+            {% endif %}
+        </header>
+        <div class="inf-hero-facts" aria-label="Resumen">
+            <div class="dato">
+                <div class="eti">Obras</div>
+                <div class="val">{{ obras|length }}</div>
+                <div class="sub">{{ obras_activas }} con informes en los últimos 6 meses</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Informes</div>
+                <div class="val">{{ total_informes }}</div>
+                <div class="sub">{% if ultimo_informe %}último del {{ ultimo_informe|date:"j M Y" }}{% else %}ninguno todavía{% endif %}</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Remisiones</div>
+                <div class="val">{{ total_remisiones }}</div>
+                <div class="sub">en todas sus obras</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Usuarios del portal</div>
+                <div class="val">{{ usuarios|length }}</div>
+                <div class="sub">{% if usuarios %}con acceso a esta empresa{% else %}nadie tiene acceso todavía{% endif %}</div>
             </div>
         </div>
-    </div>
-</div>
+    </section>
 
-<div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="d-flex align-items-center gap-2">
-        <h5 class="fw-bold text-dark mb-0">🏗️ Obras y Proyectos</h5>
-        <span class="badge bg-light text-dark border">{{ obras.count }} Activos</span>
-    </div>
-    <a href="{% url 'crear_obra' empresa.pk %}" class="btn btn-primary btn-sm shadow-sm d-flex align-items-center gap-2">
-        <i class="bi bi-plus-lg"></i> <span class="d-none d-md-inline">Nueva Obra</span>
-    </a>
-</div>
+    <div class="emp-grid">
+        <section class="inf-panel" aria-labelledby="empObras">
+            <div class="emp-head">
+                <h2 id="empObras"><span class="inf-ico" aria-hidden="true"><i class="bi bi-buildings"></i></span>Obras y proyectos<span>{{ obras|length }}</span></h2>
+                <span class="inf-leyenda emp-ocultable">
+                    <span class="act reciente">últimos 30 días</span>
+                    <span class="act media">6 meses</span>
+                    <span class="act quieta">más antiguo</span>
+                </span>
+            </div>
+            {% if obras %}
+            <div class="table-responsive">
+                <table class="inf-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" style="width: 120px;">Código</th>
+                            <th scope="col">Obra</th>
+                            <th scope="col" class="emp-col-num">Informes</th>
+                            <th scope="col" class="emp-col-num emp-ocultable">Remisiones</th>
+                            <th scope="col" class="emp-ocultable" style="width: 140px;">Último informe</th>
+                            <th scope="col" class="inf-acc"><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for obra in obras %}
+                        <tr class="inf-row">
+                            <td><span class="inf-num ot">{{ obra.codigo_obra }}</span></td>
+                            <td>
+                                <a href="{% url 'detalle_obra' obra.pk %}" class="inf-nombre">{{ obra.nombre }}</a>
+                                {% if obra.contacto or obra.direccion %}
+                                <span class="inf-sub">{{ obra.contacto|default:obra.direccion }}</span>
+                                {% endif %}
+                            </td>
+                            <td class="emp-col-num"><span class="inf-cifra{% if not obra.num_informes %} cero{% endif %}">{{ obra.num_informes }}</span></td>
+                            <td class="emp-col-num emp-ocultable"><span class="inf-cifra{% if not obra.num_remisiones %} cero{% endif %}">{{ obra.num_remisiones }}</span></td>
+                            <td class="emp-ocultable">
+                                {% if obra.ultimo_informe %}
+                                <span class="act {{ obra.actividad }}" title="{{ obra.ultimo_informe|timesince }} atrás">{{ obra.ultimo_informe|date:"j M Y" }}</span>
+                                {% else %}<span class="act nunca">sin informes</span>{% endif %}
+                            </td>
+                            <td class="inf-acc">
+                                <a href="{% url 'detalle_obra' obra.pk %}" class="inf-open" aria-label="Abrir {{ obra.nombre }}">
+                                    <span class="txt">Abrir</span><i class="bi bi-arrow-right" aria-hidden="true"></i>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            {% else %}
+            <div class="emp-empty">
+                <p>Esta empresa todavía no tiene obras.</p>
+                {% if user.es_geolab %}
+                <a href="{% url 'crear_obra' empresa.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg me-1"></i>Nueva obra</a>
+                {% endif %}
+            </div>
+            {% endif %}
+        </section>
 
-<div class="card card-custom">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="bg-light">
-                <tr>
-                    <th class="ps-4">Código Obra</th>
-                    <th>Nombre del Proyecto</th>
-                    <th>Fecha Registro</th>
-                    <th>Informes</th>
-                    <th class="text-end pe-4">Acción</th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for obra in obras %}
-                <tr>
-                    <td class="ps-4">
-                        <span class="badge bg-soft-orange text-dark font-monospace">{{ obra.codigo_obra }}</span>
-                    </td>
-                    <td>
-                        <div class="fw-bold text-dark">{{ obra.nombre }}</div>
-                    </td>
-                    <td class="text-muted small">
-                        {{ obra.fecha_creacion|date:"d M, Y" }}
-                    </td>
-                    <td>
-                        <span class="badge bg-light text-secondary border">
-                            {{ obra.num_informes }} docs
+        <div class="emp-col">
+            <aside class="inf-panel" aria-labelledby="empFicha">
+                <div class="emp-head">
+                    <h2 id="empFicha"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-building"></i></span>Ficha de la empresa</h2>
+                    {% if user.es_geolab %}<a href="{% url 'editar_constructora' empresa.pk %}" class="emp-more">Editar</a>{% endif %}
+                </div>
+                <dl class="emp-ficha">
+                    <div><dt>Razón social</dt><dd>{{ empresa.nombre }}</dd></div>
+                    <div><dt>Código</dt><dd class="mono">{{ empresa.codigo }}</dd></div>
+                    <div><dt>NIT</dt><dd class="mono{% if not empresa.nit %} vacio{% endif %}">{{ empresa.nit|default:"—" }}</dd></div>
+                    <div><dt>Ciudad</dt><dd{% if not empresa.ciudad %} class="vacio"{% endif %}>{{ empresa.ciudad|default:"—" }}</dd></div>
+                </dl>
+            </aside>
+
+            <aside class="inf-panel" aria-labelledby="empUsuarios">
+                <div class="emp-head">
+                    <h2 id="empUsuarios"><span class="inf-ico verde" aria-hidden="true"><i class="bi bi-people"></i></span>Usuarios del portal<span>{{ usuarios|length }}</span></h2>
+                    {% if user.es_geolab %}<a href="{% url 'crear_usuario_cliente' %}" class="emp-more">Nuevo</a>{% endif %}
+                </div>
+                {% if usuarios %}
+                <ul class="emp-usuarios">
+                    {% for u in usuarios %}
+                    <li>
+                        <span class="emp-avatar {{ u.rol }}" aria-hidden="true">{{ u.user.first_name|default:u.user.username|slice:":1"|upper }}</span>
+                        <span class="quien">
+                            {% if user.es_geolab %}
+                            <a href="{% url 'detalle_usuario_cliente' u.pk %}">{{ u.user.get_full_name|default:u.user.username }}</a>
+                            {% else %}
+                            <span class="inf-nombre">{{ u.user.get_full_name|default:u.user.username }}</span>
+                            {% endif %}
+                            <span class="emp-rol">{{ u.rol|capfirst }}</span>
+                            {% if not u.user.is_active %}<span class="emp-inactivo">· inactivo</span>{% endif %}
                         </span>
-                    </td>
-                    <td class="text-end pe-4">
-                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-outline-primary px-3 rounded-pill">
-                            Ver Detalle <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="emp-empty"><p class="mb-0">Nadie de esta empresa tiene acceso al portal.</p></div>
+                {% endif %}
+            </aside>
+        </div>
     </div>
 </div>
 {% endblock %}

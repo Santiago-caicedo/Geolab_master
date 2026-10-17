@@ -194,6 +194,32 @@
     .inf-ico.navy  { background: #e8edf6; color: #1c2e4a; }
     .inf-pages .actual { background: #0077b6; }
 
+    /* Pestañas de sede dentro de la banda (filtran con un clic) */
+    .inf-sedes { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; padding-top: .85rem; border-top: 1px solid rgba(255, 255, 255, .13); }
+    .inf-sedes a {
+        display: inline-flex; align-items: center; gap: .45rem; height: 30px; padding: 0 .75rem; border-radius: 999px;
+        font-size: .8125rem; font-weight: 500; color: rgba(255, 255, 255, .85); text-decoration: none;
+        background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14);
+    }
+    .inf-sedes a:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+    .inf-sedes a.activa { background: #fff; color: #12406b; border-color: #fff; font-weight: 600; }
+    .inf-sedes a .n { font-family: var(--inf-mono); font-size: .72rem; opacity: .8; }
+
+    /* Punto de actividad (último informe): reciente, media, quieta, nunca */
+    .act { display: inline-flex; align-items: center; gap: .4rem; white-space: nowrap; font-family: var(--inf-mono); font-size: .78rem; color: var(--inf-muted); }
+    .act::before { content: ''; width: 8px; height: 8px; border-radius: 50%; background: #cbd5e1; flex: none; }
+    .act.reciente::before { background: #16a34a; box-shadow: 0 0 0 3px rgba(22, 163, 74, .15); }
+    .act.media::before { background: #1a8fd8; }
+    .act.quieta::before { background: #cbd5e1; }
+    .act.nunca { font-family: inherit; }
+    .inf-cifra { font-variant-numeric: tabular-nums; color: var(--inf-text); }
+    .inf-cifra.cero { color: #cbd5e1; }
+    .inf-nombre { font-weight: 500; color: var(--inf-ink); text-decoration: none; }
+    a.inf-nombre:hover { color: var(--inf-link); text-decoration: underline; }
+    .inf-sub { display: block; font-size: .75rem; color: var(--inf-muted); }
+    .inf-leyenda { display: flex; gap: 1rem; flex-wrap: wrap; font-size: .75rem; color: var(--inf-muted); }
+    .inf-leyenda .act { font-family: inherit; font-size: .75rem; }
+
     @media (max-width: 767.98px) {
         .inf-hero-facts .dato { flex-basis: 50%; }
         .inf-hero-facts .dato:nth-child(odd) { padding-left: 0; border-left: 0; }

@@ -193,68 +193,123 @@ def informes_obra_cliente(request, pk):
 @login_required
 def lista_constructoras(request):
     """
-    NIVEL 1: Directorio de todas las Empresas con Filtros Funcionales
+    NIVEL 1: Directorio de empresas por sede, con búsqueda y actividad.
     """
     # Seguridad: Solo staff de Geolab debe ver esto
     if not request.user.es_geolab:
         return redirect('home')
 
-    # 1. QUERYSET BASE
-    # Traemos las empresas y les pegamos el conteo de obras y usuarios
-    queryset = Constructora.objects.annotate(
-        num_obras=Count('obras'),
-        num_usuarios=Count('usuarios')
-    ).order_by('nombre')
+    todas = Constructora.objects.all()
+    # Sedes con su número de empresas (pestañas de filtro)
+    sedes = list(
+        todas.exclude(ciudad__isnull=True).exclude(ciudad='')
+        .values('ciudad').annotate(n=Count('pk')).order_by('-n', 'ciudad')
+    )
 
-    # 2. OBTENER LISTA DE CIUDADES (Para llenar el Select)
-    # Buscamos todas las ciudades únicas, quitando las vacías o nulas
-    ciudades_disponibles = Constructora.objects.exclude(ciudad__isnull=True).exclude(ciudad='').values_list('ciudad', flat=True).distinct().order_by('ciudad')
+    q = (request.GET.get('q') or '').strip()
+    ciudad_filtro = request.GET.get('ciudad') or ''
 
-    # 3. RECIBIR PARÁMETROS DEL GET (Lo que viene del formulario)
-    q = request.GET.get('q')           # Texto del buscador
-    ciudad_filtro = request.GET.get('ciudad') # Ciudad seleccionada
-
-    # 4. APLICAR FILTROS (Si existen)
-    
-    # Filtro de Texto (Búsqueda)
+    queryset = _con_actividad(todas)
     if q:
-        queryset = queryset.filter(
-            Q(nombre__icontains=q) |   # Busca en Nombre...
-            Q(codigo__icontains=q) |   # O en Código...
-            Q(nit__icontains=q)        # O en NIT
-        )
-    
-    # Filtro de Ciudad
+        queryset = queryset.filter(Q(nombre__icontains=q) | Q(codigo__icontains=q) | Q(nit__icontains=q))
     if ciudad_filtro:
         queryset = queryset.filter(ciudad=ciudad_filtro)
+    # Mismo orden de sedes que las pestañas (la más grande primero); sin ciudad al final
+    rango = {s['ciudad']: i for i, s in enumerate(sedes)}
+    constructoras = sorted(queryset, key=lambda c: (rango.get(c.ciudad, len(rango)), _orden_natural(c.codigo)))
+    for c in constructoras:
+        c.actividad = _actividad(c.ultimo_informe)
 
-    # 5. ENVIAR AL TEMPLATE
     context = {
-        'constructoras': queryset,
-        'ciudades': ciudades_disponibles,
-        # Pasamos los valores actuales para que el formulario no se resetee al filtrar
-        'q_actual': q if q else '',
-        'ciudad_actual': ciudad_filtro if ciudad_filtro else ''
+        'constructoras': constructoras,
+        'sedes': sedes,
+        'total_empresas': todas.count(),
+        'total_obras': Obra.objects.count(),
+        'total_informes': Informe.objects.count(),
+        'q_actual': q,
+        'ciudad_actual': ciudad_filtro,
+        'hoy': timezone.localdate(),
     }
     return render(request, 'core/lista_constructoras.html', context)
 
+
+def _actividad(fecha):
+    """Color del punto de actividad según el último informe: reciente (30 días), media (6 meses), quieta, nunca."""
+    if not fecha:
+        return 'nunca'
+    dias = (timezone.now() - fecha).days
+    if dias <= 30:
+        return 'reciente'
+    return 'media' if dias <= 180 else 'quieta'
+
+
+def _orden_natural(codigo):
+    """'BUC53-10' -> ('buc', 53, '-', 10): así BUC53-2 va antes que BUC53-10."""
+    import re
+    return tuple(int(t) if t.isdigit() else t.lower() for t in re.split(r'(\d+)', codigo or '') if t)
+
+
+def _con_actividad(constructoras):
+    """Anota obras, usuarios, informes y fecha del último informe con subconsultas
+    (contar con joins cruzados multiplica los números)."""
+    from django.db.models import F, Func, IntegerField, OuterRef, Subquery
+    from django.db.models.functions import Coalesce
+    from users.models import ClienteExterno
+
+    def contar(qs):
+        # SELECT COUNT(id) FROM ... WHERE fk = externo  (Func no agrega GROUP BY)
+        return Coalesce(Subquery(
+            qs.order_by().annotate(c=Func(F('pk'), function='COUNT')).values('c'),
+            output_field=IntegerField()), 0)
+
+    obras = Obra.objects.filter(constructora=OuterRef('pk'))
+    usuarios = ClienteExterno.objects.filter(empresa=OuterRef('pk'))
+    informes = Informe.objects.filter(obra__constructora=OuterRef('pk'))
+    ultimo = Informe.objects.filter(obra__constructora=OuterRef('pk'), fecha_creacion__isnull=False) \
+        .order_by('-fecha_creacion').values('fecha_creacion')[:1]
+    return constructoras.annotate(
+        num_obras=contar(obras), num_usuarios=contar(usuarios), num_informes=contar(informes),
+        ultimo_informe=Subquery(ultimo),
+    )
+
+
 @login_required
 def detalle_constructora(request, pk):
-    """NIVEL 2: Expediente de la Empresa (Lista de Obras)"""
-    empresa = get_object_or_404(Constructora, pk=pk)
-    
-    # Validamos permiso: Solo Staff o el Director de esa empresa pueden ver esto
-    es_director_propio = request.user.es_cliente and request.user.perfil_cliente.empresa == empresa and request.user.perfil_cliente.rol == 'director'
-    
-    if not (request.user.es_geolab or es_director_propio):
-        return render(request, 'core/pending.html') # O un 403 Forbidden
+    """NIVEL 2: Expediente de la empresa (obras, usuarios del portal y actividad)."""
+    from django.db.models import Max
+    from users.models import ClienteExterno
 
-    # Traemos las obras de esta empresa con conteo de informes
-    obras = empresa.obras.annotate(num_informes=Count('informes')).order_by('-fecha_creacion')
+    empresa = get_object_or_404(Constructora, pk=pk)
+
+    # Solo staff o el director de esa empresa
+    perfil = getattr(request.user, 'perfil_cliente', None)
+    es_director_propio = (request.user.es_cliente and perfil is not None
+                          and perfil.empresa_id == empresa.pk and perfil.rol == 'director')
+    if not (request.user.es_geolab or es_director_propio):
+        return render(request, 'core/pending.html')  # O un 403 Forbidden
+
+    obras = sorted(
+        empresa.obras.annotate(
+            num_informes=Count('informes', distinct=True),
+            num_remisiones=Count('remisiones', distinct=True),
+            ultimo_informe=Max('informes__fecha_creacion'),
+        ),
+        key=lambda o: _orden_natural(o.codigo_obra),
+    )
+    for o in obras:
+        o.actividad = _actividad(o.ultimo_informe)
+    usuarios = ClienteExterno.objects.filter(empresa=empresa).select_related('user').order_by('rol', 'user__first_name')
+    empresa_act = _con_actividad(Constructora.objects.filter(pk=empresa.pk)).get()
 
     return render(request, 'core/detalle_constructora.html', {
         'empresa': empresa,
-        'obras': obras
+        'obras': obras,
+        'usuarios': usuarios,
+        'total_informes': empresa_act.num_informes,
+        'ultimo_informe': empresa_act.ultimo_informe,
+        'total_remisiones': sum(o.num_remisiones for o in obras),
+        'obras_activas': sum(1 for o in obras if o.actividad in ('reciente', 'media')),
+        'hoy': timezone.localdate(),
     })
 
 def _puede_ver_obra(user, obra):

@@ -628,3 +628,50 @@ class ExpedienteObraTests(TestCase):
         self.remitente.obras_asignadas.add(self.obra)
         self.assertEqual(self._get(self.remitente.user).status_code, 200)
 
+
+class DirectorioEmpresasTests(TestCase):
+    """Directorio y detalle de empresa: conteos correctos, sedes, orden natural y acceso."""
+
+    def setUp(self):
+        from users.models import FuncionarioGeolab
+        self.staff = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=self.staff, area='admin')
+        self.buc = Constructora.objects.create(codigo='BUC53', nombre='MARTINEZ', ciudad='Bucaramanga')
+        self.iba = Constructora.objects.create(codigo='IBA8', nombre='DYCO', ciudad='Ibagué')
+        for n in (1, 2, 10):
+            o = Obra.objects.create(nombre=f'OBRA {n}', codigo_obra=f'BUC53-{n}', constructora=self.buc)
+            Informe.objects.create(titulo=f'INF-{n}.pdf', obra=o)
+        for i in range(2):   # dos usuarios: con joins cruzados las obras salían x2
+            u = UsuarioBase.objects.create_user(f'c{i}', password='x', es_cliente=True)
+            ClienteExterno.objects.create(user=u, empresa=self.buc, rol='remitente')
+
+    def test_conteos_no_se_multiplican(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('lista_constructoras'))
+        buc = next(c for c in r.context['constructoras'] if c.pk == self.buc.pk)
+        self.assertEqual((buc.num_obras, buc.num_usuarios, buc.num_informes), (3, 2, 3))
+
+    def test_filtro_por_sede(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('lista_constructoras'), {'ciudad': 'Ibagué'})
+        self.assertEqual([c.pk for c in r.context['constructoras']], [self.iba.pk])
+        self.assertContains(r, 'Bucaramanga <span class="n">1</span>', html=False)
+
+    def test_detalle_con_obras_en_orden_natural_y_usuarios(self):
+        from django.urls import reverse
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('detalle_constructora', args=[self.buc.pk]))
+        self.assertEqual([o.codigo_obra for o in r.context['obras']], ['BUC53-1', 'BUC53-2', 'BUC53-10'])
+        self.assertEqual(r.context['total_informes'], 3)
+        self.assertEqual(len(r.context['usuarios']), 2)
+
+    def test_cliente_sin_perfil_no_rompe_el_detalle(self):
+        from django.urls import reverse
+        u = UsuarioBase.objects.create_user('suelto', password='x', es_cliente=True)
+        self.client.force_login(u)
+        r = self.client.get(reverse('detalle_constructora', args=[self.buc.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertTemplateUsed(r, 'core/pending.html')
+
