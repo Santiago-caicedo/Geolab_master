@@ -122,6 +122,84 @@
     .inf-modal li { padding: .25rem 0; border-bottom: 1px dashed var(--inf-line); font-size: .8125rem; }
     .inf-modal .nota { font-size: .78rem; color: var(--inf-muted); }
 
+    /* ===== Vida: banda de encabezado, color por ensayo, acentos ===== */
+
+    /* Banda azul Geolab con estratos de suelo de fondo (el mundo del laboratorio) */
+    .inf-hero {
+        position: relative; overflow: hidden; color: #fff; border-radius: 12px;
+        padding: 1.1rem 1.25rem; margin-bottom: 1rem;
+        background: linear-gradient(118deg, #1c2e4a 0%, #18385c 55%, #0e4f7d 100%);
+        box-shadow: 0 6px 18px -10px rgba(16, 42, 72, .55);
+    }
+    .inf-hero::before {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 240' preserveAspectRatio='none'%3E%3Cg fill='none' stroke='%23ffffff' stroke-opacity='.10' stroke-width='1.3'%3E%3Cpath d='M0 40 C120 20 220 70 340 50 S560 10 800 45'/%3E%3Cpath d='M0 70 C140 50 230 100 360 80 S570 45 800 78'/%3E%3Cpath d='M0 132 C150 115 260 160 400 142 S590 112 800 146'/%3E%3Cpath d='M0 164 C140 150 270 192 410 174 S600 145 800 180'/%3E%3Cpath d='M0 196 C160 182 280 224 420 206 S610 178 800 212'/%3E%3C/g%3E%3Cpath d='M0 100 C130 85 250 130 380 110 S580 80 800 112' fill='none' stroke='%2338b6f5' stroke-opacity='.55' stroke-width='1.6'/%3E%3C/svg%3E") right center / 72% 100% no-repeat;
+        -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 55%);
+                mask-image: linear-gradient(90deg, transparent 0, #000 55%);
+    }
+    .inf-hero > * { position: relative; }
+    .inf-hero .inf-head { margin-bottom: 0; }
+    .inf-hero .inf-eyebrow { color: #7cc8f0; }
+    .inf-hero .inf-title { color: #fff; font-size: 1.4rem; }
+    .inf-hero .inf-code { color: #d4e9f8; border-color: rgba(255, 255, 255, .25); background: rgba(255, 255, 255, .07); }
+    .inf-hero .inf-meta { color: rgba(255, 255, 255, .75); }
+    .inf-hero .inf-meta strong { color: #fff; }
+    .inf-hero .btn-hero {
+        background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .22); color: #fff;
+    }
+    .inf-hero .btn-hero:hover, .inf-hero .btn-hero:focus-visible { background: rgba(255, 255, 255, .16); color: #fff; }
+    .inf-hero .btn-hero-primary { background: #0077b6; border: 1px solid #0077b6; color: #fff; font-weight: 600; }   /* 4.9:1 */
+    .inf-hero .btn-hero-primary:hover { background: #00669c; border-color: #00669c; color: #fff; }
+    .inf-hero a:focus-visible, .inf-hero button:focus-visible { outline-color: #7cc8f0; }
+
+    /* Datos dentro de la banda */
+    .inf-hero-facts { display: flex; flex-wrap: wrap; gap: .25rem 0; margin-top: 1rem; padding-top: .8rem; border-top: 1px solid rgba(255, 255, 255, .13); }
+    .inf-hero-facts .dato { flex: 1 1 170px; padding-right: 1rem; min-width: 0; }
+    .inf-hero-facts .dato + .dato { padding-left: 1rem; border-left: 1px solid rgba(255, 255, 255, .13); }
+    .inf-hero-facts .eti { font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #9fcbea; }
+    .inf-hero-facts .val { font-size: 1.2rem; font-weight: 600; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.35; }
+    .inf-hero-facts .val small { font-size: .78rem; font-weight: 500; color: rgba(255, 255, 255, .7); }
+    .inf-hero-facts .sub { font-size: .78rem; color: rgba(255, 255, 255, .7); }
+    .inf-hero-facts .barra { height: 5px; border-radius: 3px; background: rgba(255, 255, 255, .16); margin: .35rem 0 .15rem; max-width: 160px; overflow: hidden; }
+    .inf-hero-facts .barra i { display: block; height: 100%; background: linear-gradient(90deg, #38b6f5, #7ee0b5); }
+
+    /* Color por familia de ensayo (la etiqueta del número lo dice de un vistazo) */
+    .inf-num.cil  { background: #e1f0fb; color: #0b5c8f; }
+    .inf-num.cub  { background: #daf2ec; color: #0e6353; }
+    .inf-num.vig  { background: #fcefd6; color: #864900; }
+    .inf-num.otro { background: #eef1f5; color: #3d4a5c; }
+    .inf-num.ot   { background: #e8edf6; color: #1c2e4a; }
+    .inf-tipo .punto { display: inline-block; width: 7px; height: 7px; border-radius: 50%; margin-right: .45rem; vertical-align: 1px; background: #94a3b8; }
+    .inf-tipo .punto.cil { background: #1a8fd8; }
+    .inf-tipo .punto.cub { background: #16a085; }
+    .inf-tipo .punto.vig { background: #e3920b; }
+
+    /* Acento azul en la fila bajo el mouse */
+    .inf-table tbody tr.inf-row td:first-child { box-shadow: inset 3px 0 0 transparent; transition: box-shadow .12s ease; }
+    .inf-table tbody tr.inf-row:hover td:first-child { box-shadow: inset 3px 0 0 #008ed6; }
+    .inf-table tbody tr.inf-row:hover td { background: #f2f8fd; }
+
+    /* Meses en azul de marca */
+    .inf-table .inf-mes td { color: #0b6ea8; }
+    .inf-mes td::after { background: linear-gradient(90deg, #008ed6, rgba(0, 142, 214, 0)); opacity: .45; }
+
+    /* Paneles con un poco más de cuerpo e ícono de sección */
+    .inf-panel { box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 4px 14px -10px rgba(15, 23, 42, .18); }
+    .inf-ico {
+        display: inline-flex; align-items: center; justify-content: center; width: 26px; height: 26px;
+        border-radius: 7px; font-size: .85rem; margin-right: .5rem; vertical-align: -6px;
+        background: #e1f0fb; color: #0b6ea8;
+    }
+    .inf-ico.verde { background: #daf2ec; color: #0e6353; }
+    .inf-ico.navy  { background: #e8edf6; color: #1c2e4a; }
+    .inf-pages .actual { background: #0077b6; }
+
+    @media (max-width: 767.98px) {
+        .inf-hero-facts .dato { flex-basis: 50%; }
+        .inf-hero-facts .dato:nth-child(odd) { padding-left: 0; border-left: 0; }
+        .inf-hero::before { background-size: 140% 100%; }
+    }
+
     @media (max-width: 767.98px) {
         .inf-col-fecha { display: none; }
         .inf-tipo small { display: block; }

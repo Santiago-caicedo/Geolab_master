@@ -18,6 +18,7 @@
         <span aria-current="page">Informes</span>
     </nav>
 
+    <section class="inf-hero">
     <header class="inf-head">
         <div>
             <div class="inf-eyebrow">Informes técnicos</div>
@@ -28,16 +29,17 @@
             </div>
         </div>
         <div class="inf-actions">
-            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light border">
+            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-hero">
                 <i class="bi bi-arrow-left me-1"></i>Volver a la obra
             </a>
             {% if user.es_geolab %}
-            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
+            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-hero-primary">
                 <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
             </a>
             {% endif %}
         </div>
     </header>
+    </section>
 
     <section class="inf-panel" aria-label="Lista de informes">
         <form method="get" class="inf-toolbar" role="search">
@@ -110,10 +112,10 @@
                         </td>
                         {% endif %}
                         <td>
-                            {% if p.numero %}<span class="inf-num">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
+                            {% if p.numero %}<span class="inf-num {{ p.clase }}">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
                         </td>
                         <td class="inf-tipo" title="{{ informe.titulo }}">
-                            {{ p.tipo|default:informe.titulo }}
+                            <span class="punto {{ p.clase }}" aria-hidden="true"></span>{{ p.tipo|default:informe.titulo }}
                             <small>{{ informe.fecha_creacion|date:"j M Y" }}</small>
                         </td>
                         <td class="inf-fecha inf-col-fecha" title="{{ informe.fecha_creacion|date:'j \d\e F \d\e Y, g:i a' }}">

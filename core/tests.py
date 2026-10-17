@@ -497,6 +497,13 @@ class PartesInformeTests(SimpleTestCase):
             p = partes_informe(titulo)
             self.assertEqual((p['numero'], p['tipo']), (numero, tipo), titulo)
 
+    def test_familia_de_ensayo_para_el_color(self):
+        from core.templatetags.informes_tags import partes_informe
+        self.assertEqual(partes_informe('INF-0103-2024-COMPRESION-CILINDROS.pdf')['clase'], 'cil')
+        self.assertEqual(partes_informe('INF1078-2026 COMPRESION CUBOS')['clase'], 'cub')
+        self.assertEqual(partes_informe('INF 0340-2026 VIGAS FLEXION M 8V')['clase'], 'vig')
+        self.assertEqual(partes_informe('Analisis_tecnico.pdf')['clase'], 'otro')
+
 
 class ListaInformesObraTests(TestCase):
     """Registro de informes de la obra: búsqueda y borrado (solo superusuario)."""

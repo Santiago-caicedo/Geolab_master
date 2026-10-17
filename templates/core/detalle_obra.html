@@ -7,28 +7,23 @@
 {% include "includes/_registro_estilos.html" %}
 <style>
     /* Expediente de obra: ficha + informes y remisiones recientes (esquema "registro") */
-    .exp-facts { display: flex; flex-wrap: wrap; background: #fff; border: 1px solid var(--inf-line); border-radius: 10px; margin-bottom: 1rem; }
-    .exp-fact { flex: 1 1 180px; padding: .7rem 1rem; border-right: 1px solid var(--inf-line); min-width: 0; }
-    .exp-fact:last-child { border-right: 0; }
-    .exp-fact .eti { font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--inf-muted); }
-    .exp-fact .val { font-size: 1.05rem; font-weight: 600; color: var(--inf-ink); font-variant-numeric: tabular-nums; line-height: 1.4; }
-    .exp-fact .sub { font-size: .78rem; color: var(--inf-muted); }
-
     .exp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
     .exp-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
 
-    .exp-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem;
+    .exp-panel-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem;
                       padding: .7rem .75rem .6rem; border-bottom: 1px solid var(--inf-line); }
-    .exp-panel-head h2 { font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
-    .exp-panel-head h2 span { color: var(--inf-muted); font-weight: 500; margin-left: .25rem; }
+    .exp-panel-head h2 { display: flex; align-items: center; font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .exp-panel-head .inf-ico { vertical-align: 0; }
+    .exp-panel-head h2 > span:not(.inf-ico) { color: var(--inf-muted); font-weight: 500; margin-left: .25rem; }
     .exp-more { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
     .exp-more:hover { text-decoration: underline; }
 
     /* Avance de ensayos de una remisión */
     .exp-avance { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; font-size: .78rem; color: var(--inf-muted); font-variant-numeric: tabular-nums; }
-    .exp-barra { width: 64px; height: 4px; border-radius: 2px; background: var(--inf-line); overflow: hidden; }
-    .exp-barra i { display: block; height: 100%; background: var(--inf-link); }
-    .exp-barra.lleno i { background: #15803d; }
+    .exp-barra { width: 72px; height: 6px; border-radius: 3px; background: #e8eef5; overflow: hidden; }
+    .exp-barra i { display: block; height: 100%; border-radius: 3px; background: linear-gradient(90deg, #008ed6, #38b6f5); }
+    .exp-barra.lleno i { background: linear-gradient(90deg, #16a085, #3ccf9c); }
+    .exp-avance.lleno { color: #0e6353; font-weight: 600; }
     .exp-sin { font-size: .78rem; color: var(--inf-muted); }
 
     /* Ficha de la obra */
@@ -47,11 +42,7 @@
     .inf .dropdown-menu { font-size: .8125rem; }
 
     @media (max-width: 991.98px) { .exp-grid { grid-template-columns: minmax(0, 1fr); } }
-    @media (max-width: 575.98px) {
-        .exp-fact { flex-basis: 50%; border-bottom: 1px solid var(--inf-line); }
-        .exp-fact:nth-child(2n) { border-right: 0; }
-        .exp-col-oculta { display: none; }
-    }
+    @media (max-width: 575.98px) { .exp-col-oculta { display: none; } }
 </style>
 {% endblock %}
 
@@ -65,6 +56,7 @@
         <span aria-current="page">{{ obra.nombre }}</span>
     </nav>
 
+    <section class="inf-hero">
     <header class="inf-head">
         <div>
             <div class="inf-eyebrow">Expediente de obra</div>
@@ -75,17 +67,17 @@
         </div>
         {% if user.es_geolab %}
         <div class="inf-actions">
-            <a href="{% url 'hoja_trabajo_obra' obra.pk %}" class="btn btn-sm btn-light border">
+            <a href="{% url 'hoja_trabajo_obra' obra.pk %}" class="btn btn-sm btn-hero">
                 <i class="bi bi-clipboard2-data me-1"></i>Hoja de trabajo
             </a>
-            <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-sm btn-light border">
+            <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-sm btn-hero">
                 <i class="bi bi-file-earmark-plus me-1"></i>Nueva remisión
             </a>
-            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
+            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-hero-primary">
                 <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
             </a>
             <div class="dropdown">
-                <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más acciones">
+                <button class="btn btn-sm btn-hero" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más acciones">
                     <i class="bi bi-three-dots"></i>
                 </button>
                 <ul class="dropdown-menu dropdown-menu-end shadow-sm">
@@ -96,41 +88,43 @@
         </div>
         {% endif %}
     </header>
-
-    <section class="exp-facts" aria-label="Resumen">
-        <div class="exp-fact">
+    <div class="inf-hero-facts" aria-label="Resumen">
+        <div class="dato">
             <div class="eti">Informes</div>
             <div class="val">{{ total_informes }}</div>
             <div class="sub">{% if ultimo_informe %}último del {{ ultimo_informe|date:"j M Y" }}{% else %}ninguno todavía{% endif %}</div>
         </div>
-        <div class="exp-fact">
+        <div class="dato">
             <div class="eti">Remisiones</div>
             <div class="val">{{ total_remisiones }}</div>
             <div class="sub">{% if ultima_remision %}última del {{ ultima_remision|date:"j M Y" }}{% else %}ninguna todavía{% endif %}</div>
         </div>
-        <div class="exp-fact">
-            <div class="eti">Ensayos</div>
+        <div class="dato">
+            <div class="eti">Ensayos registrados</div>
             {% if ensayos_total %}
-            <div class="val">{{ ensayos_hechos }} <span class="sub">de {{ ensayos_total }}</span></div>
+            <div class="val">{{ ensayos_hechos }} <small>de {{ ensayos_total }}</small></div>
+            <div class="barra" aria-hidden="true"><i style="width: {% widthratio ensayos_hechos ensayos_total 100 %}%"></i></div>
             <div class="sub">{% if ensayos_pendientes %}{{ ensayos_pendientes }} por registrar{% else %}todos registrados{% endif %}</div>
             {% else %}
             <div class="val">—</div>
             <div class="sub">sin muestras para ensayar</div>
             {% endif %}
         </div>
-        <div class="exp-fact">
-            <div class="eti">En el portal</div>
+        <div class="dato">
+            <div class="eti">En el portal desde</div>
             <div class="val">{{ obra.fecha_creacion|date:"M Y"|default:"—" }}</div>
             <div class="sub">{% if obra.id_wp_original %}viene de WordPress{% else %}creada en el portal{% endif %}</div>
         </div>
+    </div>
     </section>
+
 
     <div class="exp-grid">
         <div class="exp-col">
             <!-- Informes recientes -->
             <section class="inf-panel" aria-labelledby="expInformes">
                 <div class="exp-panel-head">
-                    <h2 id="expInformes">Informes recientes<span>{{ total_informes }}</span></h2>
+                    <h2 id="expInformes"><span class="inf-ico" aria-hidden="true"><i class="bi bi-file-earmark-pdf"></i></span>Informes recientes<span>{{ total_informes }}</span></h2>
                     {% if total_informes %}
                     <a href="{% url 'lista_informes_obra' obra.pk %}" class="exp-more">
                         {% if total_informes > informes_recientes|length %}Ver los {{ total_informes }}{% else %}Abrir el registro{% endif %} <i class="bi bi-arrow-right"></i>
@@ -144,10 +138,10 @@
                         {% with p=informe.titulo|partes_informe %}
                         <tr class="inf-row">
                             <td style="width: 150px;">
-                                {% if p.numero %}<span class="inf-num">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
+                                {% if p.numero %}<span class="inf-num {{ p.clase }}">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
                             </td>
                             <td class="inf-tipo" title="{{ informe.titulo }}">
-                                {{ p.tipo|default:informe.titulo }}
+                                <span class="punto {{ p.clase }}" aria-hidden="true"></span>{{ p.tipo|default:informe.titulo }}
                                 <small>{{ informe.fecha_creacion|date:"j M Y" }}</small>
                             </td>
                             <td class="inf-fecha inf-col-fecha" style="width: 110px;">{{ informe.fecha_creacion|date:"j M Y"|default:"—" }}</td>
@@ -176,7 +170,7 @@
             <!-- Remisiones recientes -->
             <section class="inf-panel" aria-labelledby="expRemisiones">
                 <div class="exp-panel-head">
-                    <h2 id="expRemisiones">Remisiones de muestras<span>{{ total_remisiones }}</span></h2>
+                    <h2 id="expRemisiones"><span class="inf-ico verde" aria-hidden="true"><i class="bi bi-box-seam"></i></span>Remisiones de muestras<span>{{ total_remisiones }}</span></h2>
                     {% if total_remisiones %}
                     <a href="{% url 'lista_remisiones_obra' obra.pk %}" class="exp-more">
                         {% if total_remisiones > remisiones_recientes|length %}Ver las {{ total_remisiones }}{% else %}Ver remisiones{% endif %} <i class="bi bi-arrow-right"></i>
@@ -197,14 +191,14 @@
                     <tbody>
                         {% for rem in remisiones_recientes %}
                         <tr class="inf-row">
-                            <td><span class="inf-num">OT {{ rem.orden_trabajo }}</span></td>
+                            <td><span class="inf-num ot">OT {{ rem.orden_trabajo }}</span></td>
                             <td>
                                 {{ rem.n_muestras }} muestra{{ rem.n_muestras|pluralize }}
                                 {% if rem.estado != 'completada' %}<span class="exp-sin">· {{ rem.get_estado_display }}</span>{% endif %}
                             </td>
                             <td class="exp-col-oculta">
                                 {% if rem.ensayos_total %}
-                                <span class="exp-avance" title="{{ rem.ensayos_hechos }} de {{ rem.ensayos_total }} ensayos registrados">
+                                <span class="exp-avance{% if rem.ensayos_hechos == rem.ensayos_total %} lleno{% endif %}" title="{{ rem.ensayos_hechos }} de {{ rem.ensayos_total }} ensayos registrados">
                                     <span class="exp-barra{% if rem.ensayos_hechos == rem.ensayos_total %} lleno{% endif %}" aria-hidden="true">
                                         <i style="width: {% widthratio rem.ensayos_hechos rem.ensayos_total 100 %}%"></i>
                                     </span>
@@ -236,7 +230,7 @@
         <!-- Ficha -->
         <aside class="inf-panel" aria-labelledby="expFicha">
             <div class="exp-panel-head">
-                <h2 id="expFicha">Ficha de la obra</h2>
+                <h2 id="expFicha"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-geo-alt"></i></span>Ficha de la obra</h2>
                 {% if user.es_geolab %}<a href="{% url 'editar_obra' obra.pk %}" class="exp-more">Editar</a>{% endif %}
             </div>
             <dl class="exp-ficha">

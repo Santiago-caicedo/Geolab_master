@@ -39,12 +39,26 @@ def _legible(texto):
     return frase[0].upper() + frase[1:]
 
 
+def _clase(tipo):
+    """Familia de ensayo para darle color: cil (cilindros), cub (cubos), vig (vigas/flexión), otro."""
+    t = tipo.lower()
+    if 'cilindro' in t:
+        return 'cil'
+    if 'cubo' in t:
+        return 'cub'
+    if 'viga' in t or 'flexi' in t:
+        return 'vig'
+    return 'otro'
+
+
 @register.filter
 def partes_informe(titulo):
-    """{'numero': 'INF 0103-2024', 'tipo': 'Compresión cilindros'}; numero vacío si no tiene ese formato."""
+    """{'numero': 'INF 0103-2024', 'tipo': 'Compresión cilindros', 'clase': 'cil'}; numero vacío si no tiene ese formato."""
     titulo = titulo or ''
     m = _NUMERO.match(titulo)
     if not m:   # sin formato de informe: el nombre tal cual, sin extensión
-        return {'numero': '', 'tipo': _EXTENSIONES.sub('', titulo).strip() or titulo}
+        tipo = _EXTENSIONES.sub('', titulo).strip() or titulo
+        return {'numero': '', 'tipo': tipo, 'clase': 'otro'}
     numero = f"INF {m.group('num')}" + (f"-{m.group('anio')}" if m.group('anio') else '')
-    return {'numero': numero, 'tipo': _legible(titulo[m.end():])}
+    tipo = _legible(titulo[m.end():])
+    return {'numero': numero, 'tipo': tipo, 'clase': _clase(tipo)}
