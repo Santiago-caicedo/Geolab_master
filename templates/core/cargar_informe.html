@@ -1,612 +1,478 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load humanize %}
 
-{% block title %}Cargar Informe - Geolab{% endblock %}
+{% block title %}Cargar informes{% if obra %} · {{ obra.nombre }}{% endif %}{% endblock %}
 
 {% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
 <style>
-    .upload-card {
-        border: none;
-        border-radius: 16px;
-        overflow: hidden;
+    /* Carga de informes (esquema "registro"): pasos a la izquierda, resumen fijo a la derecha.
+       Sirve para cargar_informe (eligiendo obra) y cargar_informe_obra (obra fija). */
+    .cg-grid { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1rem; align-items: start; }
+
+    /* Pasos: la secuencia es real (obra → fecha → archivos), por eso van numerados */
+    .cg-pasos { list-style: none; margin: 0; padding: 0; }
+    .cg-paso { display: grid; grid-template-columns: 28px minmax(0, 1fr); gap: .85rem; padding: 1rem 1rem 1.1rem; border-bottom: 1px solid var(--inf-line); }
+    .cg-paso:last-child { border-bottom: 0; }
+    .cg-num {
+        width: 28px; height: 28px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+        font-family: var(--inf-mono); font-size: .78rem; font-weight: 500;
+        background: #e1f0fb; color: #0b5c8f; transition: background-color .15s ease, color .15s ease;
     }
-    .upload-header {
-        background: linear-gradient(135deg, var(--sidebar-bg) 0%, #0f172a 100%);
-        color: white;
-        padding: 2rem;
+    .cg-num .bi { display: none; font-size: .9rem; }
+    .cg-paso.hecho .cg-num { background: #0077b6; color: #fff; }
+    .cg-paso.hecho .cg-num .n { display: none; }
+    .cg-paso.hecho .cg-num .bi { display: inline; }
+    .cg-paso.bloqueado .cg-num { background: #f1f4f8; color: #94a3b8; }
+    .cg-paso h2 { font-size: .9375rem; font-weight: 600; color: var(--inf-ink); margin: .2rem 0 .15rem; }
+    .cg-ayuda { font-size: .8125rem; color: var(--inf-muted); margin: 0 0 .75rem; }
+    .cg-paso fieldset { min-width: 0; border: 0; margin: 0; padding: 0; }
+    .cg-paso fieldset:disabled { opacity: .55; }
+    .cg-error { font-size: .8125rem; color: var(--inf-danger); margin-top: .4rem; }
+    .cg .form-control, .cg .form-select { font-size: .875rem; }
+    .cg .form-control:focus { border-color: #0077b6; box-shadow: 0 0 0 3px rgba(0, 119, 182, .15); }
+    .cg-fecha { max-width: 220px; }
+
+    /* Buscador de empresa / obra */
+    .cg-destino { display: flex; flex-direction: column; gap: .5rem; }
+    .cg-destino > [hidden] { display: none; }
+    .cg-combo { position: relative; max-width: 520px; }
+    .cg-combo label { display: block; font-size: .75rem; font-weight: 600; color: var(--inf-muted); margin-bottom: .3rem; }
+    .cg-combo .cg-buscar { position: relative; }
+    .cg-combo .cg-buscar > .bi { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--inf-muted); font-size: .85rem; pointer-events: none; }
+    .cg-combo input[type="text"] { padding-left: 2rem; height: 40px; }
+    .cg-opciones {
+        position: absolute; z-index: 20; top: calc(100% + 4px); left: 0; right: 0; max-height: 280px; overflow-y: auto;
+        margin: 0; padding: .25rem; list-style: none; background: #fff; border: 1px solid var(--inf-line); border-radius: 10px;
+        box-shadow: 0 12px 32px -12px rgba(15, 23, 42, .3);
     }
-    .upload-icon {
-        width: 70px;
-        height: 70px;
-        background: rgba(255,255,255,0.1);
-        border-radius: 16px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        font-size: 2rem;
-        margin-bottom: 1rem;
+    .cg-opciones[hidden] { display: none; }
+    .cg-opciones li[role="option"] {
+        display: flex; align-items: center; gap: .6rem; padding: .45rem .55rem; border-radius: 7px; cursor: pointer; min-height: 40px;
     }
-    .file-input-wrapper {
-        position: relative;
-        border: 2px dashed var(--border-color);
-        border-radius: 12px;
-        padding: 2rem;
-        text-align: center;
-        transition: all 0.2s;
-        background: #f8fafc;
+    .cg-opciones li[role="option"]:hover, .cg-opciones li[aria-selected="true"] { background: #e9f3fb; }
+    .cg-opciones .cg-op-nombre { flex: 1; min-width: 0; color: var(--inf-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cg-opciones .cg-op-sub { font-size: .75rem; color: var(--inf-muted); white-space: nowrap; }
+    .cg-opciones .inf-code { margin-left: 0; flex: none; }
+    .cg-opciones .cg-vacio { padding: .75rem; color: var(--inf-muted); font-size: .8125rem; text-align: center; }
+
+    /* Elección hecha: ficha compacta con "Cambiar" */
+    .cg-elegido {
+        display: flex; align-items: center; gap: .65rem; max-width: 520px; padding: .55rem .6rem .55rem .75rem;
+        border: 1px solid #cfe3f3; background: #f4f9fd; border-radius: 10px;
     }
-    .file-input-wrapper:hover {
-        border-color: var(--brand-blue);
-        background: rgba(0, 142, 214, 0.03);
+    .cg-elegido .inf-ico { margin: 0; vertical-align: 0; flex: none; }
+    .cg-elegido .cg-el-txt { flex: 1; min-width: 0; line-height: 1.3; }
+    .cg-elegido .cg-el-eti { display: block; font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--inf-muted); }
+    .cg-elegido .cg-el-nombre { color: var(--inf-ink); font-weight: 500; overflow-wrap: anywhere; }
+    .cg-elegido .inf-code { margin-left: .35rem; }
+    .cg-cambiar { border: 0; background: transparent; color: var(--inf-link); font-size: .8125rem; font-weight: 500; padding: .35rem .5rem; border-radius: 6px; min-height: 32px; }
+    .cg-cambiar:hover { background: #e6f1fa; }
+    .cg-nota { font-size: .8125rem; color: var(--inf-muted); margin: 0; }
+
+    /* Resumen fijo */
+    .cg-resumen { position: sticky; top: 1rem; }
+    .cg-resumen h2 { font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .cg-resumen dl { margin: 0; padding: .35rem .9rem .5rem; }
+    .cg-resumen dl > div { padding: .45rem 0; border-bottom: 1px dashed var(--inf-line); }
+    .cg-resumen dl > div:last-child { border-bottom: 0; }
+    .cg-resumen dt { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--inf-muted); }
+    .cg-resumen dd { margin: .1rem 0 0; color: var(--inf-ink); font-weight: 500; overflow-wrap: anywhere; }
+    .cg-resumen dd.vacio { color: #94a3b8; font-weight: 400; }
+    .cg-resumen dd .cg-cifra { font-size: 1.5rem; font-weight: 600; font-variant-numeric: tabular-nums; line-height: 1.2; }
+    .cg-resumen dd .cg-aviso { display: block; font-size: .78rem; font-weight: 500; color: #864900; margin-top: .15rem; }
+    .cg-enviar { padding: .75rem .9rem .9rem; border-top: 1px solid var(--inf-line); background: #fafbfd; }
+    .cg-enviar .btn-primary {
+        width: 100%; min-height: 44px; font-weight: 600; font-size: .9rem; background: #0077b6; border-color: #0077b6;
     }
-    .file-input-wrapper.dragover {
-        border-color: var(--brand-blue);
-        background: rgba(0, 142, 214, 0.05);
+    .cg-enviar .btn-primary:hover { background: #00669c; border-color: #00669c; }
+    .cg-enviar .btn-primary:disabled { background: #a9c7dc; border-color: #a9c7dc; opacity: 1; }
+    .cg-enviar .cg-cancelar { display: block; text-align: center; margin-top: .55rem; font-size: .8125rem; color: var(--inf-muted); text-decoration: none; }
+    .cg-enviar .cg-cancelar:hover { color: var(--inf-link); text-decoration: underline; }
+    .cg-enviar .cg-falta { font-size: .78rem; color: var(--inf-muted); text-align: center; margin: .5rem 0 0; }
+    .cg-subiendo { display: none; font-size: .78rem; color: var(--inf-muted); text-align: center; margin: .5rem 0 0; }
+    .cg-subiendo .barra { height: 4px; border-radius: 2px; background: #e1edf7; overflow: hidden; margin-bottom: .4rem; }
+    .cg-subiendo .barra i { display: block; height: 100%; width: 35%; border-radius: 2px; background: #0077b6; animation: cg-ida 1.2s ease-in-out infinite; }
+    @keyframes cg-ida { 0% { transform: translateX(-100%); } 100% { transform: translateX(290%); } }
+    form.enviando .cg-subiendo { display: block; }
+    form.enviando .cg-falta { display: none; }
+
+    .cg .alert { font-size: .8125rem; }
+
+    @media (max-width: 991.98px) {
+        .cg-grid { grid-template-columns: minmax(0, 1fr); }
+        .cg-resumen { position: static; }
     }
-    .file-input-wrapper input[type="file"] {
-        position: absolute;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        opacity: 0;
-        cursor: pointer;
+    @media (max-width: 575.98px) {
+        .cg-paso { grid-template-columns: 24px minmax(0, 1fr); gap: .6rem; padding: .9rem .8rem 1rem; }
+        .cg-num { width: 24px; height: 24px; font-size: .72rem; margin-top: .1rem; }
+        .cg-fecha { max-width: none; }
     }
-    .file-preview {
-        display: none;
-        padding: 1rem;
-        background: #ecfdf5;
-        border-radius: 8px;
-        margin-top: 1rem;
-    }
-    .file-preview.show {
-        display: flex;
-    }
-    /* Estilos para autocompletado */
-    .autocomplete-results {
-        position: absolute;
-        top: 100%;
-        left: 0;
-        right: 0;
-        max-height: 250px;
-        overflow-y: auto;
-        background: white;
-        border: 1px solid var(--border-color);
-        border-top: none;
-        border-radius: 0 0 0.375rem 0.375rem;
-        box-shadow: 0 10px 40px rgba(0,0,0,0.1);
-        z-index: 1000;
-        display: none;
-    }
-    .autocomplete-results.show {
-        display: block;
-    }
-    .autocomplete-option {
-        padding: 0.75rem 1rem;
-        cursor: pointer;
-        border-bottom: 1px solid #f1f5f9;
-        transition: background-color 0.15s ease;
-    }
-    .autocomplete-option:last-child {
-        border-bottom: none;
-    }
-    .autocomplete-option:hover,
-    .autocomplete-option.selected {
-        background-color: var(--brand-blue) !important;
-        color: white !important;
-    }
-    .autocomplete-option:hover small,
-    .autocomplete-option.selected small {
-        color: rgba(255,255,255,0.7) !important;
-    }
-    .search-input:focus {
-        border-color: var(--brand-blue);
-        box-shadow: 0 0 0 0.2rem rgba(0, 142, 214, 0.15);
-    }
-    .selected-badge {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        background: #e0f2fe;
-        color: #0369a1;
-        padding: 0.5rem 1rem;
-        border-radius: 8px;
-        font-size: 0.9rem;
-    }
-    .selected-badge .remove-btn {
-        background: none;
-        border: none;
-        color: #0369a1;
-        cursor: pointer;
-        padding: 0;
-        font-size: 1.1rem;
-        line-height: 1;
-    }
-    .selected-badge .remove-btn:hover {
-        color: #dc2626;
+    @media (prefers-reduced-motion: reduce) {
+        .cg-subiendo .barra i { animation: none; width: 100%; opacity: .5; }
     }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Breadcrumb -->
-    <nav aria-label="breadcrumb" class="mb-4">
-        <ol class="breadcrumb">
-            <li class="breadcrumb-item"><a href="{% url 'home' %}" class="text-decoration-none">Panel</a></li>
-            <li class="breadcrumb-item active">Cargar Informe</li>
-        </ol>
+<div class="inf cg">
+    {% include "includes/_mensajes.html" %}
+
+    <nav class="inf-crumbs" aria-label="Ruta">
+        {% if obra %}
+        <a href="{% url 'lista_constructoras' %}">Empresas</a><span class="sep">/</span>
+        <a href="{% url 'detalle_constructora' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a><span class="sep">/</span>
+        <a href="{% url 'detalle_obra' obra.pk %}">{{ obra.nombre }}</a><span class="sep">/</span>
+        {% else %}
+        <a href="{% url 'home' %}">Panel</a><span class="sep">/</span>
+        {% endif %}
+        <span aria-current="page">Cargar informes</span>
     </nav>
 
-    <div class="row justify-content-center">
-        <div class="col-lg-8 col-xl-6">
-            <div class="card upload-card shadow-lg">
-                <!-- Header -->
-                <div class="upload-header">
-                    <div class="upload-icon">
-                        <i class="bi bi-cloud-arrow-up"></i>
-                    </div>
-                    <h3 class="fw-bold mb-2">Cargar Nuevo Informe</h3>
-                    <p class="mb-0 opacity-75">
-                        Sube un documento PDF al expediente de una obra.
-                        <br>
-                        <small>Total de informes en el sistema: <strong>{{ total_informes }}</strong></small>
-                    </p>
+    <section class="inf-hero">
+        <header class="inf-head">
+            <div>
+                <div class="inf-eyebrow">Cargar informes</div>
+                {% if obra %}
+                <h1 class="inf-title">{{ obra.nombre }}<span class="inf-code">{{ obra.codigo_obra }}</span></h1>
+                <div class="inf-meta">{{ obra.constructora.nombre }}{% if obra.constructora.ciudad %} · {{ obra.constructora.ciudad }}{% endif %}</div>
+                {% else %}
+                <h1 class="inf-title">Nuevos informes para una obra</h1>
+                <div class="inf-meta">
+                    Cada PDF queda como un informe con el nombre de su archivo ·
+                    <strong>{{ total_informes|intcomma }}</strong> informes en el portal
                 </div>
-
-                <!-- Form -->
-                <div class="card-body p-4">
-                    <form method="post" enctype="multipart/form-data" id="uploadForm">
-                        {% csrf_token %}
-
-                        {% if form.errors %}
-                        <div class="alert alert-danger d-flex align-items-center mb-4" role="alert">
-                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
-                            <div>
-                                Por favor corrige los errores marcados.
-                                {% for field in form %}
-                                    {% for error in field.errors %}
-                                        <div class="small">{{ field.label }}: {{ error }}</div>
-                                    {% endfor %}
-                                {% endfor %}
-                            </div>
-                        </div>
-                        {% endif %}
-
-                        <!-- PASO 1: Seleccionar Constructora -->
-                        <div class="mb-4">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-briefcase me-1 text-primary"></i>
-                                1. Seleccionar Empresa
-                            </label>
-                            <div class="position-relative" id="constructora-autocomplete">
-                                <input type="text"
-                                       id="constructora-search"
-                                       class="form-control search-input"
-                                       placeholder="Buscar empresa por nombre o codigo..."
-                                       autocomplete="off">
-                                <input type="hidden" id="constructora-id">
-                                <div id="constructora-results" class="autocomplete-results"></div>
-                            </div>
-                            <div id="constructora-selected" class="mt-2" style="display: none;">
-                                <span class="selected-badge">
-                                    <i class="bi bi-building"></i>
-                                    <span id="constructora-selected-name"></span>
-                                    <button type="button" class="remove-btn" onclick="clearConstructora()">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </span>
-                            </div>
-                            <div class="form-text">Primero selecciona la empresa para ver sus obras.</div>
-                        </div>
-
-                        <!-- PASO 2: Seleccionar Obra -->
-                        <div class="mb-4" id="obra-section" style="display: none;">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-building me-1 text-success"></i>
-                                2. Seleccionar Obra
-                            </label>
-                            <div class="position-relative" id="obra-autocomplete">
-                                <input type="text"
-                                       id="obra-search"
-                                       class="form-control search-input"
-                                       placeholder="Buscar obra..."
-                                       autocomplete="off">
-                                <input type="hidden" name="obra" id="obra-id">
-                                <div id="obra-results" class="autocomplete-results"></div>
-                            </div>
-                            <div id="obra-selected" class="mt-2" style="display: none;">
-                                <span class="selected-badge" style="background: #dcfce7; color: #166534;">
-                                    <i class="bi bi-folder2"></i>
-                                    <span id="obra-selected-name"></span>
-                                    <button type="button" class="remove-btn" style="color: #166534;" onclick="clearObra()">
-                                        <i class="bi bi-x-lg"></i>
-                                    </button>
-                                </span>
-                            </div>
-                            <div id="obra-loading" class="text-muted small mt-2" style="display: none;">
-                                <i class="bi bi-hourglass-split me-1"></i> Cargando obras...
-                            </div>
-                            <div id="obra-empty" class="text-muted small mt-2" style="display: none;">
-                                <i class="bi bi-info-circle me-1"></i> Esta empresa no tiene obras registradas.
-                            </div>
-                        </div>
-
-                        <!-- Fecha del informe (por defecto hoy, editable) -->
-                        <div class="mb-4" id="fecha-section" style="display: none;">
-                            <label class="form-label fw-semibold" for="{{ form.fecha.id_for_label }}">
-                                <i class="bi bi-calendar-event me-1 text-primary"></i>
-                                3. Fecha del Informe
-                            </label>
-                            {{ form.fecha }}
-                            <div class="form-text">
-                                <i class="bi bi-info-circle me-1"></i>
-                                Por defecto es hoy. Cámbiala si el informe es de otra fecha.
-                            </div>
-                        </div>
-
-                        <!-- Archivos PDF (uno o varios) -->
-                        <div class="mb-4" id="archivo-section" style="display: none;">
-                            <label class="form-label fw-semibold">
-                                <i class="bi bi-file-earmark-pdf me-1 text-danger"></i>
-                                4. Archivos PDF
-                            </label>
-                            {% include "core/includes/_carga_pdfs.html" %}
-                        </div>
-
-                        <!-- Botones -->
-                        <div class="d-flex gap-3 pt-3">
-                            <a href="{% url 'home' %}" class="btn btn-light flex-fill">
-                                <i class="bi bi-arrow-left me-1"></i> Cancelar
-                            </a>
-                            <button type="submit" class="btn btn-primary flex-fill" id="submitBtn" disabled>
-                                <i class="bi bi-cloud-upload me-1"></i> Cargar Informes
-                            </button>
-                        </div>
-                    </form>
-                </div>
+                {% endif %}
             </div>
-
-            <!-- Tips -->
-            <div class="card border-0 shadow-sm mt-4">
-                <div class="card-body">
-                    <h6 class="fw-bold mb-3">
-                        <i class="bi bi-lightbulb text-warning me-2"></i>
-                        Consejos
-                    </h6>
-                    <ul class="list-unstyled mb-0 small text-muted">
-                        <li class="mb-2">
-                            <i class="bi bi-check-circle text-success me-2"></i>
-                            Solo se aceptan archivos PDF
-                        </li>
-                        <li class="mb-2">
-                            <i class="bi bi-check-circle text-success me-2"></i>
-                            Puedes elegir varios PDF a la vez (hasta 100)
-                        </li>
-                        <li class="mb-2">
-                            <i class="bi bi-check-circle text-success me-2"></i>
-                            El título de cada informe es el nombre de su archivo: nómbralos bien antes de subirlos
-                        </li>
-                        <li>
-                            <i class="bi bi-check-circle text-success me-2"></i>
-                            El informe quedara disponible para los clientes de la obra
-                        </li>
-                    </ul>
-                </div>
+        </header>
+        {% if obra %}
+        <div class="inf-hero-facts" aria-label="Resumen de la obra">
+            <div class="dato">
+                <div class="eti">Informes en la obra</div>
+                <div class="val">{{ total_informes_obra|intcomma }}</div>
+                <div class="sub"><a href="{% url 'lista_informes_obra' obra.pk %}" style="color: inherit;">Abrir el registro</a></div>
+            </div>
+            <div class="dato">
+                <div class="eti">Último informe</div>
+                <div class="val">{{ ultimo_informe|date:"j M Y"|default:"—" }}</div>
+                <div class="sub">{% if ultimo_informe %}{{ ultimo_informe|timesince }} atrás{% else %}ninguno todavía{% endif %}</div>
             </div>
         </div>
+        {% endif %}
+    </section>
+
+    {% if form.errors %}
+    <div class="alert alert-danger d-flex gap-2 align-items-start" role="alert">
+        <i class="bi bi-x-octagon-fill mt-1"></i>
+        <div>
+            <strong>No se cargó ningún informe.</strong>
+            {% for error in form.non_field_errors %}<div>{{ error }}</div>{% endfor %}
+            {% for field in form %}{% for error in field.errors %}<div>{{ field.label }}: {{ error }}</div>{% endfor %}{% endfor %}
+            <div class="mt-1">Corrige lo marcado y vuelve a elegir los PDF: el navegador no los conserva tras un error.</div>
+        </div>
     </div>
+    {% endif %}
+
+    <form method="post" enctype="multipart/form-data" id="cgForm" novalidate>
+        {% csrf_token %}
+        <input type="hidden" name="obra" id="cgObraId" value="{{ obra_inicial.pk|default:'' }}">
+
+        <div class="cg-grid">
+            <section class="inf-panel" aria-label="Datos de la carga">
+                <ol class="cg-pasos">
+                    {% if not obra %}
+                    <li class="cg-paso" id="cgPasoObra">
+                        <span class="cg-num" aria-hidden="true"><span class="n">1</span><i class="bi bi-check-lg"></i></span>
+                        <div>
+                            <h2>Obra destino</h2>
+                            <p class="cg-ayuda">Busca la empresa y luego la obra, por nombre o código.</p>
+
+                            <div class="cg-destino">
+                            <div class="cg-elegido" id="cgEmpresaElegida" hidden>
+                                <span class="inf-ico navy" aria-hidden="true"><i class="bi bi-buildings"></i></span>
+                                <span class="cg-el-txt"><span class="cg-el-eti">Empresa</span><span class="cg-el-nombre" id="cgEmpresaNombre"></span></span>
+                                <button type="button" class="cg-cambiar" id="cgEmpresaCambiar">Cambiar</button>
+                            </div>
+                            <div class="cg-combo" id="cgEmpresaCombo">
+                                <label for="cgEmpresaInput">Empresa</label>
+                                <div class="cg-buscar">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="text" id="cgEmpresaInput" class="form-control" placeholder="Ej.: Jaimes o BUC46"
+                                           role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cgEmpresaLista" autocomplete="off">
+                                </div>
+                                <ul class="cg-opciones" id="cgEmpresaLista" role="listbox" aria-label="Empresas" hidden></ul>
+                            </div>
+
+                            <div class="cg-elegido" id="cgObraElegida" hidden>
+                                <span class="inf-ico" aria-hidden="true"><i class="bi bi-cone-striped"></i></span>
+                                <span class="cg-el-txt"><span class="cg-el-eti">Obra</span><span class="cg-el-nombre" id="cgObraNombre"></span></span>
+                                <button type="button" class="cg-cambiar" id="cgObraCambiar">Cambiar</button>
+                            </div>
+                            <div class="cg-combo" id="cgObraCombo" hidden>
+                                <label for="cgObraInput">Obra</label>
+                                <div class="cg-buscar">
+                                    <i class="bi bi-search" aria-hidden="true"></i>
+                                    <input type="text" id="cgObraInput" class="form-control" placeholder="Nombre o código de la obra"
+                                           role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="cgObraLista" autocomplete="off">
+                                </div>
+                                <ul class="cg-opciones" id="cgObraLista" role="listbox" aria-label="Obras" hidden></ul>
+                            </div>
+                            <p class="cg-nota" id="cgObraNota" role="status" hidden></p>
+                            </div>
+                            {% for error in form.obra.errors %}<div class="cg-error">{{ error }}</div>{% endfor %}
+                        </div>
+                    </li>
+                    {% endif %}
+
+                    <li class="cg-paso" id="cgPasoFecha">
+                        <span class="cg-num" aria-hidden="true"><span class="n">{% if obra %}1{% else %}2{% endif %}</span><i class="bi bi-check-lg"></i></span>
+                        <fieldset class="cg-dep">
+                            <h2><label for="{{ form.fecha.id_for_label }}" class="m-0">Fecha del informe</label></h2>
+                            <p class="cg-ayuda">Hoy, por defecto. Cámbiala si los informes son de otro día; se aplica a todos.</p>
+                            <div class="cg-fecha">{{ form.fecha }}</div>
+                            {% for error in form.fecha.errors %}<div class="cg-error">{{ error }}</div>{% endfor %}
+                        </fieldset>
+                    </li>
+
+                    <li class="cg-paso" id="cgPasoArchivos">
+                        <span class="cg-num" aria-hidden="true"><span class="n">{% if obra %}2{% else %}3{% endif %}</span><i class="bi bi-check-lg"></i></span>
+                        <fieldset class="cg-dep">
+                            <h2>Archivos PDF</h2>
+                            <p class="cg-ayuda">El título de cada informe es el nombre de su archivo: revísalo en la vista previa antes de cargar.</p>
+                            {% include "core/includes/_carga_pdfs.html" %}
+                            {% for error in form.archivos.errors %}<div class="cg-error">{{ error }}</div>{% endfor %}
+                        </fieldset>
+                    </li>
+                </ol>
+            </section>
+
+            <aside class="inf-panel cg-resumen" aria-labelledby="cgResumenTitulo">
+                <h2 id="cgResumenTitulo">Resumen de la carga</h2>
+                <dl>
+                    <div>
+                        <dt>Obra</dt>
+                        <dd id="cgResObra" class="{% if not obra_inicial %}vacio{% endif %}">{% if obra_inicial %}{{ obra_inicial.nombre }}<span class="inf-code">{{ obra_inicial.codigo_obra }}</span>{% else %}Sin elegir{% endif %}</dd>
+                    </div>
+                    <div>
+                        <dt>Fecha</dt>
+                        <dd id="cgResFecha">—</dd>
+                    </div>
+                    <div>
+                        <dt>Informes</dt>
+                        <dd id="cgResInformes"><span class="cg-cifra">0</span></dd>
+                    </div>
+                </dl>
+                <div class="cg-enviar">
+                    <button type="submit" class="btn btn-primary" id="cgEnviar" disabled>
+                        <i class="bi bi-cloud-arrow-up me-1" aria-hidden="true"></i><span>Cargar informes</span>
+                    </button>
+                    <p class="cg-falta" id="cgFalta" role="status"></p>
+                    <div class="cg-subiendo" role="status">
+                        <div class="barra" aria-hidden="true"><i></i></div>
+                        Subiendo los PDF; no cierres esta pestaña.
+                    </div>
+                    <a class="cg-cancelar" href="{% if obra %}{% url 'detalle_obra' obra.pk %}{% else %}{% url 'home' %}{% endif %}">Cancelar</a>
+                </div>
+            </aside>
+        </div>
+    </form>
 </div>
+{{ constructoras|json_script:"cg-empresas" }}
 {% endblock %}
 
 {% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    // ========== DATOS ==========
-    const constructoras = [
-        {% for c in constructoras %}
-        { id: {{ c.pk }}, nombre: "{{ c.nombre|escapejs }}", codigo: "{{ c.codigo|escapejs }}" },
-        {% endfor %}
-    ];
+(function () {
+    const MODO_OBRA = {{ obra|yesno:"true,false" }};
+    const URL_OBRAS = id => `/usuarios/api/obras-empresa/${id}/`;
+    const URL_TITULOS = id => '{% url "titulos_informes_obra" 0 %}'.replace('/0/', `/${id}/`);
 
-    let obrasCache = {}; // Cache de obras por constructora
-    let currentObras = [];
-    let constructoraSelectedIndex = -1;
-    let obraSelectedIndex = -1;
+    const form = document.getElementById('cgForm');
+    const obraId = document.getElementById('cgObraId');
+    const fecha = document.getElementById('{{ form.fecha.id_for_label }}');
+    const enviar = document.getElementById('cgEnviar');
+    const falta = document.getElementById('cgFalta');
+    const resObra = document.getElementById('cgResObra');
+    const resFecha = document.getElementById('cgResFecha');
+    const resInformes = document.getElementById('cgResInformes');
+    const dependientes = document.querySelectorAll('.cg-dep');
+    let pdfs = { total: 0, repetidos: 0 };
 
-    // ========== ELEMENTOS DOM ==========
-    const constructoraSearch = document.getElementById('constructora-search');
-    const constructoraId = document.getElementById('constructora-id');
-    const constructoraResults = document.getElementById('constructora-results');
-    const constructoraSelected = document.getElementById('constructora-selected');
-    const constructoraSelectedName = document.getElementById('constructora-selected-name');
+    // Búsqueda sin tildes ni mayúsculas
+    const plano = t => (t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const natural = (a, b) => (a || '').localeCompare(b || '', 'es', { numeric: true, sensitivity: 'base' });
+    const el = (tag, clase, texto) => { const e = document.createElement(tag); if (clase) e.className = clase; if (texto != null) e.textContent = texto; return e; };
 
-    const obraSection = document.getElementById('obra-section');
-    const obraSearch = document.getElementById('obra-search');
-    const obraId = document.getElementById('obra-id');
-    const obraResults = document.getElementById('obra-results');
-    const obraSelected = document.getElementById('obra-selected');
-    const obraSelectedName = document.getElementById('obra-selected-name');
-    const obraLoading = document.getElementById('obra-loading');
-    const obraEmpty = document.getElementById('obra-empty');
-
-    const archivoSection = document.getElementById('archivo-section');
-    const fechaSection = document.getElementById('fecha-section');
-    const submitBtn = document.getElementById('submitBtn');
-
-    // ========== FUNCIONES CONSTRUCTORA ==========
-    function filterConstructoras(query) {
-        if (!query || query.length < 1) {
-            return constructoras.slice(0, 10);
-        }
-        const q = query.toLowerCase();
-        return constructoras.filter(c =>
-            c.nombre.toLowerCase().includes(q) ||
-            c.codigo.toLowerCase().includes(q)
-        ).slice(0, 15);
-    }
-
-    function renderConstructoraResults(results) {
-        constructoraSelectedIndex = -1;
-        if (results.length === 0) {
-            constructoraResults.innerHTML = '<div class="p-3 text-muted text-center small">No se encontraron empresas</div>';
-            constructoraResults.classList.add('show');
-            return;
-        }
-
-        let html = '';
-        results.forEach((c, idx) => {
-            html += `
-                <div class="autocomplete-option" data-id="${c.id}" data-nombre="${c.nombre}">
-                    <div class="fw-medium">${c.nombre}</div>
-                    <small class="text-muted">Codigo: ${c.codigo}</small>
-                </div>
-            `;
-        });
-        constructoraResults.innerHTML = html;
-        constructoraResults.classList.add('show');
-
-        // Eventos click
-        constructoraResults.querySelectorAll('.autocomplete-option').forEach(opt => {
-            opt.addEventListener('click', function() {
-                selectConstructora(this.dataset.id, this.dataset.nombre);
+    /* ===== Buscador accesible (combobox + listbox) ===== */
+    function combo({ input, lista, items, nombre, codigo, sub, vacio, alElegir }) {
+        let visibles = [], activo = -1;
+        const abrir = () => { lista.hidden = false; input.setAttribute('aria-expanded', 'true'); };
+        const cerrar = () => { lista.hidden = true; input.setAttribute('aria-expanded', 'false'); input.removeAttribute('aria-activedescendant'); activo = -1; };
+        function pintar() {
+            const q = plano(input.value).trim();
+            visibles = items().filter(it => !q || plano(nombre(it)).includes(q) || plano(codigo(it)).includes(q)).slice(0, 40);
+            lista.innerHTML = '';
+            if (!visibles.length) { lista.appendChild(el('li', 'cg-vacio', vacio)); }
+            visibles.forEach((it, i) => {
+                const li = el('li');
+                li.id = `${lista.id}-${i}`; li.setAttribute('role', 'option'); li.setAttribute('aria-selected', 'false');
+                li.append(el('span', 'inf-code', codigo(it) || '—'), el('span', 'cg-op-nombre', nombre(it)));
+                if (sub && sub(it)) li.appendChild(el('span', 'cg-op-sub', sub(it)));
+                li.addEventListener('mousedown', e => { e.preventDefault(); elegir(i); });
+                lista.appendChild(li);
             });
+            activo = -1; abrir();
+        }
+        function marcar(i) {
+            const ops = lista.querySelectorAll('[role="option"]');
+            if (!ops.length) return;
+            activo = (i + ops.length) % ops.length;
+            ops.forEach((o, k) => o.setAttribute('aria-selected', k === activo ? 'true' : 'false'));
+            input.setAttribute('aria-activedescendant', ops[activo].id);
+            ops[activo].scrollIntoView({ block: 'nearest' });
+        }
+        function elegir(i) { const it = visibles[i]; if (!it) return; cerrar(); input.value = ''; alElegir(it); }
+        input.addEventListener('input', pintar);
+        input.addEventListener('focus', pintar);
+        input.addEventListener('blur', () => setTimeout(cerrar, 100));
+        input.addEventListener('keydown', e => {
+            if (e.key === 'ArrowDown') { e.preventDefault(); if (lista.hidden) pintar(); marcar(activo + 1); }
+            else if (e.key === 'ArrowUp') { e.preventDefault(); marcar(activo - 1); }
+            else if (e.key === 'Enter') { e.preventDefault(); elegir(activo >= 0 ? activo : (visibles.length === 1 ? 0 : -1)); }
+            else if (e.key === 'Escape') { cerrar(); }
         });
     }
 
-    function selectConstructora(id, nombre) {
-        constructoraId.value = id;
-        constructoraSearch.value = '';
-        constructoraSearch.style.display = 'none';
-        constructoraResults.classList.remove('show');
-        constructoraSelectedName.textContent = nombre;
-        constructoraSelected.style.display = 'block';
-
-        // Mostrar sección de obras y cargar
-        obraSection.style.display = 'block';
-        loadObras(id);
+    /* ===== Estado de los pasos y del resumen ===== */
+    function fechaLegible(v) {
+        if (!v) return '—';
+        const [a, m, d] = v.split('-').map(Number);
+        const f = new Date(a, m - 1, d);
+        const hoy = new Date(); hoy.setHours(0, 0, 0, 0);
+        const txt = f.toLocaleDateString('es-CO', { day: 'numeric', month: 'short', year: 'numeric' });
+        return f.getTime() === hoy.getTime() ? `${txt} (hoy)` : txt;
     }
+    function actualizar() {
+        const hayObra = obraId.value !== '';
+        dependientes.forEach(f => { f.disabled = !hayObra; });
+        const paso = (id, hecho, bloqueado) => {
+            const p = document.getElementById(id); if (!p) return;
+            p.classList.toggle('hecho', hecho); p.classList.toggle('bloqueado', bloqueado);
+        };
+        paso('cgPasoObra', hayObra, false);
+        paso('cgPasoFecha', hayObra && !!fecha.value, !hayObra);
+        paso('cgPasoArchivos', hayObra && pdfs.total > 0, !hayObra);
 
-    window.clearConstructora = function() {
-        constructoraId.value = '';
-        constructoraSearch.value = '';
-        constructoraSearch.style.display = 'block';
-        constructoraSelected.style.display = 'none';
-
-        // Ocultar y limpiar obra
-        clearObra();
-        obraSection.style.display = 'none';
-        fechaSection.style.display = 'none';
-        archivoSection.style.display = 'none';
-        updateSubmitButton();
-    };
-
-    // ========== FUNCIONES OBRA ==========
-    function loadObras(constructoraId) {
-        obraLoading.style.display = 'block';
-        obraEmpty.style.display = 'none';
-        obraSearch.style.display = 'none';
-        obraSelected.style.display = 'none';
-
-        // Verificar cache
-        if (obrasCache[constructoraId]) {
-            currentObras = obrasCache[constructoraId];
-            showObrasUI();
-            return;
+        resFecha.textContent = fechaLegible(fecha.value);
+        resInformes.innerHTML = '';
+        resInformes.appendChild(el('span', 'cg-cifra', String(pdfs.total)));
+        if (pdfs.repetidos) {
+            resInformes.appendChild(el('span', 'cg-aviso',
+                pdfs.repetidos === 1 ? '1 ya existe en la obra' : `${pdfs.repetidos} ya existen en la obra`));
         }
-
-        // Cargar del servidor
-        fetch(`/usuarios/api/obras-empresa/${constructoraId}/`)
-            .then(response => response.json())
-            .then(data => {
-                currentObras = data.obras || [];
-                obrasCache[constructoraId] = currentObras;
-                showObrasUI();
-            })
-            .catch(error => {
-                console.error('Error cargando obras:', error);
-                obraLoading.style.display = 'none';
-                obraEmpty.textContent = 'Error al cargar obras';
-                obraEmpty.style.display = 'block';
-            });
+        const listo = hayObra && !!fecha.value && pdfs.total > 0;
+        enviar.disabled = !listo;
+        enviar.querySelector('span').textContent =
+            pdfs.total === 1 ? 'Cargar 1 informe' : pdfs.total > 1 ? `Cargar ${pdfs.total} informes` : 'Cargar informes';
+        falta.textContent = listo ? '' : !hayObra ? 'Falta elegir la obra.' : !fecha.value ? 'Falta la fecha.' : 'Falta elegir los PDF.';
     }
 
-    function showObrasUI() {
-        obraLoading.style.display = 'none';
-        if (currentObras.length === 0) {
-            obraEmpty.style.display = 'block';
-            obraSearch.style.display = 'none';
+    function fijarObra(obra) {
+        obraId.value = obra ? obra.id : '';
+        resObra.innerHTML = '';
+        resObra.classList.toggle('vacio', !obra);
+        if (obra) {
+            resObra.append(document.createTextNode(obra.nombre), el('span', 'inf-code', obra.codigo_obra));
+            fetch(URL_TITULOS(obra.id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.ok ? r.json() : { titulos: [] })
+                .then(d => document.dispatchEvent(new CustomEvent('obra:titulos', { detail: { titulos: d.titulos || [] } })))
+                .catch(() => {});
         } else {
-            obraEmpty.style.display = 'none';
-            obraSearch.style.display = 'block';
-            obraSearch.value = '';
-            obraSearch.focus();
+            resObra.textContent = 'Sin elegir';
+            document.dispatchEvent(new CustomEvent('obra:titulos', { detail: { titulos: [] } }));
         }
+        actualizar();
     }
 
-    function filterObras(query) {
-        if (!query || query.length < 1) {
-            return currentObras.slice(0, 10);
-        }
-        const q = query.toLowerCase();
-        return currentObras.filter(o =>
-            o.nombre.toLowerCase().includes(q) ||
-            o.codigo_obra.toLowerCase().includes(q)
-        ).slice(0, 15);
-    }
+    /* ===== Empresa → obra (solo en la carga general) ===== */
+    if (!MODO_OBRA) {
+        const empresas = JSON.parse(document.getElementById('cg-empresas').textContent);
+        const $ = id => document.getElementById(id);
+        const empresaCombo = $('cgEmpresaCombo'), empresaElegida = $('cgEmpresaElegida');
+        const obraCombo = $('cgObraCombo'), obraElegida = $('cgObraElegida'), nota = $('cgObraNota');
+        let obras = [];
 
-    function renderObraResults(results) {
-        obraSelectedIndex = -1;
-        if (results.length === 0) {
-            obraResults.innerHTML = '<div class="p-3 text-muted text-center small">No se encontraron obras</div>';
-            obraResults.classList.add('show');
-            return;
+        function mostrarEmpresa(emp) {
+            $('cgEmpresaNombre').textContent = emp.nombre;
+            $('cgEmpresaNombre').appendChild(el('span', 'inf-code', emp.codigo));
+            empresaElegida.hidden = false; empresaCombo.hidden = true;
+        }
+        function mostrarObra(obra) {
+            $('cgObraNombre').textContent = obra.nombre;
+            $('cgObraNombre').appendChild(el('span', 'inf-code', obra.codigo_obra));
+            obraElegida.hidden = false; obraCombo.hidden = true; nota.hidden = true;
+            fijarObra(obra);
+        }
+        function cargarObras(emp, luego) {
+            nota.hidden = false; nota.textContent = 'Cargando obras…';
+            fetch(URL_OBRAS(emp.id), { headers: { 'X-Requested-With': 'XMLHttpRequest' } })
+                .then(r => r.json())
+                .then(d => {
+                    obras = (d.obras || []).sort((a, b) => natural(a.codigo_obra, b.codigo_obra));
+                    if (!obras.length) { nota.textContent = 'Esta empresa no tiene obras. Créala desde su ficha en el directorio.'; return; }
+                    nota.hidden = true;
+                    if (luego) { luego(); return; }
+                    obraCombo.hidden = false;
+                    if (obras.length === 1) { mostrarObra(obras[0]); return; }   // una sola obra: no hay nada que elegir
+                    $('cgObraInput').focus();
+                })
+                .catch(() => { nota.textContent = 'No se pudieron cargar las obras. Recarga la página.'; });
         }
 
-        let html = '';
-        results.forEach((o, idx) => {
-            html += `
-                <div class="autocomplete-option" data-id="${o.id}" data-nombre="${o.nombre}">
-                    <div class="fw-medium">${o.nombre}</div>
-                    <small class="text-muted">Codigo: ${o.codigo_obra}</small>
-                </div>
-            `;
+        combo({
+            input: $('cgEmpresaInput'), lista: $('cgEmpresaLista'), items: () => empresas,
+            nombre: e => e.nombre, codigo: e => e.codigo, sub: e => e.ciudad, vacio: 'Ninguna empresa coincide.',
+            alElegir: emp => { mostrarEmpresa(emp); cargarObras(emp); },
         });
-        obraResults.innerHTML = html;
-        obraResults.classList.add('show');
-
-        // Eventos click
-        obraResults.querySelectorAll('.autocomplete-option').forEach(opt => {
-            opt.addEventListener('click', function() {
-                selectObra(this.dataset.id, this.dataset.nombre);
-            });
+        combo({
+            input: $('cgObraInput'), lista: $('cgObraLista'), items: () => obras,
+            nombre: o => o.nombre, codigo: o => o.codigo_obra, vacio: 'Ninguna obra coincide.',
+            alElegir: mostrarObra,
         });
-    }
-
-    function selectObra(id, nombre) {
-        obraId.value = id;
-        obraSearch.value = '';
-        obraSearch.style.display = 'none';
-        obraResults.classList.remove('show');
-        obraSelectedName.textContent = nombre;
-        obraSelected.style.display = 'block';
-
-        // Mostrar campos restantes
-        fechaSection.style.display = 'block';
-        archivoSection.style.display = 'block';
-        updateSubmitButton();
-    }
-
-    window.clearObra = function() {
-        obraId.value = '';
-        obraSearch.value = '';
-        obraSearch.style.display = 'block';
-        obraSelected.style.display = 'none';
-        fechaSection.style.display = 'none';
-        archivoSection.style.display = 'none';
-        updateSubmitButton();
-    };
-
-    // ========== VALIDACION ==========
-    function updateSubmitButton() {
-        const hasObra = obraId.value !== '';
-        const hasFile = document.querySelector('input[type="file"]').files.length > 0;
-
-        submitBtn.disabled = !(hasObra && hasFile);
-    }
-
-    // ========== EVENTOS CONSTRUCTORA ==========
-    constructoraSearch.addEventListener('input', function() {
-        const results = filterConstructoras(this.value);
-        renderConstructoraResults(results);
-    });
-
-    constructoraSearch.addEventListener('focus', function() {
-        const results = filterConstructoras(this.value);
-        renderConstructoraResults(results);
-    });
-
-    constructoraSearch.addEventListener('keydown', function(e) {
-        handleKeyboardNavigation(e, constructoraResults, '.autocomplete-option', constructoraSelectedIndex, (idx) => {
-            constructoraSelectedIndex = idx;
-        }, (opt) => {
-            selectConstructora(opt.dataset.id, opt.dataset.nombre);
+        $('cgEmpresaCambiar').addEventListener('click', () => {
+            empresaElegida.hidden = true; empresaCombo.hidden = false;
+            obraElegida.hidden = true; obraCombo.hidden = true; nota.hidden = true; obras = [];
+            fijarObra(null); $('cgEmpresaInput').focus();
         });
-    });
-
-    // ========== EVENTOS OBRA ==========
-    obraSearch.addEventListener('input', function() {
-        const results = filterObras(this.value);
-        renderObraResults(results);
-    });
-
-    obraSearch.addEventListener('focus', function() {
-        const results = filterObras(this.value);
-        renderObraResults(results);
-    });
-
-    obraSearch.addEventListener('keydown', function(e) {
-        handleKeyboardNavigation(e, obraResults, '.autocomplete-option', obraSelectedIndex, (idx) => {
-            obraSelectedIndex = idx;
-        }, (opt) => {
-            selectObra(opt.dataset.id, opt.dataset.nombre);
+        $('cgObraCambiar').addEventListener('click', () => {
+            obraElegida.hidden = true; obraCombo.hidden = false;
+            fijarObra(null); $('cgObraInput').focus();
         });
-    });
 
-    // ========== NAVEGACION TECLADO ==========
-    function handleKeyboardNavigation(e, resultsContainer, optionSelector, currentIndex, setIndex, onSelect) {
-        const options = resultsContainer.querySelectorAll(optionSelector);
-        if (options.length === 0) return;
-
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            currentIndex = Math.min(currentIndex + 1, options.length - 1);
-            setIndex(currentIndex);
-            updateOptionSelection(options, currentIndex);
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            currentIndex = Math.max(currentIndex - 1, 0);
-            setIndex(currentIndex);
-            updateOptionSelection(options, currentIndex);
-        } else if (e.key === 'Enter') {
-            e.preventDefault();
-            if (currentIndex >= 0 && options[currentIndex]) {
-                onSelect(options[currentIndex]);
-            }
-        } else if (e.key === 'Escape') {
-            resultsContainer.classList.remove('show');
+        {% if obra_inicial %}
+        // Llega con una obra ya elegida (?obra= o formulario devuelto con errores)
+        const empInicial = empresas.find(e => e.id === {{ obra_inicial.constructora_id }});
+        if (empInicial) {
+            mostrarEmpresa(empInicial);
+            mostrarObra({ id: {{ obra_inicial.pk }}, nombre: "{{ obra_inicial.nombre|escapejs }}", codigo_obra: "{{ obra_inicial.codigo_obra|escapejs }}" });
+            cargarObras(empInicial, () => {});
         }
+        {% endif %}
+    } else {
+        fijarObra({ id: {{ obra.pk|default:0 }}, nombre: "{{ obra.nombre|escapejs }}", codigo_obra: "{{ obra.codigo_obra|escapejs }}" });
     }
 
-    function updateOptionSelection(options, selectedIndex) {
-        options.forEach((opt, idx) => {
-            if (idx === selectedIndex) {
-                opt.classList.add('selected');
-                opt.scrollIntoView({ block: 'nearest' });
-            } else {
-                opt.classList.remove('selected');
-            }
-        });
-    }
+    fecha.addEventListener('input', actualizar);
+    document.addEventListener('pdfs:cambio', e => { pdfs = e.detail; actualizar(); });
 
-    // ========== CERRAR AL CLICK FUERA ==========
-    document.addEventListener('click', function(e) {
-        if (!document.getElementById('constructora-autocomplete').contains(e.target)) {
-            constructoraResults.classList.remove('show');
-        }
-        if (!document.getElementById('obra-autocomplete').contains(e.target)) {
-            obraResults.classList.remove('show');
-        }
+    form.addEventListener('submit', e => {
+        if (enviar.disabled) { e.preventDefault(); return; }
+        form.classList.add('enviando');
+        form.setAttribute('aria-busy', 'true');
+        enviar.disabled = true;
+        enviar.querySelector('span').textContent = pdfs.total === 1 ? 'Cargando 1 informe…' : `Cargando ${pdfs.total} informes…`;
     });
-
-    // ========== ARCHIVOS (ver includes/_carga_pdfs.html) ==========
-    document.addEventListener('pdfs:cambio', updateSubmitButton);
-
-    // ========== SUBMIT ==========
-    document.getElementById('uploadForm').addEventListener('submit', function() {
-        submitBtn.disabled = true;
-        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Cargando informes...';
-    });
-});
+    actualizar();
+})();
 </script>
 {% endblock %}

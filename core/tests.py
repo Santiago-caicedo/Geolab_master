@@ -465,6 +465,35 @@ class FechaInformeTests(TestCase):
             self.assertContains(r, 'multiple')
             self.assertContains(r, 'accept=".pdf,application/pdf"')
 
+    def test_pantalla_unica_con_y_sin_obra(self):
+        from django.urls import reverse
+        r = self.client.get(reverse('cargar_informe_obra', args=[self.obra.pk]))
+        self.assertTemplateUsed(r, 'core/cargar_informe.html')
+        self.assertContains(r, 'BUC46-5')
+        self.assertContains(r, 'name="obra" id="cgObraId" value="%d"' % self.obra.pk)
+        self.assertNotContains(r, 'id="cgEmpresaInput"')          # obra fija: no hay buscador
+        r = self.client.get(reverse('cargar_informe') + '?obra=%d' % self.obra.pk)
+        self.assertContains(r, 'id="cgEmpresaInput"')
+        self.assertContains(r, 'value="%d"' % self.obra.pk)   # llega con la obra elegida
+        self.assertContains(r, '"codigo": "BUC46"')            # empresas para el buscador (json_script)
+
+    def test_error_conserva_la_obra_elegida(self):
+        from django.urls import reverse
+        r = self._subir(reverse('cargar_informe'), '2025-03-14',
+                        [self._pdf('malo.pdf', b'no es pdf')])
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'No se cargó ningún informe')
+        self.assertContains(r, 'name="obra" id="cgObraId" value="%d"' % self.obra.pk)
+
+    def test_titulos_existentes_de_la_obra(self):
+        from django.urls import reverse
+        Informe.objects.create(titulo='INF-0001', obra=self.obra)
+        r = self.client.get(reverse('titulos_informes_obra', args=[self.obra.pk]))
+        self.assertEqual(r.json(), {'titulos': ['INF-0001']})
+        cliente = UsuarioBase.objects.create_user('cli', password='x', es_cliente=True)
+        self.client.force_login(cliente)
+        self.assertEqual(self.client.get(reverse('titulos_informes_obra', args=[self.obra.pk])).status_code, 403)
+
     def test_guarda_la_fecha_elegida(self):
         from django.urls import reverse
         from django.utils import timezone

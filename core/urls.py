@@ -25,4 +25,5 @@ urlpatterns = [
     # Cargar informes
     path('cargar-informe/', views.cargar_informe, name='cargar_informe'),
     path('obras/<int:pk>/cargar-informe/', views.cargar_informe_obra, name='cargar_informe_obra'),
+    path('obras/<int:pk>/informes/titulos/', views.titulos_informes_obra, name='titulos_informes_obra'),
 ]

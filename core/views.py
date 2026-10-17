@@ -5,6 +5,7 @@ from django.core.paginator import Paginator
 from django.db import models
 from django.db.models import Count, Q
 from django.contrib import messages
+from django.http import JsonResponse
 from django.utils import timezone
 from .forms import ConstructoraForm, ObraForm
 from users.models import Constructora
@@ -623,24 +624,28 @@ def cargar_informe(request):
             _guardar_informes(request, form, obra)
             # Redirigir al detalle de la obra
             return redirect('detalle_obra', pk=obra.pk)
+        obra_id = request.POST.get('obra')
     else:
         # Si viene de una obra específica, pre-seleccionar
         obra_id = request.GET.get('obra')
-        initial = {}
-        if obra_id:
-            initial['obra'] = obra_id
-        form = InformeForm(initial=initial)
+        form = InformeForm(initial={'obra': obra_id} if obra_id else {})
 
-    # Obtener estadísticas para mostrar
-    total_informes = Informe.objects.count()
+    # Obra ya elegida (enlace ?obra= o formulario devuelto con errores): la pantalla arranca con ella
+    obra_inicial = None
+    if obra_id and str(obra_id).isdigit():
+        obra_inicial = Obra.objects.select_related('constructora').filter(pk=obra_id).first()
 
-    # Obtener todas las constructoras para el buscador jerárquico
-    constructoras = Constructora.objects.all().order_by('nombre')
+    # Empresas para el buscador: por sede y en orden natural de código, como el directorio
+    constructoras = [
+        {'id': c.pk, 'nombre': c.nombre, 'codigo': c.codigo or '', 'ciudad': c.ciudad or ''}
+        for c in sorted(Constructora.objects.all(), key=lambda c: _orden_natural(c.codigo))
+    ]
 
     context = {
         'form': form,
-        'total_informes': total_informes,
+        'total_informes': Informe.objects.count(),
         'constructoras': constructoras,
+        'obra_inicial': obra_inicial,
     }
     return render(request, 'core/cargar_informe.html', context)
 
@@ -665,8 +670,22 @@ def cargar_informe_obra(request, pk):
     else:
         form = InformeForm(initial={'obra': obra.pk}, constructora=obra.constructora)
 
+    informes = obra.informes.all()
     context = {
         'form': form,
         'obra': obra,
+        'obra_inicial': obra,
+        'total_informes_obra': informes.count(),
+        'ultimo_informe': informes.exclude(fecha_creacion__isnull=True).order_by('-fecha_creacion')
+                                  .values_list('fecha_creacion', flat=True).first(),
     }
-    return render(request, 'core/cargar_informe_obra.html', context)
+    return render(request, 'core/cargar_informe.html', context)
+
+
+@login_required
+def titulos_informes_obra(request, pk):
+    """Títulos de los informes que ya tiene la obra: la pantalla de carga marca los repetidos antes de subir."""
+    if not request.user.es_geolab:
+        return JsonResponse({'error': 'Sin permisos'}, status=403)
+    obra = get_object_or_404(Obra, pk=pk)
+    return JsonResponse({'titulos': list(obra.informes.values_list('titulo', flat=True))})

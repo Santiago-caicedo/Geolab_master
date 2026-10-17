@@ -1,113 +1,226 @@
 {% comment %}
-Selector de varios PDF para cargar informes (cargar_informe y cargar_informe_obra).
-Cada archivo será un informe con el nombre del archivo como título.
-Avisa los cambios con el evento "pdfs:cambio" (detail.total) en document.
+Selector de varios PDF para cargar informes (core/cargar_informe.html).
+Cada archivo será un informe con el nombre del archivo como título; la vista previa los muestra
+como quedarán en el registro (número INF con el color de su ensayo, tipo, fecha) y marca los que
+ya existen en la obra (evento "obra:titulos" con detail.titulos).
+Avisa los cambios con el evento "pdfs:cambio" (detail.total, detail.repetidos) en document.
 {% endcomment %}
 <style>
-    .pdf-lista { list-style: none; padding: 0; margin: 1rem 0 0; max-height: 320px; overflow-y: auto; }
-    .pdf-lista li {
-        display: flex; align-items: center; gap: .75rem;
-        padding: .5rem .75rem; border-radius: 8px; background: #ecfdf5; margin-bottom: .5rem;
+    .cg-drop {
+        position: relative; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+        padding: 1rem 1.1rem; border: 1.5px dashed #b7d3e8; border-radius: 12px; background: #f6fafd;
+        transition: border-color .15s ease, background-color .15s ease;
     }
-    .pdf-lista .pdf-titulo { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .pdf-resumen { display: none; align-items: center; justify-content: space-between; margin-top: 1rem; }
-    .pdf-resumen.show { display: flex; }
-    .pdf-rechazados { display: none; }
-    .pdf-rechazados.show { display: block; }
+    .cg-drop.arrastrando { border-color: #0077b6; background: #e9f3fb; }
+    .cg-drop:focus-within { border-color: #0077b6; box-shadow: 0 0 0 3px rgba(0, 119, 182, .15); }
+    .cg-drop-ico { width: 44px; height: 44px; flex: none; color: #0b6ea8; }
+    .cg-drop-txt { flex: 1 1 200px; min-width: 0; line-height: 1.4; }
+    .cg-drop-txt strong { display: block; color: var(--inf-ink); font-weight: 600; }
+    .cg-drop-txt span { font-size: .8125rem; color: var(--inf-muted); }
+    .cg-drop .cg-elegir {
+        display: inline-flex; align-items: center; gap: .4rem; min-height: 40px; padding: 0 1rem; margin: 0;
+        border-radius: 8px; border: 1px solid #b7d3e8; background: #fff; color: #0b5c8f; font-size: .875rem; font-weight: 500; cursor: pointer;
+    }
+    .cg-drop .cg-elegir:hover { background: #eef6fc; border-color: #0077b6; }
+    fieldset:disabled .cg-drop .cg-elegir { cursor: not-allowed; }
+
+    .cg-rechazo { margin-top: .75rem; }
+    .cg-rechazo[hidden] { display: none; }
+
+    .cg-previa { margin-top: 1rem; border: 1px solid var(--inf-line); border-radius: 10px; overflow: hidden; }
+    .cg-previa[hidden] { display: none; }
+    .cg-previa-cab { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+                     padding: .5rem .75rem; background: #fafbfd; border-bottom: 1px solid var(--inf-line); }
+    .cg-previa-cab .eti { font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--inf-muted); }
+    .cg-previa-cab .eti strong { color: var(--inf-ink); }
+    .cg-quitar-todos { border: 0; background: transparent; font-size: .8125rem; color: var(--inf-danger); padding: .3rem .5rem; border-radius: 6px; min-height: 32px; }
+    .cg-quitar-todos:hover { background: #fdecea; }
+    .cg-previa-scroll { max-height: 380px; overflow-y: auto; }
+    .cg-previa .inf-table td { padding-top: .45rem; padding-bottom: .45rem; }
+    .cg-previa .cg-archivo { display: block; font-family: var(--inf-mono); font-size: .7rem; color: var(--inf-muted);
+                             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 340px; }
+    .cg-previa .cg-peso { font-family: var(--inf-mono); font-size: .75rem; color: var(--inf-muted); white-space: nowrap; text-align: right; }
+    .cg-ya {
+        display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 500; white-space: nowrap;
+        color: #864900; background: #fcefd6; border-radius: 999px; padding: .1rem .5rem; margin-top: .2rem;
+    }
+    .cg-previa tr.repetido td:first-child { box-shadow: inset 3px 0 0 #e3920b; }
+    .cg-previa .cg-x {
+        display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px;
+        border: 0; background: transparent; color: #94a3b8; border-radius: 6px;
+    }
+    .cg-previa .cg-x:hover { background: #fdecea; color: var(--inf-danger); }
+    /* Móvil: cada archivo es una ficha (número y quitar arriba, tipo y nombre abajo) */
+    @media (max-width: 575.98px) {
+        .cg-previa thead { display: none; }
+        .cg-previa table, .cg-previa tbody { display: block; }
+        .cg-previa tr.inf-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center;
+                                padding: .5rem .6rem; border-bottom: 1px solid var(--inf-line); }
+        .cg-previa tr.inf-row:last-child { border-bottom: 0; }
+        .cg-previa tr.inf-row td { display: block; padding: 0; border: 0; background: transparent !important; }
+        .cg-previa tr.inf-row td:nth-child(1) { grid-column: 1; grid-row: 1; }
+        .cg-previa tr.inf-row td:nth-child(4) { grid-column: 2; grid-row: 1; }
+        .cg-previa tr.inf-row td:nth-child(2) { grid-column: 1 / -1; grid-row: 2; margin-top: .3rem; min-width: 0; }
+        .cg-previa .cg-col-peso { display: none !important; }
+        .cg-previa .cg-archivo { max-width: 100%; }
+        .cg-previa tr.repetido { box-shadow: inset 3px 0 0 #e3920b; }
+        .cg-previa tr.repetido td:first-child { box-shadow: none; }
+    }
 </style>
 
-<div class="file-input-wrapper" id="dropZone">
-    <i class="bi bi-cloud-upload text-muted" style="font-size: 2.5rem;"></i>
-    <p class="mb-1 mt-2 fw-medium">Arrastra tus PDF aquí</p>
-    <p class="text-muted small mb-0">o haz clic para seleccionar (puedes elegir varios a la vez)</p>
-    {{ form.archivos }}
+<div class="cg-drop" id="cgDrop">
+    <svg class="cg-drop-ico" viewBox="0 0 44 44" fill="none" aria-hidden="true">
+        <path d="M14 8h13l7 7v19a2 2 0 0 1-2 2H14a2 2 0 0 1-2-2V10a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" fill="#fff"/>
+        <path d="M27 8v7h7" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/>
+        <path d="M10 13v21a4 4 0 0 0 4 4h16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" opacity=".45"/>
+        <path d="M23 30V20m0 0-4 4m4-4 4 4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <div class="cg-drop-txt">
+        <strong>Arrastra aquí los PDF</strong>
+        <span>Hasta 100 por carga. Puedes sumar archivos en varias tandas.</span>
+    </div>
+    <label class="cg-elegir" for="{{ form.archivos.id_for_label }}"><i class="bi bi-folder2-open" aria-hidden="true"></i>Elegir archivos</label>
+    <div class="visually-hidden">{{ form.archivos }}</div>
 </div>
 
-<div class="alert alert-warning small mt-3 mb-0 pdf-rechazados" id="pdfRechazados"></div>
+<div class="alert alert-warning py-2 px-3 cg-rechazo" id="cgRechazo" role="status" hidden></div>
 
-<div class="pdf-resumen" id="pdfResumen">
-    <span class="fw-semibold"><i class="bi bi-files me-1 text-primary"></i><span id="pdfTotal">0</span></span>
-    <button type="button" class="btn btn-sm btn-outline-danger" id="pdfQuitarTodos">
-        <i class="bi bi-trash me-1"></i> Quitar todos
-    </button>
-</div>
-<ul class="pdf-lista" id="pdfLista"></ul>
-<div class="form-text">
-    <i class="bi bi-info-circle me-1"></i>
-    Solo PDF. El título de cada informe será el nombre de su archivo.
+<div class="cg-previa" id="cgPrevia" hidden>
+    <div class="cg-previa-cab">
+        <span class="eti">Así quedarán en el registro · <strong id="cgPreviaTotal">0</strong></span>
+        <button type="button" class="cg-quitar-todos" id="cgQuitarTodos"><i class="bi bi-trash3 me-1" aria-hidden="true"></i>Quitar todos</button>
+    </div>
+    <div class="cg-previa-scroll">
+        <table class="inf-table">
+            <thead>
+                <tr>
+                    <th scope="col">Informe</th>
+                    <th scope="col">Tipo de ensayo</th>
+                    <th scope="col" class="cg-col-peso text-end">Tamaño</th>
+                    <th scope="col"><span class="visually-hidden">Quitar</span></th>
+                </tr>
+            </thead>
+            <tbody id="cgPreviaFilas"></tbody>
+        </table>
+    </div>
 </div>
 
 <script>
 (function () {
     const MAX = 100;
-    const input = document.querySelector('input[name="{{ form.archivos.html_name }}"]');
-    const dropZone = document.getElementById('dropZone');
-    const lista = document.getElementById('pdfLista');
-    const resumen = document.getElementById('pdfResumen');
-    const total = document.getElementById('pdfTotal');
-    const rechazados = document.getElementById('pdfRechazados');
-    let seleccion = [];   // File[] elegidos (se van sumando)
+    const input = document.getElementById('{{ form.archivos.id_for_label }}');
+    const drop = document.getElementById('cgDrop');
+    const previa = document.getElementById('cgPrevia');
+    const filas = document.getElementById('cgPreviaFilas');
+    const totalEl = document.getElementById('cgPreviaTotal');
+    const rechazo = document.getElementById('cgRechazo');
+    let seleccion = [];          // File[] elegidos (se van sumando)
+    let existentes = new Set();  // títulos (en minúscula) que la obra ya tiene
 
     const esPdf = f => f.name.toLowerCase().endsWith('.pdf') && (f.type === 'application/pdf' || f.type === '');
-    const titulo = nombre => nombre.replace(/\.pdf$/i, '');
+    const titulo = n => n.replace(/\.pdf$/i, '').trim();          // = forms.titulo_desde_archivo
     const clave = f => titulo(f.name).toLowerCase();
 
-    function tamano(bytes) {
-        if (!bytes) return '0 KB';
-        const k = 1024, u = ['Bytes', 'KB', 'MB', 'GB'];
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + u[i];
+    // Misma lectura que el filtro partes_informe (core/templatetags/informes_tags.py)
+    const NUMERO = /^\s*INF?[\s_\-.]*(\d{1,6})(?:[\s_\-.]+((?:19|20)\d{2}|\d{2}))?(?!\d)[\s_\-.]*/i;
+    const EXT = /(\.(pdf|xlsx?|docx?)[_\-]?\d*)+$/i;
+    const TILDES = { compresion: 'compresión', flexion: 'flexión', tension: 'tensión', traccion: 'tracción',
+                     absorcion: 'absorción', granulometria: 'granulometría', analisis: 'análisis', tecnico: 'técnico', informacion: 'información' };
+    function legible(t) {
+        t = t.replace(EXT, '').replace(/[_\-]+/g, ' ').replace(/\s+/g, ' ').replace(/^[ .]+|[ .]+$/g, '');
+        if (!t) return '';
+        const f = t.split(' ').map(p => (/\d/.test(p) || p.length === 1) ? p : (TILDES[p.toLowerCase()] || p.toLowerCase())).join(' ');
+        return f.charAt(0).toUpperCase() + f.slice(1);
     }
+    function partes(tit) {
+        const m = NUMERO.exec(tit);
+        if (!m) return { numero: '', tipo: tit.replace(EXT, '').trim() || tit, clase: 'otro' };
+        const tipo = legible(tit.slice(m[0].length));
+        const t = tipo.toLowerCase();
+        const clase = t.includes('cilindro') ? 'cil' : t.includes('cubo') ? 'cub' : (t.includes('viga') || t.includes('flexi')) ? 'vig' : 'otro';
+        return { numero: `INF ${m[1]}${m[2] ? '-' + m[2] : ''}`, tipo, clase };
+    }
+    function tamano(b) {
+        if (!b) return '0 KB';
+        const k = 1024, u = ['B', 'KB', 'MB', 'GB'], i = Math.min(Math.floor(Math.log(b) / Math.log(k)), 3);
+        return (b / Math.pow(k, i)).toLocaleString('es-CO', { maximumFractionDigits: 1 }) + ' ' + u[i];
+    }
+    const el = (tag, clase, texto) => { const e = document.createElement(tag); if (clase) e.className = clase; if (texto != null) e.textContent = texto; return e; };
 
     function sincronizar() {
         const dt = new DataTransfer();
         seleccion.forEach(f => dt.items.add(f));
         input.files = dt.files;
-        lista.innerHTML = '';
+
+        filas.innerHTML = '';
+        let repetidos = 0;
         seleccion.forEach((f, i) => {
-            const li = document.createElement('li');
-            li.innerHTML = '<i class="bi bi-file-earmark-pdf text-danger" style="font-size:1.25rem"></i>'
-                + '<span class="pdf-titulo"></span><small class="text-muted"></small>'
-                + '<button type="button" class="btn btn-sm btn-link text-danger p-0" title="Quitar"><i class="bi bi-x-lg"></i></button>';
-            li.querySelector('.pdf-titulo').textContent = titulo(f.name);
-            li.querySelector('.pdf-titulo').title = f.name;
-            li.querySelector('small').textContent = tamano(f.size);
-            li.querySelector('button').addEventListener('click', () => { seleccion.splice(i, 1); sincronizar(); });
-            lista.appendChild(li);
+            const tit = titulo(f.name), p = partes(tit), ya = existentes.has(tit.toLowerCase());
+            if (ya) repetidos++;
+            const tr = el('tr', 'inf-row' + (ya ? ' repetido' : ''));
+
+            const tdNum = el('td');
+            tdNum.appendChild(el('span', 'inf-num ' + (p.numero ? p.clase : 'vacio'), p.numero || 'Sin número'));
+            const tdTipo = el('td', 'inf-tipo');
+            if (p.numero) tdTipo.appendChild(el('span', 'punto ' + p.clase));
+            tdTipo.appendChild(document.createTextNode(p.tipo));
+            const nombre = el('span', 'cg-archivo', f.name); nombre.title = f.name;
+            tdTipo.appendChild(nombre);
+            if (ya) {
+                const aviso = el('span', 'cg-ya');
+                aviso.innerHTML = '<i class="bi bi-exclamation-triangle" aria-hidden="true"></i>';
+                aviso.appendChild(document.createTextNode('Ya existe en la obra'));
+                tdTipo.appendChild(aviso);
+            }
+            const tdPeso = el('td', 'cg-peso cg-col-peso', tamano(f.size));
+            const tdX = el('td', 'inf-acc');
+            const x = el('button', 'cg-x');
+            x.type = 'button';
+            x.setAttribute('aria-label', 'Quitar ' + tit);
+            x.title = 'Quitar';
+            x.innerHTML = '<i class="bi bi-x-lg" aria-hidden="true"></i>';
+            x.addEventListener('click', () => { seleccion.splice(i, 1); sincronizar(); });
+            tdX.appendChild(x);
+            tr.append(tdNum, tdTipo, tdPeso, tdX);
+            filas.appendChild(tr);
         });
-        total.textContent = seleccion.length + (seleccion.length === 1 ? ' informe por cargar' : ' informes por cargar');
-        resumen.classList.toggle('show', seleccion.length > 0);
-        document.dispatchEvent(new CustomEvent('pdfs:cambio', { detail: { total: seleccion.length } }));
+        totalEl.textContent = seleccion.length === 1 ? '1 informe' : `${seleccion.length} informes`;
+        previa.hidden = seleccion.length === 0;
+        document.dispatchEvent(new CustomEvent('pdfs:cambio', { detail: { total: seleccion.length, repetidos } }));
     }
 
     function agregar(archivos) {
-        const malos = [], repetidos = [];
+        const malos = [], dobles = [];
         Array.from(archivos).forEach(f => {
             if (!esPdf(f)) { malos.push(f.name); return; }
-            if (seleccion.some(s => clave(s) === clave(f))) { repetidos.push(f.name); return; }
+            if (seleccion.some(s => clave(s) === clave(f))) { dobles.push(f.name); return; }
             seleccion.push(f);
         });
         let sobran = 0;
         if (seleccion.length > MAX) { sobran = seleccion.length - MAX; seleccion = seleccion.slice(0, MAX); }
         const avisos = [];
-        if (malos.length) avisos.push('No son PDF y no se agregaron: ' + malos.join(', '));
-        if (repetidos.length) avisos.push('Ya estaban en la lista: ' + repetidos.join(', '));
-        if (sobran) avisos.push('Máximo ' + MAX + ' por carga: se dejaron fuera ' + sobran + '.');
-        rechazados.textContent = avisos.join(' · ');
-        rechazados.classList.toggle('show', avisos.length > 0);
+        if (malos.length) avisos.push(`No son PDF y no se agregaron: ${malos.join(', ')}.`);
+        if (dobles.length) avisos.push(`Ya estaban en la lista: ${dobles.join(', ')}.`);
+        if (sobran) avisos.push(`Máximo ${MAX} por carga: quedaron por fuera ${sobran}.`);
+        rechazo.textContent = avisos.join(' ');
+        rechazo.hidden = !avisos.length;
         sincronizar();
     }
 
     input.addEventListener('change', () => agregar(input.files));
-    ['dragenter', 'dragover'].forEach(ev => dropZone.addEventListener(ev, e => {
-        e.preventDefault(); dropZone.classList.add('dragover');
+    ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => {
+        e.preventDefault();
+        if (!input.disabled) drop.classList.add('arrastrando');
     }));
-    ['dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e => {
-        e.preventDefault(); dropZone.classList.remove('dragover');
-    }));
-    dropZone.addEventListener('drop', e => agregar(e.dataTransfer.files));
-    document.getElementById('pdfQuitarTodos').addEventListener('click', () => {
-        seleccion = []; rechazados.classList.remove('show'); sincronizar();
+    ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('arrastrando'); }));
+    drop.addEventListener('drop', e => { if (!input.disabled) agregar(e.dataTransfer.files); });
+    document.getElementById('cgQuitarTodos').addEventListener('click', () => {
+        seleccion = []; rechazo.hidden = true; sincronizar();
+    });
+    // La pantalla avisa qué títulos ya tiene la obra elegida
+    document.addEventListener('obra:titulos', e => {
+        existentes = new Set((e.detail.titulos || []).map(t => t.toLowerCase()));
+        sincronizar();
     });
 })();
 </script>
