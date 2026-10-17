@@ -257,28 +257,53 @@ def detalle_constructora(request, pk):
         'obras': obras
     })
 
+def _puede_ver_obra(user, obra):
+    """Staff Geolab ve todo; el director, las obras de su empresa; los demás clientes, sus obras asignadas."""
+    if user.es_geolab:
+        return True
+    perfil = getattr(user, 'perfil_cliente', None)
+    if perfil is None:
+        return False
+    if perfil.rol == 'director':
+        return obra.constructora_id == perfil.empresa_id
+    return perfil.obras_asignadas.filter(pk=obra.pk).exists()
+
+
 @login_required
 def detalle_obra(request, pk):
-    """NIVEL 3: Detalle de Obra y sus Informes"""
-    obra = get_object_or_404(Obra, pk=pk)
-    
-    # Validaciones de seguridad (simplificadas por brevedad, pero vitales)
-    # ... (Aquí iría lógica para asegurar que el usuario tiene derecho a ver esta obra)
+    """NIVEL 3: Expediente de la obra (ficha, informes y remisiones recientes)."""
+    obra = get_object_or_404(Obra.objects.select_related('constructora'), pk=pk)
+    if not _puede_ver_obra(request.user, obra):
+        return redirect('home')
 
-    # Buscador interno de informes dentro de la obra
-    informes = obra.informes.all().order_by('-fecha_creacion')
-    query = request.GET.get('q')
-    if query:
-        informes = informes.filter(titulo__icontains=query)
-
-    # Paginación
-    paginator = Paginator(informes, 20)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    informes = obra.informes.order_by('-fecha_creacion')
+    remisiones = (
+        obra.remisiones.order_by('-fecha_creacion')
+        .annotate(
+            n_muestras=Count('muestras', distinct=True),
+            ensayos_total=Count('hoja_trabajo__resultados', distinct=True),
+            ensayos_hechos=Count('hoja_trabajo__resultados', distinct=True,
+                                 filter=Q(hoja_trabajo__resultados__estado='completado')),
+        )
+    )
+    ensayos = remisiones.aggregate(
+        total=Count('hoja_trabajo__resultados', distinct=True),
+        hechos=Count('hoja_trabajo__resultados', distinct=True,
+                     filter=Q(hoja_trabajo__resultados__estado='completado')),
+    )
 
     return render(request, 'core/detalle_obra.html', {
         'obra': obra,
-        'page_obj': page_obj,
-        'query': query
+        'informes_recientes': informes[:8],
+        'total_informes': informes.count(),
+        'ultimo_informe': informes.exclude(fecha_creacion__isnull=True)
+                                  .values_list('fecha_creacion', flat=True).first(),
+        'remisiones_recientes': remisiones[:6],
+        'total_remisiones': obra.remisiones.count(),
+        'ultima_remision': remisiones.values_list('fecha_creacion', flat=True).first(),
+        'ensayos_total': ensayos['total'],
+        'ensayos_hechos': ensayos['hechos'],
+        'ensayos_pendientes': ensayos['total'] - ensayos['hechos'],
     })
 
 
@@ -386,19 +411,8 @@ def lista_informes_obra(request, pk):
     Página separada para ver todos los documentos técnicos.
     """
     obra = get_object_or_404(Obra, pk=pk)
-
-    # Verificar permisos
-    if not request.user.es_geolab:
-        if hasattr(request.user, 'perfil_cliente'):
-            perfil = request.user.perfil_cliente
-            if perfil.rol == 'director':
-                if obra.constructora != perfil.empresa:
-                    return redirect('home')
-            else:
-                if obra not in perfil.obras_asignadas.all():
-                    return redirect('home')
-        else:
-            return redirect('home')
+    if not _puede_ver_obra(request.user, obra):
+        return redirect('home')
 
     # Obtener informes
     informes = Informe.objects.filter(obra=obra).order_by('-fecha_creacion')

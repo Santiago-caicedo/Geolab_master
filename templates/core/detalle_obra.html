@@ -1,320 +1,257 @@
 {% extends 'base.html' %}
+{% load informes_tags %}
+
+{% block title %}{{ obra.nombre }} · Expediente{% endblock %}
+
+{% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
+<style>
+    /* Expediente de obra: ficha + informes y remisiones recientes (esquema "registro") */
+    .exp-facts { display: flex; flex-wrap: wrap; background: #fff; border: 1px solid var(--inf-line); border-radius: 10px; margin-bottom: 1rem; }
+    .exp-fact { flex: 1 1 180px; padding: .7rem 1rem; border-right: 1px solid var(--inf-line); min-width: 0; }
+    .exp-fact:last-child { border-right: 0; }
+    .exp-fact .eti { font-size: .7rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--inf-muted); }
+    .exp-fact .val { font-size: 1.05rem; font-weight: 600; color: var(--inf-ink); font-variant-numeric: tabular-nums; line-height: 1.4; }
+    .exp-fact .sub { font-size: .78rem; color: var(--inf-muted); }
+
+    .exp-grid { display: grid; grid-template-columns: minmax(0, 1fr) 320px; gap: 1rem; align-items: start; }
+    .exp-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+
+    .exp-panel-head { display: flex; align-items: baseline; justify-content: space-between; gap: .75rem;
+                      padding: .7rem .75rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .exp-panel-head h2 { font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .exp-panel-head h2 span { color: var(--inf-muted); font-weight: 500; margin-left: .25rem; }
+    .exp-more { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
+    .exp-more:hover { text-decoration: underline; }
+
+    /* Avance de ensayos de una remisión */
+    .exp-avance { display: inline-flex; align-items: center; gap: .5rem; white-space: nowrap; font-size: .78rem; color: var(--inf-muted); font-variant-numeric: tabular-nums; }
+    .exp-barra { width: 64px; height: 4px; border-radius: 2px; background: var(--inf-line); overflow: hidden; }
+    .exp-barra i { display: block; height: 100%; background: var(--inf-link); }
+    .exp-barra.lleno i { background: #15803d; }
+    .exp-sin { font-size: .78rem; color: var(--inf-muted); }
+
+    /* Ficha de la obra */
+    .exp-ficha { margin: 0; padding: .35rem .75rem .6rem; }
+    .exp-ficha > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: .5rem; padding: .4rem 0; border-bottom: 1px dashed var(--inf-line); }
+    .exp-ficha > div:last-child { border-bottom: 0; }
+    .exp-ficha dt { font-size: .75rem; font-weight: 500; color: var(--inf-muted); }
+    .exp-ficha dd { margin: 0; color: var(--inf-text); overflow-wrap: anywhere; }
+    .exp-ficha dd.vacio { color: #cbd5e1; }
+    .exp-ficha .mono { font-family: var(--inf-mono); font-size: .78rem; }
+    .exp-ficha a { color: var(--inf-link); text-decoration: none; }
+    .exp-ficha a:hover { text-decoration: underline; }
+
+    .exp-empty { padding: 1.75rem 1rem; text-align: center; color: var(--inf-muted); }
+    .exp-empty p { margin: 0 0 .75rem; }
+    .inf .dropdown-menu { font-size: .8125rem; }
+
+    @media (max-width: 991.98px) { .exp-grid { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 575.98px) {
+        .exp-fact { flex-basis: 50%; border-bottom: 1px solid var(--inf-line); }
+        .exp-fact:nth-child(2n) { border-right: 0; }
+        .exp-col-oculta { display: none; }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-{% include "includes/_mensajes.html" %}
-<!-- Breadcrumb -->
-<div class="mb-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0 small" style="background: transparent; padding: 0;">
-            <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none text-muted">Empresas</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="text-decoration-none text-muted">{{ obra.constructora.nombre }}</a></li>
-            <li class="breadcrumb-item active text-dark fw-bold" aria-current="page">Expediente de Proyecto</li>
-        </ol>
+<div class="inf">
+    {% include "includes/_mensajes.html" %}
+
+    <nav class="inf-crumbs" aria-label="Ruta">
+        <a href="{% url 'lista_constructoras' %}">Empresas</a><span class="sep">/</span>
+        <a href="{% url 'detalle_constructora' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a><span class="sep">/</span>
+        <span aria-current="page">{{ obra.nombre }}</span>
     </nav>
-</div>
 
-<!-- Header Hero -->
-<div class="card card-custom mb-4 border-start border-4 border-primary">
-    <div class="card-body p-4">
-        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
-            <div class="d-flex gap-3 align-items-start">
-                <!-- Icono grande -->
-                <div class="bg-primary bg-opacity-10 text-primary rounded-3 p-3 d-flex align-items-center justify-content-center" style="width: 70px; height: 70px;">
-                    <i class="bi bi-folder-fill fs-1"></i>
-                </div>
-                <div>
-                    <h3 class="fw-bold text-dark mb-1">{{ obra.nombre }}</h3>
-                    <div class="d-flex flex-wrap gap-2 align-items-center">
-                        <span class="badge bg-dark fs-6 fw-normal">
-                            <i class="bi bi-hash me-1"></i>{{ obra.codigo_obra }}
-                        </span>
-                        <span class="text-muted">
-                            <i class="bi bi-geo-alt me-1"></i>{{ obra.constructora.ciudad|default:"Sin ubicacion" }}
-                        </span>
-                        <span class="text-muted">
-                            <i class="bi bi-calendar3 me-1"></i>{{ obra.fecha_creacion|date:"d M, Y" }}
-                        </span>
-                    </div>
-                </div>
+    <header class="inf-head">
+        <div>
+            <div class="inf-eyebrow">Expediente de obra</div>
+            <h1 class="inf-title">{{ obra.nombre }}<span class="inf-code">{{ obra.codigo_obra }}</span></h1>
+            <div class="inf-meta">
+                {{ obra.constructora.nombre }}{% if obra.constructora.ciudad %} · {{ obra.constructora.ciudad }}{% endif %}
             </div>
+        </div>
+        {% if user.es_geolab %}
+        <div class="inf-actions">
+            <a href="{% url 'hoja_trabajo_obra' obra.pk %}" class="btn btn-sm btn-light border">
+                <i class="bi bi-clipboard2-data me-1"></i>Hoja de trabajo
+            </a>
+            <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-sm btn-light border">
+                <i class="bi bi-file-earmark-plus me-1"></i>Nueva remisión
+            </a>
+            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
+            </a>
+            <div class="dropdown">
+                <button class="btn btn-sm btn-light border" type="button" data-bs-toggle="dropdown" aria-expanded="false" aria-label="Más acciones">
+                    <i class="bi bi-three-dots"></i>
+                </button>
+                <ul class="dropdown-menu dropdown-menu-end shadow-sm">
+                    <li><a class="dropdown-item" href="{% url 'gestionar_precios_obra' obra.pk %}"><i class="bi bi-currency-dollar me-2"></i>Lista de precios</a></li>
+                    <li><a class="dropdown-item" href="{% url 'editar_obra' obra.pk %}"><i class="bi bi-pencil me-2"></i>Editar obra</a></li>
+                </ul>
+            </div>
+        </div>
+        {% endif %}
+    </header>
 
-            <!-- Botones de accion -->
-            {% if user.es_geolab %}
-            <div class="d-flex gap-2 flex-wrap">
-                <a href="{% url 'hoja_trabajo_obra' obra.pk %}" class="btn btn-warning shadow-sm">
-                    <i class="bi bi-clipboard2-data me-1"></i>
-                    <span class="d-none d-md-inline">Hoja de Trabajo</span>
-                </a>
-                <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-success shadow-sm">
-                    <i class="bi bi-file-earmark-plus me-1"></i>
-                    <span class="d-none d-md-inline">Nueva Remision</span>
-                </a>
-                <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-primary shadow-sm">
-                    <i class="bi bi-cloud-arrow-up me-1"></i>
-                    <span class="d-none d-md-inline">Cargar Informe</span>
-                </a>
-                <a href="{% url 'gestionar_precios_obra' obra.pk %}" class="btn btn-outline-success" title="Lista de precios">
-                    <i class="bi bi-currency-dollar"></i>
-                </a>
-                <a href="{% url 'editar_obra' obra.pk %}" class="btn btn-outline-secondary">
-                    <i class="bi bi-pencil"></i>
-                </a>
-            </div>
+    <section class="exp-facts" aria-label="Resumen">
+        <div class="exp-fact">
+            <div class="eti">Informes</div>
+            <div class="val">{{ total_informes }}</div>
+            <div class="sub">{% if ultimo_informe %}último del {{ ultimo_informe|date:"j M Y" }}{% else %}ninguno todavía{% endif %}</div>
+        </div>
+        <div class="exp-fact">
+            <div class="eti">Remisiones</div>
+            <div class="val">{{ total_remisiones }}</div>
+            <div class="sub">{% if ultima_remision %}última del {{ ultima_remision|date:"j M Y" }}{% else %}ninguna todavía{% endif %}</div>
+        </div>
+        <div class="exp-fact">
+            <div class="eti">Ensayos</div>
+            {% if ensayos_total %}
+            <div class="val">{{ ensayos_hechos }} <span class="sub">de {{ ensayos_total }}</span></div>
+            <div class="sub">{% if ensayos_pendientes %}{{ ensayos_pendientes }} por registrar{% else %}todos registrados{% endif %}</div>
+            {% else %}
+            <div class="val">—</div>
+            <div class="sub">sin muestras para ensayar</div>
             {% endif %}
         </div>
-    </div>
-</div>
-
-<!-- Contenido principal -->
-<div class="row g-4">
-
-    <!-- Sidebar izquierdo -->
-    <div class="col-lg-3">
-
-        <!-- Card Resumen -->
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3 border-bottom">
-                <h6 class="mb-0 fw-bold text-uppercase small" style="letter-spacing: 0.5px;">
-                    <i class="bi bi-bar-chart me-2 text-primary"></i>Resumen
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                    <span class="text-muted">Documentos</span>
-                    <span class="badge bg-primary rounded-pill fs-6">{{ obra.informes.count }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center mb-3 pb-3 border-bottom">
-                    <span class="text-muted">Remisiones</span>
-                    <span class="badge bg-success rounded-pill fs-6">{{ obra.remisiones.count }}</span>
-                </div>
-                <div class="d-flex justify-content-between align-items-center">
-                    <span class="text-muted">Estado</span>
-                    <span class="badge bg-light text-success border">
-                        <i class="bi bi-check-circle me-1"></i>Activo
-                    </span>
-                </div>
-            </div>
+        <div class="exp-fact">
+            <div class="eti">En el portal</div>
+            <div class="val">{{ obra.fecha_creacion|date:"M Y"|default:"—" }}</div>
+            <div class="sub">{% if obra.id_wp_original %}viene de WordPress{% else %}creada en el portal{% endif %}</div>
         </div>
+    </section>
 
-        <!-- Card Cliente -->
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3 border-bottom">
-                <h6 class="mb-0 fw-bold text-uppercase small" style="letter-spacing: 0.5px;">
-                    <i class="bi bi-building me-2 text-primary"></i>Cliente
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="mb-3">
-                    <small class="text-muted d-block mb-1">Empresa</small>
-                    <span class="fw-bold">{{ obra.constructora.nombre }}</span>
-                </div>
-                <div class="mb-3">
-                    <small class="text-muted d-block mb-1">NIT</small>
-                    <span class="font-monospace">{{ obra.constructora.nit|default:"--" }}</span>
-                </div>
-                <div>
-                    <small class="text-muted d-block mb-1">Ciudad</small>
-                    <span>{{ obra.constructora.ciudad|default:"Sin especificar" }}</span>
-                </div>
-            </div>
-            <div class="card-footer bg-light border-top-0 py-2">
-                <a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="btn btn-sm btn-link text-decoration-none w-100">
-                    Ver empresa <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-        </div>
-
-        <!-- Card Actividad -->
-        <div class="card card-custom">
-            <div class="card-header bg-white py-3 border-bottom">
-                <h6 class="mb-0 fw-bold text-uppercase small" style="letter-spacing: 0.5px;">
-                    <i class="bi bi-clock-history me-2 text-primary"></i>Actividad
-                </h6>
-            </div>
-            <div class="card-body">
-                <div class="d-flex align-items-start gap-2 mb-3">
-                    <div class="bg-success rounded-circle mt-1" style="width: 8px; height: 8px;"></div>
-                    <div class="flex-grow-1">
-                        <small class="text-muted d-block">Creado</small>
-                        <span class="small">{{ obra.fecha_creacion|date:"d/m/Y H:i" }}</span>
-                    </div>
-                </div>
-                {% if obra.informes.exists %}
-                <div class="d-flex align-items-start gap-2 mb-3">
-                    <div class="bg-primary rounded-circle mt-1" style="width: 8px; height: 8px;"></div>
-                    <div class="flex-grow-1">
-                        <small class="text-muted d-block">Ultimo informe</small>
-                        <span class="small">{{ obra.informes.first.fecha_creacion|date:"d/m/Y" }}</span>
-                    </div>
-                </div>
-                {% endif %}
-                {% if obra.remisiones.exists %}
-                <div class="d-flex align-items-start gap-2">
-                    <div class="bg-warning rounded-circle mt-1" style="width: 8px; height: 8px;"></div>
-                    <div class="flex-grow-1">
-                        <small class="text-muted d-block">Ultima remision</small>
-                        <span class="small">{{ obra.remisiones.first.fecha_creacion|date:"d/m/Y" }}</span>
-                    </div>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-    </div>
-
-    <!-- Contenido principal derecho -->
-    <div class="col-lg-9">
-
-        <!-- Card Documentacion Tecnica -->
-        <div class="card card-custom mb-4">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-2">
-                    <h6 class="mb-0 fw-bold">
-                        <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>Documentacion Tecnica
-                    </h6>
-                    <span class="badge bg-danger bg-opacity-10 text-danger">{{ obra.informes.count }}</span>
-                </div>
-                <a href="{% url 'lista_informes_obra' obra.pk %}" class="btn btn-sm btn-outline-primary">
-                    Ver todos <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-            <div class="card-body p-0">
-                {% if obra.informes.exists %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-4 py-3" style="width: 60%;">Archivo</th>
-                                <th>Fecha</th>
-                                <th class="text-end pe-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for informe in obra.informes.all|slice:":5" %}
-                            <tr>
-                                <td class="ps-4 py-3">
-                                    <div class="d-flex align-items-center gap-2">
-                                        <i class="bi bi-file-earmark-pdf-fill text-danger fs-5"></i>
-                                        <div class="text-truncate" style="max-width: 300px;">
-                                            <span class="fw-medium">{{ informe.titulo }}</span>
-                                        </div>
-                                    </div>
-                                </td>
-                                <td>
-                                    <small class="text-muted">{{ informe.fecha_creacion|date:"d/m/Y" }}</small>
-                                </td>
-                                <td class="text-end pe-4">
-                                    {% if informe.archivo %}
-                                    <a href="{{ informe.archivo.url }}" target="_blank" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-download"></i>
-                                    </a>
-                                    {% endif %}
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if obra.informes.count > 5 %}
-                <div class="card-footer bg-light text-center py-2 border-top-0">
-                    <a href="{% url 'lista_informes_obra' obra.pk %}" class="text-decoration-none small">
-                        <i class="bi bi-three-dots me-1"></i> Ver {{ obra.informes.count|add:"-5" }} documentos mas
-                    </a>
-                </div>
-                {% endif %}
-                {% else %}
-                <div class="text-center py-5">
-                    <div class="mb-3 opacity-50">
-                        <i class="bi bi-folder-x" style="font-size: 2.5rem;"></i>
-                    </div>
-                    <p class="text-muted mb-0">No hay documentos cargados</p>
-                </div>
-                {% endif %}
-            </div>
-        </div>
-
-        <!-- Card Remisiones de Muestras -->
-        <div class="card card-custom">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <div class="d-flex align-items-center gap-2">
-                    <h6 class="mb-0 fw-bold">
-                        <i class="bi bi-file-earmark-medical me-2 text-success"></i>Remisiones de Muestras
-                    </h6>
-                    <span class="badge bg-success bg-opacity-10 text-success">{{ obra.remisiones.count }}</span>
-                </div>
-                <a href="{% url 'lista_remisiones_obra' obra.pk %}" class="btn btn-sm btn-outline-success">
-                    Ver todas <i class="bi bi-arrow-right ms-1"></i>
-                </a>
-            </div>
-            <div class="card-body p-0">
-                {% if obra.remisiones.exists %}
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle mb-0">
-                        <thead class="table-light">
-                            <tr>
-                                <th class="ps-4 py-3">Orden de Trabajo</th>
-                                <th>Estado</th>
-                                <th>Muestras</th>
-                                <th>Fecha</th>
-                                <th class="text-end pe-4"></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for rem in obra.remisiones.all|slice:":5" %}
-                            <tr>
-                                <td class="ps-4 py-3">
-                                    <strong class="text-danger">{{ rem.orden_trabajo }}</strong>
-                                </td>
-                                <td>
-                                    {% if rem.estado == 'completada' %}
-                                        <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Completada</span>
-                                    {% elif rem.estado == 'enviada' %}
-                                        <span class="badge bg-warning text-dark"><i class="bi bi-clock me-1"></i>Pendiente</span>
-                                    {% elif rem.estado == 'vencida' %}
-                                        <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Vencida</span>
-                                    {% else %}
-                                        <span class="badge bg-secondary">{{ rem.get_estado_display }}</span>
-                                    {% endif %}
-                                </td>
-                                <td>
-                                    <span class="badge bg-light text-dark border">
-                                        <i class="bi bi-box me-1"></i>{{ rem.total_muestras }}
-                                    </span>
-                                </td>
-                                <td>
-                                    <small class="text-muted">{{ rem.fecha_creacion|date:"d/m/Y" }}</small>
-                                </td>
-                                <td class="text-end pe-4">
-                                    <a href="{% url 'detalle_remision' rem.pk %}" class="btn btn-sm btn-outline-secondary">
-                                        <i class="bi bi-eye"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
-                </div>
-                {% if obra.remisiones.count > 5 %}
-                <div class="card-footer bg-light text-center py-2 border-top-0">
-                    <a href="{% url 'lista_remisiones_obra' obra.pk %}" class="text-decoration-none small">
-                        <i class="bi bi-three-dots me-1"></i> Ver {{ obra.remisiones.count|add:"-5" }} remisiones mas
-                    </a>
-                </div>
-                {% endif %}
-                {% else %}
-                <div class="text-center py-5">
-                    <div class="mb-3 opacity-50">
-                        <i class="bi bi-inbox" style="font-size: 2.5rem;"></i>
-                    </div>
-                    <p class="text-muted mb-3">No hay remisiones registradas</p>
-                    {% if user.es_geolab %}
-                    <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-sm btn-success">
-                        <i class="bi bi-plus-lg me-1"></i> Crear primera remision
+    <div class="exp-grid">
+        <div class="exp-col">
+            <!-- Informes recientes -->
+            <section class="inf-panel" aria-labelledby="expInformes">
+                <div class="exp-panel-head">
+                    <h2 id="expInformes">Informes recientes<span>{{ total_informes }}</span></h2>
+                    {% if total_informes %}
+                    <a href="{% url 'lista_informes_obra' obra.pk %}" class="exp-more">
+                        {% if total_informes > informes_recientes|length %}Ver los {{ total_informes }}{% else %}Abrir el registro{% endif %} <i class="bi bi-arrow-right"></i>
                     </a>
                     {% endif %}
                 </div>
+                {% if informes_recientes %}
+                <table class="inf-table">
+                    <tbody>
+                        {% for informe in informes_recientes %}
+                        {% with p=informe.titulo|partes_informe %}
+                        <tr class="inf-row">
+                            <td style="width: 150px;">
+                                {% if p.numero %}<span class="inf-num">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
+                            </td>
+                            <td class="inf-tipo" title="{{ informe.titulo }}">
+                                {{ p.tipo|default:informe.titulo }}
+                                <small>{{ informe.fecha_creacion|date:"j M Y" }}</small>
+                            </td>
+                            <td class="inf-fecha inf-col-fecha" style="width: 110px;">{{ informe.fecha_creacion|date:"j M Y"|default:"—" }}</td>
+                            <td class="inf-acc">
+                                {% if informe.archivo %}
+                                <a href="{{ informe.archivo.url }}" target="_blank" rel="noopener" class="inf-open" aria-label="Abrir {{ informe.titulo }} en otra pestaña">
+                                    <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="txt">Abrir</span>
+                                </a>
+                                {% else %}<span class="inf-nofile">Sin PDF</span>{% endif %}
+                            </td>
+                        </tr>
+                        {% endwith %}
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="exp-empty">
+                    <p>Esta obra todavía no tiene informes.</p>
+                    {% if user.es_geolab %}
+                    <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary"><i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes</a>
+                    {% endif %}
+                </div>
                 {% endif %}
-            </div>
+            </section>
+
+            <!-- Remisiones recientes -->
+            <section class="inf-panel" aria-labelledby="expRemisiones">
+                <div class="exp-panel-head">
+                    <h2 id="expRemisiones">Remisiones de muestras<span>{{ total_remisiones }}</span></h2>
+                    {% if total_remisiones %}
+                    <a href="{% url 'lista_remisiones_obra' obra.pk %}" class="exp-more">
+                        {% if total_remisiones > remisiones_recientes|length %}Ver las {{ total_remisiones }}{% else %}Ver remisiones{% endif %} <i class="bi bi-arrow-right"></i>
+                    </a>
+                    {% endif %}
+                </div>
+                {% if remisiones_recientes %}
+                <table class="inf-table">
+                    <thead>
+                        <tr>
+                            <th scope="col" style="width: 110px;">Orden</th>
+                            <th scope="col">Muestras</th>
+                            <th scope="col" class="exp-col-oculta">Ensayos</th>
+                            <th scope="col" class="text-end" style="width: 110px;">Fecha</th>
+                            <th scope="col" class="inf-acc"><span class="visually-hidden">Acciones</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for rem in remisiones_recientes %}
+                        <tr class="inf-row">
+                            <td><span class="inf-num">OT {{ rem.orden_trabajo }}</span></td>
+                            <td>
+                                {{ rem.n_muestras }} muestra{{ rem.n_muestras|pluralize }}
+                                {% if rem.estado != 'completada' %}<span class="exp-sin">· {{ rem.get_estado_display }}</span>{% endif %}
+                            </td>
+                            <td class="exp-col-oculta">
+                                {% if rem.ensayos_total %}
+                                <span class="exp-avance" title="{{ rem.ensayos_hechos }} de {{ rem.ensayos_total }} ensayos registrados">
+                                    <span class="exp-barra{% if rem.ensayos_hechos == rem.ensayos_total %} lleno{% endif %}" aria-hidden="true">
+                                        <i style="width: {% widthratio rem.ensayos_hechos rem.ensayos_total 100 %}%"></i>
+                                    </span>
+                                    {{ rem.ensayos_hechos }}/{{ rem.ensayos_total }}
+                                </span>
+                                {% else %}<span class="exp-sin">Sin ensayos</span>{% endif %}
+                            </td>
+                            <td class="inf-fecha">{{ rem.fecha_creacion|date:"j M Y" }}</td>
+                            <td class="inf-acc">
+                                <a href="{% url 'detalle_remision' rem.pk %}" class="inf-open" aria-label="Ver remisión OT {{ rem.orden_trabajo }}">
+                                    <i class="bi bi-eye" aria-hidden="true"></i><span class="txt">Ver</span>
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                {% else %}
+                <div class="exp-empty">
+                    <p>Esta obra no tiene remisiones.</p>
+                    {% if user.es_geolab %}
+                    <a href="{% url 'crear_remision' obra.pk %}" class="btn btn-sm btn-light border"><i class="bi bi-file-earmark-plus me-1"></i>Nueva remisión</a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </section>
         </div>
+
+        <!-- Ficha -->
+        <aside class="inf-panel" aria-labelledby="expFicha">
+            <div class="exp-panel-head">
+                <h2 id="expFicha">Ficha de la obra</h2>
+                {% if user.es_geolab %}<a href="{% url 'editar_obra' obra.pk %}" class="exp-more">Editar</a>{% endif %}
+            </div>
+            <dl class="exp-ficha">
+                <div><dt>Constructora</dt><dd><a href="{% url 'detalle_constructora' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a> <span class="mono text-muted">{{ obra.constructora.codigo }}</span></dd></div>
+                <div><dt>NIT</dt><dd class="mono{% if not obra.constructora.nit %} vacio{% endif %}">{{ obra.constructora.nit|default:"—" }}</dd></div>
+                <div><dt>Ciudad</dt><dd{% if not obra.constructora.ciudad %} class="vacio"{% endif %}>{{ obra.constructora.ciudad|default:"—" }}</dd></div>
+                <div><dt>Dirección</dt><dd{% if not obra.direccion %} class="vacio"{% endif %}>{{ obra.direccion|default:"—" }}</dd></div>
+                <div><dt>Contacto</dt><dd{% if not obra.contacto %} class="vacio"{% endif %}>{{ obra.contacto|default:"—" }}</dd></div>
+                <div><dt>Celular</dt><dd class="mono{% if not obra.celular %} vacio{% endif %}">{% if obra.celular %}<a href="tel:{{ obra.celular }}">{{ obra.celular }}</a>{% else %}—{% endif %}</dd></div>
+                <div><dt>Teléfono</dt><dd class="mono{% if not obra.telefono %} vacio{% endif %}">{% if obra.telefono %}<a href="tel:{{ obra.telefono }}">{{ obra.telefono }}</a>{% else %}—{% endif %}</dd></div>
+                {% if user.es_geolab and obra.id_wp_original %}
+                <div><dt>WordPress</dt><dd class="mono">#{{ obra.id_wp_original }}</dd></div>
+                {% endif %}
+            </dl>
+        </aside>
     </div>
 </div>
 {% endblock %}

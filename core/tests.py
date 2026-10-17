@@ -577,3 +577,47 @@ class ListaInformesObraTests(TestCase):
         r = self.client.post(self._url('eliminar_informes'), {'informes': [self.inf2.pk], 'next': 'https://malo.com/'})
         self.assertRedirects(r, self._url(), fetch_redirect_response=False)
 
+
+class ExpedienteObraTests(TestCase):
+    """detalle_obra: solo staff, el director de la empresa o el cliente con la obra asignada."""
+
+    def setUp(self):
+        from users.models import FuncionarioGeolab
+        self.c = Constructora.objects.create(codigo='BUC53', nombre='MARTINEZ', ciudad='Bucaramanga')
+        otra = Constructora.objects.create(codigo='BUC46', nombre='JAIMES', ciudad='Bucaramanga')
+        self.obra = Obra.objects.create(nombre='ALTOS DEL DIAMANTE', codigo_obra='BUC53-4', constructora=self.c,
+                                        contacto='Ing. Laura')
+        Informe.objects.create(titulo='INF-3618-2026-COMPRESION-CILINDROS.xlsx.pdf', obra=self.obra)
+        self.staff = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=self.staff, area='admin')
+
+        def cliente(nombre, empresa, rol):
+            u = UsuarioBase.objects.create_user(nombre, password='x', es_cliente=True)
+            return ClienteExterno.objects.create(user=u, empresa=empresa, rol=rol)
+        self.director = cliente('dir', self.c, 'director')
+        self.ajeno = cliente('ajeno', otra, 'director')
+        self.remitente = cliente('rem', self.c, 'remitente')
+
+    def _get(self, user):
+        from django.urls import reverse
+        self.client.force_login(user)
+        return self.client.get(reverse('detalle_obra', args=[self.obra.pk]))
+
+    def test_staff_ve_el_expediente(self):
+        r = self._get(self.staff)
+        self.assertContains(r, 'Expediente de obra')
+        self.assertContains(r, 'INF 3618-2026')
+        self.assertContains(r, 'Ing. Laura')
+        self.assertContains(r, 'Cargar informes')
+
+    def test_director_de_la_empresa_entra_sin_acciones_de_staff(self):
+        r = self._get(self.director.user)
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, 'Nueva remisión')
+
+    def test_cliente_de_otra_empresa_o_sin_asignar_no_entra(self):
+        self.assertRedirects(self._get(self.ajeno.user), '/', fetch_redirect_response=False)
+        self.assertRedirects(self._get(self.remitente.user), '/', fetch_redirect_response=False)
+        self.remitente.obras_asignadas.add(self.obra)
+        self.assertEqual(self._get(self.remitente.user).status_code, 200)
+
