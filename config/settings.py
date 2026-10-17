@@ -158,12 +158,18 @@ if not DEBUG:  # <--- ESTA ES LA CLAVE
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/geolab/media/'
     
     # Definimos los Storages de AWS
+    # Media (PDF de clientes): objetos PRIVADOS (default_acl None) y URL firmadas que vencen.
+    # Sin custom_domain: con AWS_S3_CUSTOM_DOMAIN django-storages genera URL sin firma, que
+    # solo abren los archivos viejos subidos como públicos; los nuevos daban AccessDenied.
     STORAGES = {
         "default": {
             "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
             "OPTIONS": {
                 "location": "geolab/media",
                 "file_overwrite": False,
+                "custom_domain": None,
+                "querystring_auth": True,
+                "querystring_expire": 4 * 3600,
             },
         },
         "staticfiles": {

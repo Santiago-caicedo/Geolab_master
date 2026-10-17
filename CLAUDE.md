@@ -403,7 +403,7 @@ LIBREOFFICE_PATH=
 12. **Campos LEGACY:** `diametro_longitud` y `unidad_diametro` en Muestra (reemplazados por `dimension_especimen`)
 13. **Macro dispatch:** `ResultadoMuestra._macro` → `get_macro(muestra.geometria)` → Strategy Pattern
 14. **Price freezing:** `RegistroServicio.precio_unitario_congelado` captura precio al momento del registro
-15. **Producción:** dominio `portalgeolab.com`, S3 bucket `vadomdata/geolab/`
+15. **Producción:** dominio `portalgeolab.com`, S3 bucket `vadomdata/geolab/`. Media con objetos privados (`AWS_DEFAULT_ACL=None`) y **URL firmadas** (4 h): el storage `default` lleva `custom_domain: None`; con `AWS_S3_CUSTOM_DOMAIN` django-storages genera URL sin firma y los PDF nuevos dan `AccessDenied` (los viejos de 2025 se subieron públicos). Static sí usa el dominio directo.
 16. **URLs montadas en RAÍZ:** TODAS las apps se incluyen con `path('', include(...))` en `config/urls.py` (sin prefijo de app). Las rutas reales son p.ej. `/resultado/<pk>/editar/`, NO `/ensayos/resultado/...`. En `fetch()` usar la ruta sin prefijo de app.
 17. **Acero sin hoja de trabajo:** tipos `varilla`/`malla_elec` (`Muestra.TIPOS_SIN_HOJA`) → geometría `acero`, se almacenan pero no generan HojaTrabajo/ResultadoMuestra.
 18. **`forma_falla` canónico:** valores `tipo_1`..`tipo_6` (NO `1`..`6`). `informes._tipo_falla_num()` exige el prefijo `tipo_`.
