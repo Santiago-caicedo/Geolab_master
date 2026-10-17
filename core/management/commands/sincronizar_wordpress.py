@@ -31,7 +31,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.utils.timezone import is_naive, make_aware
 
-from core.models import Informe, Obra
+from core.models import Informe, InformeEliminado, Obra
 from core.wp_fuente import FuenteDump, FuenteMySQL
 from core.wp_normalizar import (
     agrupar_por_empresa, ciudad_obra, clave_constructora, codigo_obra, misma_empresa, nombre_obra,
@@ -330,10 +330,16 @@ class Command(BaseCommand):
         st = defaultdict(int)
         self.informes_sin_obra = 0
         existentes = {i.id_wp_original: i for i in Informe.objects.exclude(id_wp_original__isnull=True)}
+        # Borrados a propósito desde el portal: no se vuelven a traer
+        eliminados = set(InformeEliminado.objects.exclude(id_wp_original__isnull=True)
+                         .values_list('id_wp_original', flat=True))
         nuevos = []
         for inf in informes:
             if inf.estado != 'publish':
                 st['no_publicados'] += 1
+                continue
+            if inf.id in eliminados and inf.id not in existentes:
+                st['eliminados'] += 1
                 continue
             obra = obras.get(inf.proyecto_id)
             if obra is None:
@@ -366,7 +372,8 @@ class Command(BaseCommand):
         st['creados'] = len(nuevos)
         self.stdout.write(self.style.SUCCESS(
             f'Informes: {st["creados"]} creados, {st["actualizados"]} actualizados, {st["iguales"]} sin cambios, '
-            f'{st["no_publicados"]} no publicados, {self.informes_sin_obra} sin obra.'
+            f'{st["no_publicados"]} no publicados, {self.informes_sin_obra} sin obra, '
+            f'{st["eliminados"]} eliminados en el portal (no se traen).'
         ))
         if nuevos:
             self.stdout.write('  Los PDF nuevos se descargan con: python manage.py descargar_archivos')

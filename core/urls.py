@@ -20,6 +20,7 @@ urlpatterns = [
     path('obras/<int:pk>/', views.detalle_obra, name='detalle_obra'),
     path('obras/<int:pk>/editar/', views.editar_obra, name='editar_obra'),
     path('obras/<int:pk>/informes/', views.lista_informes_obra, name='lista_informes_obra'),
+    path('obras/<int:pk>/informes/eliminar/', views.eliminar_informes, name='eliminar_informes'),
 
     # Cargar informes
     path('cargar-informe/', views.cargar_informe, name='cargar_informe'),

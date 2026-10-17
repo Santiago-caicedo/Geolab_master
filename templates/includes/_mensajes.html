@@ -1,0 +1,12 @@
+{% comment %}Mensajes de Django (messages) como avisos compactos. Incluir al inicio del contenido.{% endcomment %}
+{% if messages %}
+<div class="mb-3" role="status" aria-live="polite">
+    {% for message in messages %}
+    <div class="alert alert-{% if message.tags == 'error' %}danger{% else %}{{ message.tags|default:'info' }}{% endif %} alert-dismissible fade show py-2 px-3 small d-flex align-items-center gap-2 mb-2">
+        <i class="bi {% if message.tags == 'success' %}bi-check-circle-fill{% elif message.tags == 'warning' %}bi-exclamation-triangle-fill{% elif message.tags == 'error' %}bi-x-octagon-fill{% else %}bi-info-circle-fill{% endif %}"></i>
+        <span>{{ message }}</span>
+        <button type="button" class="btn-close btn-sm py-2" data-bs-dismiss="alert" aria-label="Cerrar"></button>
+    </div>
+    {% endfor %}
+</div>
+{% endif %}

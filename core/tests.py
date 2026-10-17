@@ -241,6 +241,16 @@ class SincronizarWordpressTests(TestCase):
         self.assertFalse(Obra.objects.filter(id_wp_original=504).exists())
         self.assertFalse(Constructora.objects.filter(codigo='SDDSD').exists())
 
+    def test_no_vuelve_a_traer_informes_eliminados_en_el_portal(self):
+        from core.models import InformeEliminado
+        self._run()
+        inf = Informe.objects.get(id_wp_original=900)
+        InformeEliminado.objects.create(titulo=inf.titulo, id_wp_original=900)
+        inf.delete()
+        salida = self._run()
+        self.assertFalse(Informe.objects.filter(id_wp_original=900).exists())
+        self.assertIn('1 eliminados en el portal', salida)
+
     def test_omitir(self):
         self._run('--omitir', '501')
         self.assertFalse(Obra.objects.filter(id_wp_original=501).exists())
@@ -470,4 +480,100 @@ class FechaInformeTests(TestCase):
         self.assertEqual(Informe.objects.filter(titulo='INF-0001').count(), 2)
         mensajes = [str(m) for m in r.wsgi_request._messages]
         self.assertTrue(any('mismo nombre' in m for m in mensajes), mensajes)
+
+
+class PartesInformeTests(SimpleTestCase):
+
+    def test_separa_numero_y_tipo(self):
+        from core.templatetags.informes_tags import partes_informe
+        casos = {
+            'INF-0103-2024-COMPRESION-CILINDROS.xlsx_.pdf': ('INF 0103-2024', 'Compresión cilindros'),
+            'INF-3580-2026-COMPRESION-CILINDROS.xlsx-1': ('INF 3580-2026', 'Compresión cilindros'),
+            'INF 0340-2026 VIGAS FLEXION M 8V': ('INF 0340-2026', 'Vigas flexión M 8V'),
+            'IN1234-26-DE-ALGO.pdf': ('INF 1234-26', 'De algo'),
+            'Analisis_tecnico.pdf': ('', 'Analisis_tecnico'),
+        }
+        for titulo, (numero, tipo) in casos.items():
+            p = partes_informe(titulo)
+            self.assertEqual((p['numero'], p['tipo']), (numero, tipo), titulo)
+
+
+class ListaInformesObraTests(TestCase):
+    """Registro de informes de la obra: búsqueda y borrado (solo superusuario)."""
+
+    def setUp(self):
+        from django.core.files.base import ContentFile
+        from django.test import override_settings
+        from users.models import FuncionarioGeolab
+        self.tmp = tempfile.TemporaryDirectory()
+        self.media = override_settings(MEDIA_ROOT=self.tmp.name)
+        self.media.enable()
+        c = Constructora.objects.create(codigo='BUC46', nombre='JAIMES', ciudad='Bucaramanga')
+        self.obra = Obra.objects.create(nombre='LA GRANJA', codigo_obra='BUC46-5', constructora=c)
+        otra = Obra.objects.create(nombre='OIBA', codigo_obra='BUC46-7', constructora=c)
+        self.inf1 = Informe.objects.create(titulo='INF-0340-2026-COMPRESION-CILINDROS.xlsx.pdf', obra=self.obra,
+                                           id_wp_original=5001)
+        self.inf1.archivo.save('INF-0340.pdf', ContentFile(b'%PDF-1.4'))
+        self.inf2 = Informe.objects.create(titulo='INF-0341-2026-VIGAS.pdf', obra=self.obra)
+        self.ajeno = Informe.objects.create(titulo='INF-0999-2026.pdf', obra=otra)
+        self.super = UsuarioBase.objects.create_superuser('root', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=self.super, area='admin')
+        self.staff = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=self.staff, area='admin')
+
+    def tearDown(self):
+        self.media.disable()
+        self.tmp.cleanup()
+
+    def _url(self, nombre='lista_informes_obra'):
+        from django.urls import reverse
+        return reverse(nombre, args=[self.obra.pk])
+
+    def test_superusuario_ve_acciones_de_borrado_y_staff_no(self):
+        self.client.force_login(self.super)
+        r = self.client.get(self._url())
+        self.assertContains(r, 'INF 0340-2026')
+        self.assertContains(r, 'Compresión cilindros')
+        self.assertContains(r, 'class="inf-del"')
+        self.client.force_login(self.staff)
+        r = self.client.get(self._url())
+        self.assertEqual(r.status_code, 200)
+        self.assertNotContains(r, 'class="inf-del"')
+        self.assertNotContains(r, 'id="infModal"')
+
+    def test_busqueda_por_palabras_sin_tildes(self):
+        self.client.force_login(self.staff)
+        for q in ('INF 0340', 'compresión', '0340 cilindros'):
+            r = self.client.get(self._url(), {'q': q})
+            self.assertContains(r, 'INF 0340-2026', msg_prefix=q)
+            self.assertNotContains(r, 'INF 0341-2026', msg_prefix=q)
+
+    def test_superusuario_elimina_y_queda_en_bitacora(self):
+        from core.models import InformeEliminado
+        from django.core.files.storage import default_storage
+        nombre = self.inf1.archivo.name
+        self.assertTrue(default_storage.exists(nombre))
+        self.client.force_login(self.super)
+        with self.captureOnCommitCallbacks(execute=True):
+            r = self.client.post(self._url('eliminar_informes'),
+                                 {'informes': [self.inf1.pk, self.inf2.pk, self.ajeno.pk], 'next': self._url()})
+        self.assertRedirects(r, self._url(), fetch_redirect_response=False)
+        self.assertEqual(list(self.obra.informes.all()), [])
+        self.assertTrue(Informe.objects.filter(pk=self.ajeno.pk).exists())   # de otra obra: no se toca
+        self.assertFalse(default_storage.exists(nombre))
+        reg = InformeEliminado.objects.get(id_wp_original=5001)
+        self.assertEqual((reg.obra_codigo, reg.eliminado_por), ('BUC46-5', self.super))
+        self.assertEqual(InformeEliminado.objects.count(), 2)
+
+    def test_staff_no_superusuario_no_puede_eliminar(self):
+        self.client.force_login(self.staff)
+        self.client.post(self._url('eliminar_informes'), {'informes': [self.inf1.pk]})
+        self.assertTrue(Informe.objects.filter(pk=self.inf1.pk).exists())
+
+    def test_get_y_next_externo_no_borran_ni_redirigen_fuera(self):
+        self.client.force_login(self.super)
+        r = self.client.get(self._url('eliminar_informes'), {'informes': [self.inf1.pk]})
+        self.assertTrue(Informe.objects.filter(pk=self.inf1.pk).exists())
+        r = self.client.post(self._url('eliminar_informes'), {'informes': [self.inf2.pk], 'next': 'https://malo.com/'})
+        self.assertRedirects(r, self._url(), fetch_redirect_response=False)
 

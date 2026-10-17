@@ -1,3 +1,4 @@
+from django.conf import settings
 from django.db import models
 # Importamos los modelos de la otra app
 from users.models import Constructora, ClienteExterno
@@ -44,3 +45,30 @@ class Informe(models.Model):
 
     def __str__(self):
         return f"{self.titulo} - {self.obra.codigo_obra}"
+
+
+class InformeEliminado(models.Model):
+    """
+    Registro de cada informe borrado desde el portal (quién, cuándo, qué).
+    Además evita que sincronizar_wordpress vuelva a traer un informe que se
+    borró a propósito: se salta todo id_wp_original que esté aquí.
+    """
+    titulo = models.CharField(max_length=255)
+    obra_codigo = models.CharField(max_length=50, blank=True)
+    obra_nombre = models.CharField(max_length=255, blank=True)
+    id_wp_original = models.IntegerField(null=True, blank=True, db_index=True)
+    archivo = models.CharField(max_length=500, blank=True, help_text='Ruta del PDF que se borró del almacenamiento')
+    fecha_informe = models.DateTimeField(null=True, blank=True)
+    eliminado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='informes_eliminados',
+    )
+    fecha_eliminacion = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        ordering = ['-fecha_eliminacion']
+        verbose_name = 'informe eliminado'
+        verbose_name_plural = 'informes eliminados'
+
+    def __str__(self):
+        return f"{self.titulo} ({self.obra_codigo}) - eliminado {self.fecha_eliminacion:%Y-%m-%d}"

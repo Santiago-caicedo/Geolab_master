@@ -1,4 +1,5 @@
 from django.shortcuts import get_object_or_404, render, redirect
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.core.paginator import Paginator
 from django.db import models
@@ -402,10 +403,11 @@ def lista_informes_obra(request, pk):
     # Obtener informes
     informes = Informe.objects.filter(obra=obra).order_by('-fecha_creacion')
 
-    # Filtro de búsqueda
-    query = request.GET.get('q')
-    if query:
-        informes = informes.filter(titulo__icontains=query)
+    # Búsqueda por palabras, sin importar tildes ni separadores:
+    # "INF 0340" encuentra "INF-0340-2026...", "compresión" encuentra "COMPRESION"
+    query = (request.GET.get('q') or '').strip()
+    for palabra in _palabras_busqueda(query):
+        informes = informes.filter(titulo__icontains=palabra)
 
     # Filtro de fecha
     fecha_desde = request.GET.get('fecha_desde')
@@ -415,19 +417,94 @@ def lista_informes_obra(request, pk):
     if fecha_hasta:
         informes = informes.filter(fecha_creacion__date__lte=fecha_hasta)
 
-    # Paginación (20 por página)
-    paginator = Paginator(informes, 20)
+    # Paginación (50 por página: las filas son compactas)
+    paginator = Paginator(informes, 50)
     page_obj = paginator.get_page(request.GET.get('page'))
+    paginas = paginator.get_elided_page_range(page_obj.number, on_each_side=1, on_ends=1)
 
     context = {
         'obra': obra,
         'page_obj': page_obj,
+        'paginas': paginas,
         'query': query,
         'fecha_desde': fecha_desde,
         'fecha_hasta': fecha_hasta,
+        'hay_filtros': bool(query or fecha_desde or fecha_hasta),
         'total_informes': obra.informes.count(),
+        'ultimo_informe': obra.informes.exclude(fecha_creacion__isnull=True)
+                              .order_by('-fecha_creacion').values_list('fecha_creacion', flat=True).first(),
+        'puede_eliminar': request.user.is_superuser,
     }
     return render(request, 'core/lista_informes_obra.html', context)
+
+
+def _palabras_busqueda(texto):
+    """'INF 0340 compresión' -> ['INF', '0340', 'compresion'] (sin tildes; separadores fuera)."""
+    import re
+    import unicodedata
+    plano = ''.join(c for c in unicodedata.normalize('NFKD', texto or '') if not unicodedata.combining(c))
+    return [p for p in re.split(r'[\s_\-.]+', plano) if p]
+
+
+@login_required
+def eliminar_informes(request, pk):
+    """
+    Borra uno o varios informes de una obra (solo superusuarios, por POST).
+    Deja cada borrado en InformeEliminado (bitácora) para que la sincronización
+    con WordPress no los vuelva a traer, y borra el PDF del almacenamiento.
+    """
+    from django.db import transaction
+    from django.utils.http import url_has_allowed_host_and_scheme
+    from .models import InformeEliminado
+
+    obra = get_object_or_404(Obra, pk=pk)
+    volver = request.POST.get('next', '')
+    if not url_has_allowed_host_and_scheme(volver, allowed_hosts={request.get_host()},
+                                           require_https=request.is_secure()):
+        volver = reverse('lista_informes_obra', args=[obra.pk])
+
+    if request.method != 'POST':
+        return redirect(volver)
+    if not request.user.is_superuser:
+        messages.error(request, 'Solo un superadministrador puede eliminar informes.')
+        return redirect(volver)
+
+    ids = [int(i) for i in request.POST.getlist('informes') if str(i).isdigit()]
+    informes = list(obra.informes.filter(pk__in=ids))
+    if not informes:
+        messages.warning(request, 'No se eliminó nada: no se eligió ningún informe de esta obra.')
+        return redirect(volver)
+
+    archivos = [i.archivo.name for i in informes if i.archivo]
+    with transaction.atomic():
+        InformeEliminado.objects.bulk_create([
+            InformeEliminado(
+                titulo=i.titulo, obra_codigo=obra.codigo_obra, obra_nombre=obra.nombre,
+                id_wp_original=i.id_wp_original, archivo=i.archivo.name if i.archivo else '',
+                fecha_informe=i.fecha_creacion, eliminado_por=request.user,
+            )
+            for i in informes
+        ])
+        Informe.objects.filter(pk__in=[i.pk for i in informes]).delete()
+        transaction.on_commit(lambda: _borrar_archivos(archivos))
+
+    if len(informes) == 1:
+        messages.success(request, f'Informe "{informes[0].titulo}" eliminado.')
+    else:
+        messages.success(request, f'{len(informes)} informes eliminados.')
+    return redirect(volver)
+
+
+def _borrar_archivos(nombres):
+    """Borra los PDF del almacenamiento (S3 en producción). Un fallo no deshace el borrado."""
+    import logging
+    from django.core.files.storage import default_storage
+
+    for nombre in nombres:
+        try:
+            default_storage.delete(nombre)
+        except Exception:  # noqa: BLE001 - el registro ya quedó; solo se avisa en el log
+            logging.getLogger(__name__).exception('No se pudo borrar el archivo %s', nombre)
 
 
 def _guardar_informes(request, form, obra):

@@ -1,199 +1,407 @@
 {% extends 'base.html' %}
+{% load informes_tags %}
+
+{% block title %}Informes · {{ obra.nombre }}{% endblock %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+    /* Registro de informes: filas compactas, número de informe como etiqueta de muestra */
+    .inf {
+        --inf-ink: #1c2e4a;        /* azul Geolab profundo: títulos */
+        --inf-text: #334155;
+        --inf-muted: #64748b;      /* 4.8:1 sobre blanco */
+        --inf-line: #e6eaf0;
+        --inf-hover: #f5f8fc;
+        --inf-label-bg: #eaf2fa;
+        --inf-label-ink: #12406b;
+        --inf-link: #0b6ea8;       /* azul de marca oscurecido para texto: 5.2:1 */
+        --inf-danger: #b42318;
+        --inf-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+        color: var(--inf-text);
+        font-size: .875rem;
+    }
+
+    /* Encabezado */
+    .inf-crumbs { font-size: .8rem; margin-bottom: .75rem; }
+    .inf-crumbs a { color: var(--inf-muted); text-decoration: none; }
+    .inf-crumbs a:hover { color: var(--inf-link); text-decoration: underline; }
+    .inf-crumbs .sep { color: #cbd5e1; margin: 0 .35rem; }
+    .inf-head { display: flex; align-items: flex-end; justify-content: space-between; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+    .inf-eyebrow { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--inf-muted); }
+    .inf-title { font-size: 1.25rem; font-weight: 600; color: var(--inf-ink); margin: .1rem 0 .2rem; line-height: 1.3; }
+    .inf-code { font-family: var(--inf-mono); font-size: .75rem; font-weight: 500; color: var(--inf-muted);
+                border: 1px solid var(--inf-line); border-radius: 4px; padding: .05rem .4rem; margin-left: .4rem; vertical-align: middle; white-space: nowrap; }
+    .inf-meta { color: var(--inf-muted); font-size: .8125rem; }
+    .inf-meta strong { color: var(--inf-text); font-weight: 600; }
+    .inf-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
+
+    /* Panel */
+    .inf-panel { background: #fff; border: 1px solid var(--inf-line); border-radius: 10px; overflow: hidden; }
+    .inf-toolbar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; padding: .625rem .75rem; border-bottom: 1px solid var(--inf-line); }
+    .inf-toolbar .inf-search { position: relative; flex: 1 1 260px; max-width: 380px; }
+    .inf-toolbar .inf-search i { position: absolute; left: .6rem; top: 50%; transform: translateY(-50%); color: var(--inf-muted); font-size: .8rem; pointer-events: none; }
+    .inf-toolbar .inf-search input { padding-left: 1.85rem; }
+    .inf-toolbar .form-control, .inf-toolbar .btn { font-size: .8125rem; height: 32px; }
+    .inf-date { display: flex; align-items: center; gap: .35rem; font-size: .75rem; color: var(--inf-muted); }
+    .inf-date input { width: 138px; }
+    .inf-count { margin-left: auto; color: var(--inf-muted); font-size: .8125rem; white-space: nowrap; }
+    .inf-count strong { color: var(--inf-text); }
+    .inf-clear { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
+    .inf-clear:hover { text-decoration: underline; }
+
+    /* Barra de selección (reemplaza la de filtros mientras hay elegidos) */
+    .inf-selbar { display: none; align-items: center; gap: .75rem; padding: .625rem .75rem; border-bottom: 1px solid #f3d6d3; background: #fdf3f2; }
+    .inf.seleccionando .inf-selbar { display: flex; }
+    .inf.seleccionando .inf-toolbar { display: none; }
+    .inf-selbar .btn { font-size: .8125rem; height: 32px; }
+
+    /* Tabla */
+    .inf-table { width: 100%; border-collapse: separate; border-spacing: 0; margin: 0; }
+    .inf-table thead th {
+        background: #fafbfd;
+        font-size: .72rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--inf-muted);
+        padding: .5rem .75rem; border-bottom: 1px solid var(--inf-line); white-space: nowrap;
+    }
+    .inf-table td { padding: .4rem .75rem; border-bottom: 1px solid var(--inf-line); vertical-align: middle; line-height: 1.35; }
+    .inf-table tbody tr.inf-row:hover td { background: var(--inf-hover); }
+    .inf-table tbody tr.inf-row.elegido td { background: #fdf3f2; }
+    .inf-table tr:last-child td { border-bottom: 0; }
+    .inf-check { width: 36px; padding-right: 0 !important; }
+    .inf-check .form-check-input { margin: 0; cursor: pointer; vertical-align: middle; }
+
+    .inf-table .inf-mes td {
+        background: #fff; padding: .9rem .75rem .35rem; border-bottom: 0;
+        font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--inf-ink);
+    }
+    .inf-mes td::after { content: ''; display: block; height: 1px; background: var(--inf-ink); opacity: .12; margin-top: .35rem; }
+
+    .inf-num {
+        display: inline-block; font-family: var(--inf-mono); font-size: .78rem; font-weight: 500;
+        color: var(--inf-label-ink); background: var(--inf-label-bg);
+        border-radius: 4px; padding: .12rem .45rem; letter-spacing: .01em; white-space: nowrap;
+    }
+    .inf-num.vacio { background: transparent; color: #cbd5e1; padding-left: 0; }
+    .inf-tipo { color: var(--inf-text); }
+    .inf-tipo small { display: none; color: var(--inf-muted); font-family: var(--inf-mono); font-size: .72rem; }
+    .inf-fecha { font-family: var(--inf-mono); font-size: .78rem; color: var(--inf-muted); white-space: nowrap; text-align: right; }
+
+    .inf-acc { text-align: right; white-space: nowrap; width: 1%; }
+    .inf-open {
+        display: inline-flex; align-items: center; gap: .3rem; height: 28px; padding: 0 .6rem;
+        font-size: .8125rem; font-weight: 500; color: var(--inf-link); text-decoration: none; border-radius: 6px;
+    }
+    .inf-open:hover { background: #e6f1fa; color: #075985; }
+    .inf-nofile { font-size: .75rem; color: var(--inf-muted); padding: 0 .6rem; }
+    .inf .inf-del {
+        display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px;
+        border: 0; background: transparent; color: #94a3b8; border-radius: 6px; margin-left: .15rem;
+    }
+    .inf .inf-del:hover { background: #fdecea; color: var(--inf-danger); }
+    .inf a:focus-visible, .inf button:focus-visible, .inf input:focus-visible {
+        outline: 2px solid var(--inf-link); outline-offset: 2px; box-shadow: none;
+    }
+
+    /* Pie */
+    .inf-foot { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+                padding: .5rem .75rem; border-top: 1px solid var(--inf-line); font-size: .8125rem; color: var(--inf-muted); }
+    .inf-pages { display: flex; gap: .15rem; align-items: center; }
+    .inf-pages a, .inf-pages span {
+        min-width: 28px; height: 28px; padding: 0 .45rem; display: inline-flex; align-items: center; justify-content: center;
+        border-radius: 6px; color: var(--inf-text); text-decoration: none; font-variant-numeric: tabular-nums;
+    }
+    .inf-pages a:hover { background: var(--inf-hover); }
+    .inf-pages .actual { background: var(--inf-ink); color: #fff; font-weight: 600; }
+    .inf-pages .gap { color: #cbd5e1; }
+
+    /* Vacío */
+    .inf-empty { text-align: center; padding: 3rem 1rem; }
+    .inf-empty i { font-size: 1.75rem; color: #cbd5e1; }
+    .inf-empty p { margin: .5rem 0 1rem; color: var(--inf-muted); }
+
+    /* Modal de borrado */
+    .inf-modal .modal-content { border: 0; border-radius: 12px; }
+    .inf-modal .modal-title { font-size: 1rem; font-weight: 600; color: var(--inf-ink); }
+    .inf-modal ul { list-style: none; padding: 0; margin: .75rem 0; max-height: 180px; overflow-y: auto; }
+    .inf-modal li { padding: .25rem 0; border-bottom: 1px dashed var(--inf-line); font-size: .8125rem; }
+    .inf-modal .nota { font-size: .78rem; color: var(--inf-muted); }
+
+    @media (max-width: 767.98px) {
+        .inf-col-fecha { display: none; }
+        .inf-tipo small { display: block; }
+        .inf-date input { width: 128px; }
+        .inf-count { margin-left: 0; width: 100%; }
+        .inf-open .txt { display: none; }
+        .inf-table td, .inf-table th { padding-left: .5rem; padding-right: .5rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { .inf * { transition: none !important; } }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="mb-4">
-    <nav aria-label="breadcrumb">
-        <ol class="breadcrumb mb-0">
-            <li class="breadcrumb-item"><a href="{% url 'lista_constructoras' %}" class="text-decoration-none">Empresas</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'detalle_constructora' obra.constructora.pk %}" class="text-decoration-none">{{ obra.constructora.nombre }}</a></li>
-            <li class="breadcrumb-item"><a href="{% url 'detalle_obra' obra.pk %}" class="text-decoration-none">{{ obra.nombre }}</a></li>
-            <li class="breadcrumb-item active">Informes</li>
-        </ol>
+<div class="inf" id="inf">
+    {% include "includes/_mensajes.html" %}
+
+    <nav class="inf-crumbs" aria-label="Ruta">
+        <a href="{% url 'lista_constructoras' %}">Empresas</a><span class="sep">/</span>
+        <a href="{% url 'detalle_constructora' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a><span class="sep">/</span>
+        <a href="{% url 'detalle_obra' obra.pk %}">{{ obra.nombre }}</a><span class="sep">/</span>
+        <span aria-current="page">Informes</span>
     </nav>
-</div>
 
-<!-- Header -->
-<div class="d-flex justify-content-between align-items-start mb-4 flex-wrap gap-3">
-    <div>
-        <h4 class="fw-bold mb-1">
-            <i class="bi bi-file-earmark-pdf me-2 text-danger"></i>
-            Documentos Tecnicos
-        </h4>
-        <p class="text-muted mb-0">
-            {{ obra.nombre }}
-            <span class="badge bg-dark ms-2">{{ obra.codigo_obra }}</span>
-        </p>
-    </div>
+    <header class="inf-head">
+        <div>
+            <div class="inf-eyebrow">Informes técnicos</div>
+            <h1 class="inf-title">{{ obra.nombre }}<span class="inf-code">{{ obra.codigo_obra }}</span></h1>
+            <div class="inf-meta">
+                {{ obra.constructora.nombre }} · <strong>{{ total_informes }}</strong> informe{{ total_informes|pluralize:"s" }}
+                {% if ultimo_informe %} · último del {{ ultimo_informe|date:"j M Y" }}{% endif %}
+            </div>
+        </div>
+        <div class="inf-actions">
+            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light border">
+                <i class="bi bi-arrow-left me-1"></i>Volver a la obra
+            </a>
+            {% if user.es_geolab %}
+            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
+            </a>
+            {% endif %}
+        </div>
+    </header>
 
-    {% if user.es_geolab %}
-    <button class="btn btn-primary shadow-sm">
-        <i class="bi bi-cloud-arrow-up me-1"></i> Cargar Informe
-    </button>
-    {% endif %}
-</div>
-
-<!-- Filtros -->
-<div class="card card-custom mb-4">
-    <div class="card-body py-3">
-        <form method="get" class="row g-3 align-items-end">
-            <div class="col-md-5">
-                <label class="form-label small text-muted">Buscar documento</label>
-                <div class="input-group">
-                    <span class="input-group-text bg-light border-end-0"><i class="bi bi-search"></i></span>
-                    <input type="text" name="q" class="form-control border-start-0 bg-light"
-                           placeholder="Nombre del archivo..."
-                           value="{{ query|default:'' }}">
-                </div>
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small text-muted">Desde</label>
-                <input type="date" name="fecha_desde" class="form-control"
-                       value="{{ fecha_desde|default:'' }}">
-            </div>
-            <div class="col-md-2">
-                <label class="form-label small text-muted">Hasta</label>
-                <input type="date" name="fecha_hasta" class="form-control"
-                       value="{{ fecha_hasta|default:'' }}">
-            </div>
-            <div class="col-md-3 d-flex gap-2">
-                <button type="submit" class="btn btn-primary flex-grow-1">
-                    <i class="bi bi-funnel me-1"></i> Filtrar
-                </button>
-                <a href="{% url 'lista_informes_obra' obra.pk %}" class="btn btn-outline-secondary" title="Limpiar filtros">
-                    <i class="bi bi-x-lg"></i>
-                </a>
-            </div>
+    <section class="inf-panel" aria-label="Lista de informes">
+        <form method="get" class="inf-toolbar" role="search">
+            <label class="inf-search mb-0">
+                <span class="visually-hidden">Buscar informe</span>
+                <i class="bi bi-search" aria-hidden="true"></i>
+                <input type="search" name="q" class="form-control form-control-sm" placeholder="Buscar por número o tipo de ensayo"
+                       value="{{ query|default:'' }}">
+            </label>
+            <label class="inf-date mb-0">Desde
+                <input type="date" name="fecha_desde" class="form-control form-control-sm" value="{{ fecha_desde|default:'' }}">
+            </label>
+            <label class="inf-date mb-0">Hasta
+                <input type="date" name="fecha_hasta" class="form-control form-control-sm" value="{{ fecha_hasta|default:'' }}">
+            </label>
+            <button type="submit" class="btn btn-sm btn-outline-secondary">Filtrar</button>
+            {% if hay_filtros %}
+            <a href="{% url 'lista_informes_obra' obra.pk %}" class="inf-clear">Quitar filtros</a>
+            {% endif %}
+            <span class="inf-count">
+                {% if hay_filtros %}
+                    <strong>{{ page_obj.paginator.count }}</strong> de {{ total_informes }}
+                {% else %}
+                    <strong>{{ total_informes }}</strong> informe{{ total_informes|pluralize:"s" }}
+                {% endif %}
+            </span>
         </form>
-    </div>
-</div>
 
-<!-- Tabla de informes -->
-<div class="card card-custom">
-    <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-        <h6 class="mb-0 fw-bold">
-            Listado de Documentos
-        </h6>
-        <span class="badge bg-primary">{{ total_informes }} documento{{ total_informes|pluralize:"s" }}</span>
-    </div>
-    <div class="card-body p-0">
-        {% if page_obj %}
+        {% if puede_eliminar %}
+        <div class="inf-selbar" aria-live="polite">
+            <strong id="infSelTotal">0 seleccionados</strong>
+            <button type="button" class="btn btn-sm btn-danger" id="infEliminarSel">
+                <i class="bi bi-trash me-1"></i>Eliminar seleccionados
+            </button>
+            <button type="button" class="btn btn-sm btn-link text-secondary text-decoration-none" id="infCancelarSel">Cancelar</button>
+        </div>
+        {% endif %}
+
+        {% if page_obj.object_list %}
         <div class="table-responsive">
-            <table class="table table-hover align-middle mb-0">
-                <thead class="table-light">
+            <table class="inf-table">
+                <thead>
                     <tr>
-                        <th class="ps-4" style="width: 55%;">Nombre del Archivo</th>
-                        <th>Fecha de Carga</th>
-                        <th class="text-end pe-4">Acciones</th>
+                        {% if puede_eliminar %}
+                        <th class="inf-check" scope="col">
+                            <input class="form-check-input" type="checkbox" id="infTodos" aria-label="Seleccionar todos los de esta página">
+                        </th>
+                        {% endif %}
+                        <th scope="col" style="width: 150px;">Informe</th>
+                        <th scope="col">Ensayo</th>
+                        <th scope="col" class="inf-col-fecha text-end" style="width: 120px;">Fecha</th>
+                        <th scope="col" class="inf-acc"><span class="visually-hidden">Acciones</span></th>
                     </tr>
                 </thead>
                 <tbody>
                     {% for informe in page_obj %}
-                    <tr>
-                        <td class="ps-4 py-3">
-                            <div class="d-flex align-items-start gap-3">
-                                <div class="mt-1 text-danger">
-                                    <i class="bi bi-file-earmark-pdf-fill fs-4"></i>
-                                </div>
-                                <div>
-                                    <div class="fw-bold text-dark text-break" style="max-width: 400px;">
-                                        {{ informe.titulo }}
-                                    </div>
-                                    <small class="text-muted" style="font-size: 0.75rem;">
-                                        ID: {{ informe.id_wp_original|default:informe.pk }}
-                                    </small>
-                                </div>
-                            </div>
+                    {% with p=informe.titulo|partes_informe %}
+                    {% ifchanged informe.fecha_creacion|date:"Y-m" %}
+                    <tr class="inf-mes">
+                        <td colspan="{% if puede_eliminar %}5{% else %}4{% endif %}">
+                            {% if informe.fecha_creacion %}{{ informe.fecha_creacion|date:"F Y" }}{% else %}Sin fecha{% endif %}
                         </td>
+                    </tr>
+                    {% endifchanged %}
+                    <tr class="inf-row">
+                        {% if puede_eliminar %}
+                        <td class="inf-check">
+                            <input class="form-check-input inf-sel" type="checkbox" value="{{ informe.pk }}"
+                                   data-titulo="{{ informe.titulo }}" aria-label="Seleccionar {{ informe.titulo }}">
+                        </td>
+                        {% endif %}
                         <td>
-                            <div class="d-flex flex-column">
-                                <span class="fw-medium text-secondary">{{ informe.fecha_creacion|date:"d/m/Y" }}</span>
-                                <small class="text-muted" style="font-size: 0.7rem;">{{ informe.fecha_creacion|date:"h:i A" }}</small>
-                            </div>
+                            {% if p.numero %}<span class="inf-num">{{ p.numero }}</span>{% else %}<span class="inf-num vacio">—</span>{% endif %}
                         </td>
-                        <td class="text-end pe-4">
+                        <td class="inf-tipo" title="{{ informe.titulo }}">
+                            {{ p.tipo|default:informe.titulo }}
+                            <small>{{ informe.fecha_creacion|date:"j M Y" }}</small>
+                        </td>
+                        <td class="inf-fecha inf-col-fecha" title="{{ informe.fecha_creacion|date:'j \d\e F \d\e Y, g:i a' }}">
+                            {{ informe.fecha_creacion|date:"j M Y"|default:"—" }}
+                        </td>
+                        <td class="inf-acc">
                             {% if informe.archivo %}
-                            <a href="{{ informe.archivo.url }}" target="_blank" class="btn btn-sm btn-outline-primary rounded-pill px-3">
-                                <i class="bi bi-download me-1"></i> Descargar
+                            <a href="{{ informe.archivo.url }}" target="_blank" rel="noopener" class="inf-open" aria-label="Abrir {{ informe.titulo }} en otra pestaña">
+                                <i class="bi bi-box-arrow-up-right" aria-hidden="true"></i><span class="txt">Abrir</span>
                             </a>
                             {% else %}
-                            <span class="badge bg-light text-muted border fw-normal">No disponible</span>
+                            <span class="inf-nofile">Sin PDF</span>
+                            {% endif %}
+                            {% if puede_eliminar %}
+                            <button type="button" class="inf-del" data-id="{{ informe.pk }}" data-titulo="{{ informe.titulo }}"
+                                    aria-label="Eliminar {{ informe.titulo }}" title="Eliminar">
+                                <i class="bi bi-trash3" aria-hidden="true"></i>
+                            </button>
                             {% endif %}
                         </td>
                     </tr>
+                    {% endwith %}
                     {% endfor %}
                 </tbody>
             </table>
         </div>
 
-        <!-- Paginacion -->
         {% if page_obj.has_other_pages %}
-        <div class="card-footer bg-white py-3 border-top d-flex justify-content-between align-items-center">
-            <small class="text-muted">
-                Pagina {{ page_obj.number }} de {{ page_obj.paginator.num_pages }}
-            </small>
-            <nav>
-                <ul class="pagination pagination-sm mb-0">
-                    {% if page_obj.has_previous %}
-                    <li class="page-item">
-                        <a class="page-link border-0 text-dark" href="?page=1&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
-                            <i class="bi bi-chevron-double-left"></i>
-                        </a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.previous_page_number }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
-                            <i class="bi bi-chevron-left"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-
-                    <li class="page-item active">
-                        <span class="page-link bg-primary border-primary">{{ page_obj.number }}</span>
-                    </li>
-
-                    {% if page_obj.has_next %}
-                    <li class="page-item">
-                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.next_page_number }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
-                            <i class="bi bi-chevron-right"></i>
-                        </a>
-                    </li>
-                    <li class="page-item">
-                        <a class="page-link border-0 text-dark" href="?page={{ page_obj.paginator.num_pages }}&q={{ query|default:'' }}&fecha_desde={{ fecha_desde|default:'' }}&fecha_hasta={{ fecha_hasta|default:'' }}">
-                            <i class="bi bi-chevron-double-right"></i>
-                        </a>
-                    </li>
-                    {% endif %}
-                </ul>
-            </nav>
-        </div>
+        <nav class="inf-foot" aria-label="Páginas">
+            <span>{{ page_obj.start_index }}–{{ page_obj.end_index }} de {{ page_obj.paginator.count }}</span>
+            <div class="inf-pages">
+                {% if page_obj.has_previous %}
+                <a href="{% querystring page=page_obj.previous_page_number %}" aria-label="Página anterior"><i class="bi bi-chevron-left"></i></a>
+                {% endif %}
+                {% for n in paginas %}
+                    {% if n == page_obj.paginator.ELLIPSIS %}<span class="gap">…</span>
+                    {% elif n == page_obj.number %}<span class="actual" aria-current="page">{{ n }}</span>
+                    {% else %}<a href="{% querystring page=n %}">{{ n }}</a>{% endif %}
+                {% endfor %}
+                {% if page_obj.has_next %}
+                <a href="{% querystring page=page_obj.next_page_number %}" aria-label="Página siguiente"><i class="bi bi-chevron-right"></i></a>
+                {% endif %}
+            </div>
+        </nav>
         {% endif %}
 
+        {% elif hay_filtros %}
+        <div class="inf-empty">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <p>Ningún informe coincide con {% if query %}«{{ query }}»{% else %}esas fechas{% endif %}.</p>
+            <a href="{% url 'lista_informes_obra' obra.pk %}" class="btn btn-sm btn-light border">Quitar filtros</a>
+        </div>
         {% else %}
-        <div class="text-center py-5">
-            <div class="mb-3">
-                <i class="bi bi-folder-x text-muted" style="font-size: 3rem;"></i>
-            </div>
-            <h6 class="text-muted">No hay documentos registrados</h6>
-            <p class="text-muted small mb-4">
-                {% if query %}
-                    No se encontraron resultados para "{{ query }}".
-                {% else %}
-                    Esta obra aun no tiene documentos tecnicos cargados.
-                {% endif %}
-            </p>
+        <div class="inf-empty">
+            <i class="bi bi-folder2-open" aria-hidden="true"></i>
+            <p>Esta obra todavía no tiene informes.</p>
             {% if user.es_geolab %}
-            <button class="btn btn-primary">
-                <i class="bi bi-cloud-arrow-up me-1"></i> Cargar Primer Informe
-            </button>
+            <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
+                <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
+            </a>
             {% endif %}
         </div>
         {% endif %}
-    </div>
-</div>
+    </section>
 
-<!-- Boton volver -->
-<div class="mt-4">
-    <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary">
-        <i class="bi bi-arrow-left me-1"></i> Volver al Expediente
-    </a>
+    {% if puede_eliminar %}
+    <div class="modal fade inf-modal" id="infModal" tabindex="-1" aria-labelledby="infModalTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form method="post" action="{% url 'eliminar_informes' obra.pk %}" class="modal-content" id="infModalForm">
+                {% csrf_token %}
+                <input type="hidden" name="next" value="{{ request.get_full_path }}">
+                <div id="infModalIds"></div>
+                <div class="modal-body p-4">
+                    <h2 class="modal-title" id="infModalTitulo">¿Eliminar informe?</h2>
+                    <ul id="infModalLista"></ul>
+                    <p class="mb-2 small">Se borra el PDF y deja de verse en el portal, también para el cliente. No se puede deshacer.</p>
+                    <p class="nota mb-0">Queda anotado en la bitácora de informes eliminados, y la sincronización con WordPress no lo vuelve a traer.</p>
+                </div>
+                <div class="modal-footer border-0 pt-0 px-4 pb-4">
+                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal" id="infModalCancelar">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-danger" id="infModalOk">Eliminar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 </div>
+{% endblock %}
+
+{% block extra_js %}
+{% if puede_eliminar %}
+<script>
+(function () {
+    const raiz = document.getElementById('inf');
+    const checks = Array.from(document.querySelectorAll('.inf-sel'));
+    const todos = document.getElementById('infTodos');
+    const selTotal = document.getElementById('infSelTotal');
+    const modalEl = document.getElementById('infModal');
+    const modal = new bootstrap.Modal(modalEl);
+    const ids = document.getElementById('infModalIds');
+    const lista = document.getElementById('infModalLista');
+    const titulo = document.getElementById('infModalTitulo');
+    const ok = document.getElementById('infModalOk');
+
+    function elegidos() { return checks.filter(c => c.checked); }
+
+    function refrescar() {
+        const n = elegidos().length;
+        checks.forEach(c => c.closest('tr').classList.toggle('elegido', c.checked));
+        raiz.classList.toggle('seleccionando', n > 0);
+        selTotal.textContent = n + (n === 1 ? ' seleccionado' : ' seleccionados');
+        if (todos) {
+            todos.checked = n > 0 && n === checks.length;
+            todos.indeterminate = n > 0 && n < checks.length;
+        }
+    }
+
+    function confirmar(items) {   // items: [{id, titulo}]
+        ids.innerHTML = '';
+        lista.innerHTML = '';
+        items.forEach((it, i) => {
+            const h = document.createElement('input');
+            h.type = 'hidden'; h.name = 'informes'; h.value = it.id;
+            ids.appendChild(h);
+            if (i < 8) {
+                const li = document.createElement('li');
+                li.textContent = it.titulo;
+                lista.appendChild(li);
+            }
+        });
+        if (items.length > 8) {
+            const li = document.createElement('li');
+            li.textContent = 'y ' + (items.length - 8) + ' más';
+            lista.appendChild(li);
+        }
+        const uno = items.length === 1;
+        titulo.textContent = uno ? '¿Eliminar este informe?' : '¿Eliminar ' + items.length + ' informes?';
+        ok.textContent = uno ? 'Eliminar informe' : 'Eliminar ' + items.length + ' informes';
+        modal.show();
+    }
+
+    checks.forEach(c => c.addEventListener('change', refrescar));
+    if (todos) todos.addEventListener('change', () => { checks.forEach(c => { c.checked = todos.checked; }); refrescar(); });
+    document.getElementById('infCancelarSel').addEventListener('click', () => { checks.forEach(c => { c.checked = false; }); refrescar(); });
+    document.getElementById('infEliminarSel').addEventListener('click', () => {
+        confirmar(elegidos().map(c => ({ id: c.value, titulo: c.dataset.titulo })));
+    });
+    document.querySelectorAll('.inf-del').forEach(b => b.addEventListener('click', () => {
+        confirmar([{ id: b.dataset.id, titulo: b.dataset.titulo }]);
+    }));
+    // Lo seguro primero: el foco cae en Cancelar
+    modalEl.addEventListener('shown.bs.modal', () => document.getElementById('infModalCancelar').focus());
+    document.getElementById('infModalForm').addEventListener('submit', () => {
+        ok.disabled = true;
+        ok.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Eliminando…';
+    });
+})();
+</script>
+{% endif %}
 {% endblock %}
