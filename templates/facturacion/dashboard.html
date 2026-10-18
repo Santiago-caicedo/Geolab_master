@@ -1,269 +1,314 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Facturación - Dashboard{% endblock %}
+
+{% block title %}Facturación · {{ request.ciudad_facturacion }}{% endblock %}
 
 {% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
 <style>
-    .fact-kpi {
-        border: 1px solid var(--border-color);
-        border-radius: 14px;
-        background: #fff;
-        padding: 1.15rem 1.25rem;
-        height: 100%;
-        transition: transform .15s ease, box-shadow .15s ease;
-        text-decoration: none;
-        color: var(--text-main);
-        display: block;
+    /* Panel de facturación (esquema "registro"): el mes en la banda, lo pendiente por facturar como lista de trabajo,
+       tendencia de 12 meses y clientes. Todo acotado a la sede activa. */
+    .fc-grid { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 1rem; align-items: start; margin-top: 1rem; }
+    .fc-col { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+    .fc-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .fc-head h2 { display: flex; align-items: center; font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .fc-head h2 .inf-ico { vertical-align: 0; }
+    .fc-head h2 small { color: var(--inf-muted); font-weight: 500; font-size: .8125rem; margin-left: .35rem; }
+    .fc-mas { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
+    .fc-mas:hover { text-decoration: underline; }
+    .fc-vacio { padding: 2rem 1rem; text-align: center; color: var(--inf-muted); }
+    .fc-vacio i { display: block; font-size: 1.5rem; color: #cbd5e1; margin-bottom: .35rem; }
+    .fc-pesos { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .fc-pesos .sig { opacity: .6; margin-right: .1rem; font-weight: 500; }
+
+    .fc-dia { margin-top: .35rem; color: rgba(255, 255, 255, .82); font-size: .875rem; }
+    .fc-dia strong { color: #fff; }
+    .fc-var { display: inline-flex; align-items: center; gap: .2rem; font-size: .78rem; font-weight: 600; border-radius: 999px; padding: .05rem .45rem; }
+    .fc-var.sube { background: rgba(126, 224, 181, .18); color: #9ff0c9; }
+    .fc-var.baja { background: rgba(255, 168, 160, .18); color: #ffc9c2; }
+    .inf-hero-facts .val.pesos { font-size: 1.15rem; }
+
+    /* ===== Por facturar: lista de trabajo ===== */
+    .fc-pend td { padding-top: .55rem; padding-bottom: .55rem; }
+    .fc-pend .obra { display: block; color: var(--inf-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+    .fc-pend .emp { display: block; font-size: .75rem; color: var(--inf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 300px; }
+    .fc-pend .num { text-align: right; white-space: nowrap; }
+    .fc-pend .valor { font-weight: 600; color: var(--inf-ink); }
+    .fc-edad { display: block; font-size: .72rem; color: var(--inf-muted); }
+    .fc-edad.vieja { color: #864900; }
+    .fc-facturar {
+        display: inline-flex; align-items: center; gap: .3rem; height: 30px; padding: 0 .7rem; border-radius: 7px;
+        font-size: .8125rem; font-weight: 500; color: #fff; background: #0077b6; text-decoration: none; white-space: nowrap;
     }
-    .fact-kpi:hover { transform: translateY(-2px); box-shadow: 0 8px 22px rgba(0,0,0,.07); }
-    .fact-kpi .kpi-ico {
-        width: 42px; height: 42px; border-radius: 11px;
-        display: flex; align-items: center; justify-content: center; font-size: 1.25rem;
+    .fc-facturar:hover { background: #00669c; color: #fff; }
+    .fc-pie { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .55rem .9rem; border-top: 1px solid var(--inf-line);
+              font-size: .8125rem; color: var(--inf-muted); background: #fafbfd; }
+    .fc-pie strong { color: var(--inf-ink); }
+
+    /* ===== Tendencia: barras de 12 meses (una serie, un tono; hover con el valor) ===== */
+    .fc-chart { padding: 1rem .9rem .5rem; }
+    .fc-barras { position: relative; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; height: 180px;
+                 align-items: end; border-bottom: 1px solid #cbd5e1; }
+    .fc-barras::before {   /* línea guía a la mitad: recesiva */
+        content: ''; position: absolute; left: 0; right: 0; top: 50%; border-top: 1px dashed #e6eaf0; pointer-events: none;
     }
-    .fact-kpi .kpi-val { font-size: 1.6rem; font-weight: 700; line-height: 1.15; color: var(--text-main); }
-    .fact-kpi .kpi-lbl { font-size: .78rem; color: var(--text-muted); font-weight: 500; }
-
-    .fact-hero { background: linear-gradient(135deg, #008ed6, #0064a3); border: none; }
-    .fact-hero .kpi-val { color: #fff; }
-    .fact-hero .kpi-lbl { color: rgba(255,255,255,.85); }
-    .fact-hero .kpi-ico { background: rgba(255,255,255,.18); color: #fff; }
-
-    .soft-blue   { background: #eff6ff; color: #1d4ed8; }
-    .soft-green  { background: #ecfdf5; color: #059669; }
-    .soft-amber  { background: #fff7ed; color: #c2410c; }
-    .soft-violet { background: #f5f3ff; color: #7c3aed; }
-    .soft-slate  { background: #f1f5f9; color: #475569; }
-
-    .kpi-cta { font-size: .72rem; font-weight: 600; color: #c2410c; }
-
-    .quick-tile {
-        display: flex; align-items: center; gap: .85rem;
-        padding: 1rem 1.25rem; border: 1px solid var(--border-color);
-        border-radius: 12px; background: #fff; text-decoration: none;
-        color: var(--text-main); font-weight: 600; height: 100%;
-        transition: all .15s ease;
+    .fc-b { position: relative; height: 100%; display: flex; align-items: flex-end; justify-content: center; cursor: default; outline: none; }
+    .fc-b i { display: block; width: min(70%, 34px); border-radius: 4px 4px 0 0; background: #8cc4e6; min-height: 2px; transition: background-color .12s ease; }
+    .fc-b.actual i { background: #0077b6; }
+    .fc-b:hover i, .fc-b:focus-visible i { background: #075985; }
+    .fc-b:focus-visible { box-shadow: 0 0 0 2px var(--inf-link); border-radius: 4px; }
+    .fc-b .etq { position: absolute; bottom: calc(var(--alto) + 4px); font-size: .7rem; font-weight: 600; color: var(--inf-text);
+                 white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .fc-b .tip {
+        position: absolute; z-index: 5; bottom: calc(var(--alto) + 8px); left: 50%; transform: translateX(-50%);
+        background: #1c2e4a; color: #fff; border-radius: 6px; padding: .3rem .5rem; font-size: .75rem; line-height: 1.3;
+        white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity .1s ease; text-align: center;
     }
-    .quick-tile:hover { border-color: var(--brand-blue); color: var(--brand-blue); box-shadow: 0 4px 14px rgba(0,142,214,.12); transform: translateY(-2px); }
-    .quick-tile i { font-size: 1.4rem; }
+    .fc-b .tip small { display: block; color: #9fcbea; font-size: .68rem; }
+    .fc-b:hover .tip, .fc-b:focus-visible .tip { opacity: 1; }
+    .fc-b:hover .etq, .fc-b:focus-visible .etq { visibility: hidden; }
+    .fc-meses { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 2px; margin-top: .35rem; }
+    .fc-meses span { text-align: center; font-size: .7rem; color: var(--inf-muted); text-transform: capitalize; }
+    .fc-meses span.actual { color: var(--inf-ink); font-weight: 600; }
+    .fc-chart-pie { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: .25rem .9rem .8rem; font-size: .78rem; color: var(--inf-muted); }
+    .fc-chart-pie strong { color: var(--inf-ink); }
 
-    .rank-card { overflow: hidden; }
-    .rank-card .card-header { border-bottom: 1px solid var(--border-color); }
-    .rank-list { display: flex; flex-direction: column; }
-    .rank-item { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.25rem; border-bottom: 1px solid var(--border-color); transition: background .15s ease; }
-    .rank-item:hover { background: #f8fafc; }
-    .rank-item:last-child { border-bottom: none; }
-    .rank-no { width: 26px; height: 26px; border-radius: 8px; background: #f1f5f9; color: #475569; font-weight: 700; font-size: .8rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
-    .rank-no.top { background: #fef3c7; color: #b45309; }
+    /* ===== Clientes y servicios ===== */
+    .fc-rank { list-style: none; margin: 0; padding: .4rem 0; }
+    .fc-rank li { padding: .45rem .9rem; }
+    .fc-rank .fila { display: flex; align-items: baseline; gap: .5rem; }
+    .fc-rank .nom { flex: 1; min-width: 0; color: var(--inf-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fc-rank .val { font-size: .8125rem; color: var(--inf-text); }
+    .fc-rank .barra { height: 5px; border-radius: 3px; background: #eef3f8; margin-top: .35rem; overflow: hidden; }
+    .fc-rank .barra i { display: block; height: 100%; border-radius: 3px; background: #0077b6; }
+    .fc-rank .sub { font-size: .72rem; color: var(--inf-muted); }
+    .fc-rank .inf-code { margin-left: 0; }
+
+    /* ===== Últimas facturas ===== */
+    .fc-fact { list-style: none; margin: 0; padding: 0; }
+    .fc-fact li + li { border-top: 1px solid var(--inf-line); }
+    .fc-fact .it { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .15rem .7rem; align-items: center; padding: .55rem .9rem; }
+    .fc-fact .no { grid-row: span 2; }
+    .fc-fact .obra { color: var(--inf-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fc-fact .det { font-size: .75rem; color: var(--inf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .fc-fact .monto { font-weight: 600; color: var(--inf-ink); text-align: right; }
+    .fc-estado { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 500; white-space: nowrap; border-radius: 999px; padding: .05rem .5rem; justify-self: end; }
+    .fc-estado::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .fc-estado.PENDIENTE { background: #fcefd6; color: #864900; }
+    .fc-estado.PAGADA { background: #daf2ec; color: #0e6353; }
+    .fc-estado.ANULADA { background: #eef1f5; color: #64748b; text-decoration: line-through; }
+
+    @media (max-width: 1199.98px) { .fc-grid { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 767.98px) {
+        .fc-col-emp, .fc-col-n, .fc-head h2 small { display: none; }
+        .fc-pend { table-layout: fixed; }
+        .fc-pend th:first-child { width: 48%; }
+        .fc-pend th:last-child { width: 86px; }
+        .fc-pend .obra, .fc-pend .emp { max-width: 100%; }
+        .fc-pend td, .fc-pend th { padding-left: .5rem; padding-right: .5rem; }
+        .fc-barras { height: 140px; }
+        .fc-b .etq { display: none; }
+        .fc-meses span { font-size: .6rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { .fc-b i, .fc-b .tip { transition: none; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<!-- Encabezado -->
-<div class="d-flex justify-content-between align-items-start flex-wrap gap-3 mb-4">
-    <div>
-        <h3 class="fw-bold mb-1"><i class="bi bi-receipt-cutoff text-primary me-2"></i>Panel de Facturación <span class="text-muted fw-normal fs-5">· {{ request.ciudad_facturacion }}</span></h3>
-        <p class="text-muted mb-0">Resumen de {% now "F Y" %} · indicadores, tendencia y rankings</p>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-primary">
-            <i class="bi bi-plus-circle me-1"></i> Registrar Servicio
-        </a>
-        <a href="{% url 'generar_factura' %}" class="btn btn-success">
-            <i class="bi bi-file-earmark-text me-1"></i> Generar Factura
-        </a>
+<div class="inf fc">
+    {% include "includes/_mensajes.html" %}
+
+    <section class="inf-hero">
+        <header class="inf-head">
+            <div>
+                <div class="inf-eyebrow">Facturación · {{ request.ciudad_facturacion }}</div>
+                <h1 class="inf-title">{{ hoy|date:"F Y"|capfirst }}</h1>
+                <p class="fc-dia mb-0">
+                    {% if facturas_mes %}<strong>${{ total_mes|floatformat:"0g" }}</strong> en {{ facturas_mes }} factura{{ facturas_mes|pluralize }}{% else %}Aún no hay facturas este mes{% endif %}
+                    {% if variacion is not None %}<span class="fc-var {% if variacion >= 0 %}sube{% else %}baja{% endif %}" title="Frente al mismo tramo del mes anterior">{% if variacion >= 0 %}▲ {{ variacion }}{% else %}▼ {{ variacion|stringformat:"d"|cut:"-" }}{% endif %} %</span>{% endif %}
+                    · {% if por_facturar_n %}<strong>{{ por_facturar_n }}</strong> servicio{{ por_facturar_n|pluralize }} sin facturar{% else %}todo lo registrado está facturado{% endif %}
+                </p>
+            </div>
+            <div class="inf-actions">
+                <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-hero"><i class="bi bi-plus-lg me-1"></i>Registrar servicio</a>
+                <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-hero-primary"><i class="bi bi-receipt me-1"></i>Generar factura</a>
+            </div>
+        </header>
+        <div class="inf-hero-facts" aria-label="Resumen de la sede">
+            <div class="dato">
+                <div class="eti">Facturado este mes</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ total_mes|floatformat:"0g" }}</div>
+                <div class="sub">{{ facturas_mes }} factura{{ facturas_mes|pluralize }} emitida{{ facturas_mes|pluralize }}</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Por facturar</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_facturar_total|floatformat:"0g" }}</div>
+                <div class="sub">{{ por_facturar_n }} servicio{{ por_facturar_n|pluralize }} registrado{{ por_facturar_n|pluralize }}</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Por cobrar</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_cobrar_total|floatformat:"0g" }}</div>
+                <div class="sub">{{ por_cobrar_n }} factura{{ por_cobrar_n|pluralize }} sin pagar</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Clientes de la sede</div>
+                <div class="val">{{ total_constructoras }}</div>
+                <div class="sub">{{ total_obras }} obra{{ total_obras|pluralize }}</div>
+            </div>
+        </div>
+    </section>
+
+    <div class="fc-grid">
+        <div class="fc-col">
+            <!-- Por facturar -->
+            <section class="inf-panel" aria-labelledby="fcPend">
+                <div class="fc-head">
+                    <h2 id="fcPend"><span class="inf-ico" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>Por facturar<small>servicios registrados sin factura</small></h2>
+                    <a class="fc-mas" href="{% url 'historico_facturacion' %}">Histórico <i class="bi bi-arrow-right"></i></a>
+                </div>
+                {% if obras_por_facturar %}
+                <table class="inf-table fc-pend">
+                    <thead>
+                        <tr>
+                            <th scope="col">Obra</th>
+                            <th scope="col" class="text-end fc-col-n">Servicios</th>
+                            <th scope="col" class="text-end">Valor</th>
+                            <th scope="col"><span class="visually-hidden">Facturar</span></th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for o in obras_por_facturar %}
+                        <tr class="inf-row">
+                            <td>
+                                <span class="obra">{{ o.obra__nombre }}</span>
+                                <span class="emp">{{ o.obra__codigo_obra }} · {{ o.obra__constructora__nombre }}</span>
+                            </td>
+                            <td class="num fc-col-n"><span class="inf-cifra">{{ o.n }}</span>{% if o.aplazados %}<span class="fc-edad">{{ o.aplazados }} aplazado{{ o.aplazados|pluralize }}</span>{% endif %}</td>
+                            <td class="num">
+                                <span class="valor fc-pesos">${{ o.total|floatformat:"0g" }}</span>
+                                <span class="fc-edad{% if o.dias > 30 %} vieja{% endif %}">desde {{ o.desde|date:"j M" }}</span>
+                            </td>
+                            <td class="inf-acc">
+                                <a class="fc-facturar" href="{{ o.url }}" aria-label="Facturar {{ o.obra__nombre }}">Facturar</a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+                <div class="fc-pie">
+                    <span>Ordenadas por valor. «Facturar» abre la factura con el periodo de esos servicios.</span>
+                    <span>Total <strong class="fc-pesos">${{ por_facturar_total|floatformat:"0g" }}</strong></span>
+                </div>
+                {% else %}
+                <div class="fc-vacio"><i class="bi bi-check2-circle"></i>No hay servicios pendientes: todo lo registrado ya está facturado.</div>
+                {% endif %}
+            </section>
+
+            <!-- Tendencia -->
+            <section class="inf-panel" aria-labelledby="fcTend">
+                <div class="fc-head">
+                    <h2 id="fcTend"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-bar-chart"></i></span>Facturado por mes<small>últimos 12 meses, sin anuladas</small></h2>
+                </div>
+                <div class="fc-chart">
+                    <div class="fc-barras" aria-hidden="true">
+                        {% for x in serie %}
+                        <div class="fc-b{% if x.actual %} actual{% endif %}" style="--alto: {{ x.alto|stringformat:'s' }}%" tabindex="-1">
+                            <i style="height: {{ x.alto|stringformat:'s' }}%"></i>
+                            {% if x.actual or x.pico %}<span class="etq">${{ x.total|floatformat:"0g" }}</span>{% endif %}
+                            <span class="tip">${{ x.total|floatformat:"0g" }}<small>{{ x.mes|date:"F Y"|capfirst }}</small></span>
+                        </div>
+                        {% endfor %}
+                    </div>
+                    <div class="fc-meses" aria-hidden="true">
+                        {% for x in serie %}<span class="{% if x.actual %}actual{% endif %}">{{ x.mes|date:"M" }}</span>{% endfor %}
+                    </div>
+                    <table class="visually-hidden">
+                        <caption>Facturado por mes, últimos 12 meses</caption>
+                        <thead><tr><th scope="col">Mes</th><th scope="col">Facturado</th></tr></thead>
+                        <tbody>{% for x in serie %}<tr><th scope="row">{{ x.mes|date:"F Y" }}</th><td>${{ x.total|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
+                    </table>
+                </div>
+                <div class="fc-chart-pie">
+                    <span>Pasa el mouse sobre una barra para ver el valor del mes.</span>
+                    <span>12 meses: <strong class="fc-pesos">${{ total_12m|floatformat:"0g" }}</strong></span>
+                </div>
+            </section>
+        </div>
+
+        <div class="fc-col">
+            <!-- Clientes -->
+            <section class="inf-panel" aria-labelledby="fcClientes">
+                <div class="fc-head">
+                    <h2 id="fcClientes"><span class="inf-ico verde" aria-hidden="true"><i class="bi bi-buildings"></i></span>Clientes que más facturan<small>12 meses</small></h2>
+                    <a class="fc-mas" href="{% url 'repositorio_clientes' %}">Repositorio <i class="bi bi-arrow-right"></i></a>
+                </div>
+                {% if top_clientes %}
+                <ul class="fc-rank">
+                    {% for c in top_clientes %}
+                    <li>
+                        <div class="fila">
+                            <span class="inf-code">{{ c.constructora__codigo }}</span>
+                            <a class="nom inf-nombre" href="{% url 'repositorio_obras_cliente' c.constructora %}">{{ c.constructora__nombre }}</a>
+                            <span class="val fc-pesos">${{ c.total|floatformat:"0g" }}</span>
+                        </div>
+                        <div class="barra" aria-hidden="true"><i style="width: {{ c.ancho }}%"></i></div>
+                        <div class="sub">{{ c.n }} factura{{ c.n|pluralize }}</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="fc-vacio"><i class="bi bi-inbox"></i>Sin facturas en los últimos 12 meses.</div>
+                {% endif %}
+            </section>
+
+            <!-- Últimas facturas -->
+            <section class="inf-panel" aria-labelledby="fcFacturas">
+                <div class="fc-head">
+                    <h2 id="fcFacturas"><span class="inf-ico" aria-hidden="true"><i class="bi bi-receipt"></i></span>Últimas facturas</h2>
+                    <a class="fc-mas" href="{% url 'repositorio_clientes' %}">Ver todas <i class="bi bi-arrow-right"></i></a>
+                </div>
+                {% if ultimas_facturas %}
+                <ul class="fc-fact">
+                    {% for f in ultimas_facturas %}
+                    <li>
+                        <div class="it">
+                            <span class="no"><span class="inf-num ot">N.º {{ f.pk }}</span></span>
+                            <span class="obra">{{ f.obra.nombre }}</span>
+                            <span class="monto fc-pesos">${{ f.total|floatformat:"0g" }}</span>
+                            <span class="det">{{ f.constructora.nombre }} · {{ f.fecha_emision|date:"j M Y" }}</span>
+                            <span class="fc-estado {{ f.estado }}">{{ f.get_estado_display }}</span>
+                        </div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="fc-vacio"><i class="bi bi-inbox"></i>Aún no hay facturas en esta sede.</div>
+                {% endif %}
+            </section>
+
+            <!-- Servicios -->
+            <section class="inf-panel" aria-labelledby="fcServicios">
+                <div class="fc-head">
+                    <h2 id="fcServicios"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-clipboard-data"></i></span>Servicios más realizados<small>90 días</small></h2>
+                    <a class="fc-mas" href="{% url 'catalogo_servicios' %}">Catálogo <i class="bi bi-arrow-right"></i></a>
+                </div>
+                {% if top_servicios %}
+                <ul class="fc-rank">
+                    {% for s in top_servicios %}
+                    <li>
+                        <div class="fila">
+                            <span class="inf-code">{{ s.tipo_servicio__codigo }}</span>
+                            <span class="nom" title="{{ s.tipo_servicio__nombre }}">{{ s.tipo_servicio__nombre }}</span>
+                            <span class="val"><span class="inf-cifra">{{ s.n }}</span></span>
+                        </div>
+                        <div class="sub fc-pesos">${{ s.total|floatformat:"0g" }} registrados</div>
+                    </li>
+                    {% endfor %}
+                </ul>
+                {% else %}
+                <div class="fc-vacio"><i class="bi bi-inbox"></i>Sin servicios registrados en 90 días.</div>
+                {% endif %}
+            </section>
+        </div>
     </div>
 </div>
-
-<!-- KPIs -->
-<div class="row g-3 mb-4">
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="fact-kpi fact-hero">
-            <div class="kpi-ico mb-2"><i class="bi bi-cash-coin"></i></div>
-            <div class="kpi-val">${{ facturas_mes_total|floatformat:0 }}</div>
-            <div class="kpi-lbl">Facturado este mes</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="fact-kpi">
-            <div class="kpi-ico soft-blue mb-2"><i class="bi bi-receipt"></i></div>
-            <div class="kpi-val">{{ facturas_mes_count }}</div>
-            <div class="kpi-lbl">Facturas este mes</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="fact-kpi">
-            <div class="kpi-ico soft-violet mb-2"><i class="bi bi-clipboard-data"></i></div>
-            <div class="kpi-val">{{ registros_mes }}</div>
-            <div class="kpi-lbl">Registros este mes</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <a href="{% url 'generar_factura' %}" class="fact-kpi">
-            <div class="kpi-ico soft-amber mb-2"><i class="bi bi-hourglass-split"></i></div>
-            <div class="kpi-val">{{ registros_pendientes }}</div>
-            <div class="kpi-lbl">Pendientes de facturar
-                {% if registros_pendientes %}<span class="kpi-cta d-block mt-1">Facturar ahora →</span>{% endif %}
-            </div>
-        </a>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="fact-kpi">
-            <div class="kpi-ico soft-slate mb-2"><i class="bi bi-building"></i></div>
-            <div class="kpi-val">{{ total_constructoras }}</div>
-            <div class="kpi-lbl">Constructoras</div>
-        </div>
-    </div>
-    <div class="col-6 col-md-4 col-xl-2">
-        <div class="fact-kpi">
-            <div class="kpi-ico soft-green mb-2"><i class="bi bi-cone-striped"></i></div>
-            <div class="kpi-val">{{ total_obras }}</div>
-            <div class="kpi-lbl">Obras</div>
-        </div>
-    </div>
-</div>
-
-<!-- Gráfica + rankings -->
-<div class="row g-4 mb-4">
-    <div class="col-lg-8">
-        <div class="card-custom h-100">
-            <div class="card-header bg-white border-0 d-flex justify-content-between align-items-center pt-3">
-                <h6 class="fw-bold mb-0"><i class="bi bi-bar-chart-line text-primary me-2"></i>Facturación mensual</h6>
-                <span class="badge-soft bg-soft-blue">Últimos 6 meses</span>
-            </div>
-            <div class="card-body">
-                <div id="chartEmpty" class="text-center text-muted py-5 d-none">
-                    <i class="bi bi-bar-chart" style="font-size: 2.5rem;"></i>
-                    <p class="mb-0 mt-2">Aún no hay facturas para graficar</p>
-                </div>
-                <div style="position: relative; height: 280px;">
-                    <canvas id="chartFacturacion"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="col-lg-4">
-        <div class="card-custom rank-card mb-3">
-            <div class="card-header bg-white pt-3 pb-3">
-                <h6 class="fw-bold mb-0"><i class="bi bi-trophy text-warning me-2"></i>Top clientes</h6>
-            </div>
-            <div class="rank-list">
-                {% for c in top_clientes %}
-                <div class="rank-item">
-                    <span class="rank-no {% if forloop.first %}top{% endif %}">{{ forloop.counter }}</span>
-                    <span class="text-truncate flex-grow-1 fw-medium">{{ c.nombre }}</span>
-                    <span class="badge bg-success bg-opacity-10 text-success">${{ c.total_facturado|floatformat:0 }}</span>
-                </div>
-                {% empty %}
-                <div class="text-muted text-center py-4 small"><i class="bi bi-inbox me-1"></i> Sin datos aún</div>
-                {% endfor %}
-            </div>
-        </div>
-        <div class="card-custom rank-card">
-            <div class="card-header bg-white pt-3 pb-3">
-                <h6 class="fw-bold mb-0"><i class="bi bi-star text-primary me-2"></i>Servicios más registrados</h6>
-                <small class="text-muted">Últimos 90 días</small>
-            </div>
-            <div class="rank-list">
-                {% for s in top_servicios %}
-                <div class="rank-item">
-                    <span class="rank-no {% if forloop.first %}top{% endif %}">{{ forloop.counter }}</span>
-                    <span class="text-truncate flex-grow-1 fw-medium">{{ s.nombre }}</span>
-                    <span class="badge bg-primary bg-opacity-10 text-primary">{{ s.total_registros }}</span>
-                </div>
-                {% empty %}
-                <div class="text-muted text-center py-4 small"><i class="bi bi-inbox me-1"></i> Sin datos aún</div>
-                {% endfor %}
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Accesos rápidos -->
-<div class="row g-3">
-    <div class="col-6 col-md-3">
-        <a href="{% url 'historico_facturacion' %}" class="quick-tile">
-            <i class="bi bi-clock-history text-secondary"></i> Histórico
-        </a>
-    </div>
-    <div class="col-6 col-md-3">
-        <a href="{% url 'repositorio_clientes' %}" class="quick-tile">
-            <i class="bi bi-archive text-secondary"></i> Repositorio
-        </a>
-    </div>
-    <div class="col-6 col-md-3">
-        <a href="{% url 'catalogo_servicios' %}" class="quick-tile">
-            <i class="bi bi-list-check text-secondary"></i> Catálogo
-        </a>
-    </div>
-    <div class="col-6 col-md-3">
-        <a href="{% url 'precios_obras' %}" class="quick-tile">
-            <i class="bi bi-tags text-secondary"></i> Precios
-        </a>
-    </div>
-    <div class="col-6 col-md-3">
-        <a href="{% url 'lista_impuestos' %}" class="quick-tile">
-            <i class="bi bi-percent text-secondary"></i> Impuestos
-        </a>
-    </div>
-</div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
-<script>
-document.addEventListener('DOMContentLoaded', function() {
-    fetch("{% url 'api_facturacion_mensual' %}")
-        .then(r => r.json())
-        .then(data => {
-            const canvas = document.getElementById('chartFacturacion');
-            if (!data.labels || data.labels.length === 0) {
-                canvas.classList.add('d-none');
-                document.getElementById('chartEmpty').classList.remove('d-none');
-                return;
-            }
-            const ctx = canvas.getContext('2d');
-            const grad = ctx.createLinearGradient(0, 0, 0, 250);
-            grad.addColorStop(0, 'rgba(0, 142, 214, 0.85)');
-            grad.addColorStop(1, 'rgba(0, 142, 214, 0.25)');
-
-            new Chart(canvas, {
-                type: 'bar',
-                data: {
-                    labels: data.labels,
-                    datasets: [{
-                        label: 'Facturación ($)',
-                        data: data.data,
-                        backgroundColor: grad,
-                        borderColor: '#008ed6',
-                        borderWidth: 0,
-                        borderRadius: 6,
-                        maxBarThickness: 48,
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    plugins: {
-                        legend: { display: false },
-                        tooltip: {
-                            callbacks: { label: c => ' $' + c.parsed.y.toLocaleString() }
-                        }
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            grid: { color: '#eef2f7' },
-                            ticks: { callback: v => '$' + v.toLocaleString() }
-                        },
-                        x: { grid: { display: false } }
-                    }
-                }
-            });
-        })
-        .catch(() => {
-            document.getElementById('chartFacturacion').classList.add('d-none');
-            document.getElementById('chartEmpty').classList.remove('d-none');
-        });
-});
-</script>
 {% endblock %}

@@ -165,7 +165,27 @@ class CiudadFacturacionTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.context['total_constructoras'], 1)
         self.assertEqual(r.context['total_obras'], 1)
-        self.assertEqual(r.context['registros_pendientes'], 1)
+        self.assertEqual(r.context['por_facturar_n'], 1)
+
+
+    def test_panel_clientes_sin_anuladas_y_doce_meses(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        hoy = timezone.localdate()
+        base = dict(constructora=self.c_buc, obra=self.o_buc, fecha_inicio_periodo=hoy, fecha_fin_periodo=hoy,
+                    fecha_emision=hoy, subtotal=100, monto_iva=0)
+        Factura.objects.create(total=100, estado='PAGADA', **base)
+        Factura.objects.create(total=500, estado='ANULADA', **base)   # antes sacaba al cliente del ranking
+        Factura.objects.create(total=40, estado='PENDIENTE', **base)
+        self._elegir('Bucaramanga')
+        ctx = self.client.get(reverse('dashboard_facturacion')).context
+        self.assertEqual([(c['constructora__nombre'], c['total']) for c in ctx['top_clientes']], [('Buc SAS', 140)])
+        self.assertEqual((ctx['total_mes'], ctx['facturas_mes']), (140, 2))
+        self.assertEqual((ctx['por_cobrar_total'], ctx['por_cobrar_n']), (40, 1))
+        self.assertEqual(len(ctx['serie']), 12)
+        self.assertTrue(ctx['serie'][-1]['actual'])
+        self.assertEqual(ctx['serie'][-1]['total'], 140)
+        self.assertEqual(ctx['obras_por_facturar'][0]['n'], 1)
 
     def test_historico_y_formularios_filtran(self):
         self._elegir('Bucaramanga')

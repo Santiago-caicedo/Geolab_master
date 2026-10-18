@@ -10,7 +10,7 @@ from django.contrib.auth.decorators import login_required
 from django.contrib import messages
 from django.core.paginator import Paginator
 from django.db import transaction
-from django.db.models import Sum, Count, Q, F
+from django.db.models import Sum, Count, Q, F, Min, Max
 from django.db.models.functions import TruncMonth
 from django.http import JsonResponse, Http404, HttpResponse
 from django.template.loader import render_to_string
@@ -126,61 +126,90 @@ def seleccionar_ciudad(request):
 
 @staff_required
 def dashboard_facturacion(request):
-    """Dashboard de facturación con KPIs y gráfica."""
-    hoy = timezone.now().date()
-    primer_dia_mes = hoy.replace(day=1)
+    """Panel de facturación de la sede activa: el mes, lo que falta facturar y cobrar, y la tendencia."""
+    from datetime import date
+
+    hoy = timezone.localdate()
     ciudad = request.ciudad_facturacion
+    inicio_mes = hoy.replace(day=1)
+    inicio_mes_ant = (inicio_mes - timezone.timedelta(days=1)).replace(day=1)
+    facturas = sede.facturas_de(ciudad).exclude(estado='ANULADA')
 
-    # KPIs (todo acotado a la ciudad activa)
-    total_constructoras = sede.constructoras_de(ciudad).count()
-    total_obras = sede.obras_de(ciudad).count()
+    # El mes: lo facturado frente al mismo tramo del mes anterior (día 1 → día de hoy)
+    mes = facturas.filter(fecha_emision__gte=inicio_mes).aggregate(n=Count('pk'), total=Sum('total'))
+    dia_equiv = min(hoy.day, (inicio_mes - timezone.timedelta(days=1)).day)
+    mes_ant = facturas.filter(fecha_emision__gte=inicio_mes_ant,
+                              fecha_emision__lte=inicio_mes_ant.replace(day=dia_equiv)).aggregate(total=Sum('total'))
+    total_mes = mes['total'] or Decimal('0')
+    total_ant = mes_ant['total'] or Decimal('0')
+    variacion = round((total_mes - total_ant) * 100 / total_ant) if total_ant else None
 
-    facturas_mes = sede.facturas_de(ciudad).filter(
-        fecha_emision__gte=primer_dia_mes
-    ).exclude(estado='ANULADA')
-    facturas_mes_count = facturas_mes.count()
-    facturas_mes_total = facturas_mes.aggregate(
-        total=Sum('total')
-    )['total'] or Decimal('0')
+    # Por cobrar: facturas emitidas sin pagar
+    por_cobrar = facturas.filter(estado='PENDIENTE').aggregate(n=Count('pk'), total=Sum('total'))
 
-    registros_mes = sede.registros_de(ciudad).filter(
-        fecha_creacion__date__gte=primer_dia_mes
-    ).count()
+    # Por facturar: servicios sin factura, agrupados por obra (la lista de trabajo del panel)
+    pendientes = sede.registros_de(ciudad).filter(factura__isnull=True)
+    por_facturar = pendientes.aggregate(n=Count('pk'), total=Sum('subtotal'))
+    obras_por_facturar = list(
+        pendientes.values('obra', 'obra__nombre', 'obra__codigo_obra', 'obra__constructora__nombre')
+        .annotate(n=Count('pk'), total=Sum('subtotal'), desde=Min('fecha_realizacion'), hasta=Max('fecha_realizacion'),
+                  aplazados=Count('pk', filter=Q(facturar_despues=True)))
+        .order_by('-total')[:8]
+    )
+    for o in obras_por_facturar:
+        o['url'] = (reverse('generar_factura') + f"?obra={o['obra']}&fecha_inicio={o['desde']:%Y-%m-%d}"
+                    f"&fecha_fin={o['hasta']:%Y-%m-%d}")
+        o['dias'] = (hoy - o['desde']).days
 
-    registros_pendientes = sede.registros_de(ciudad).filter(
-        factura__isnull=True
-    ).count()
+    # Tendencia: 12 meses, incluidos los meses sin facturas (la barra queda en cero, no desaparece)
+    meses = []
+    a, m = inicio_mes.year, inicio_mes.month
+    for _ in range(12):
+        meses.append(date(a, m, 1))
+        a, m = (a - 1, 12) if m == 1 else (a, m - 1)
+    meses.reverse()
+    por_mes = {f['mes']: f['total'] for f in facturas.filter(fecha_emision__gte=meses[0])
+               .annotate(mes=TruncMonth('fecha_emision')).values('mes').annotate(total=Sum('total'))}
+    serie = [{'mes': d, 'total': por_mes.get(d) or Decimal('0'), 'actual': d == inicio_mes} for d in meses]
+    pico = max([x['total'] for x in serie] + [Decimal('1')])
+    for x in serie:
+        x['alto'] = round(float(x['total'] * 100 / pico), 1)
+        x['pico'] = x['total'] == pico and x['total'] > 0
 
-    # Top 3 clientes por facturación histórica
-    top_clientes = sede.constructoras_de(ciudad).filter(
-        facturas__isnull=False
-    ).exclude(
-        facturas__estado='ANULADA'
-    ).annotate(
-        total_facturado=Sum('facturas__total')
-    ).order_by('-total_facturado')[:3]
+    # Clientes: lo facturado (sin anuladas) en los últimos 12 meses
+    top_clientes = list(
+        facturas.filter(fecha_emision__gte=meses[0]).values('constructora', 'constructora__nombre', 'constructora__codigo')
+        .annotate(total=Sum('total'), n=Count('pk')).order_by('-total')[:5]
+    )
+    tope = top_clientes[0]['total'] if top_clientes else 1
+    for c in top_clientes:
+        c['ancho'] = round(float(c['total'] * 100 / tope))
 
-    # Top 3 servicios más registrados (últimos 90 días)
-    hace_90_dias = hoy - timezone.timedelta(days=90)
-    top_servicios = TipoServicio.objects.filter(
-        registros__fecha_realizacion__gte=hace_90_dias,
-        registros__obra__constructora__ciudad__iexact=ciudad,
-    ).annotate(
-        total_registros=Count('registros')
-    ).order_by('-total_registros')[:3]
+    top_servicios = (
+        sede.registros_de(ciudad).filter(fecha_realizacion__gte=hoy - timezone.timedelta(days=90))
+        .values('tipo_servicio__codigo', 'tipo_servicio__nombre')
+        .annotate(n=Sum('cantidad'), total=Sum('subtotal')).order_by('-n')[:5]
+    )
 
     context = {
-        'total_constructoras': total_constructoras,
-        'total_obras': total_obras,
-        'facturas_mes_count': facturas_mes_count,
-        'facturas_mes_total': facturas_mes_total,
-        'registros_mes': registros_mes,
-        'registros_pendientes': registros_pendientes,
+        'hoy': hoy,
+        'total_mes': total_mes,
+        'facturas_mes': mes['n'],
+        'variacion': variacion,
+        'por_cobrar_total': por_cobrar['total'] or Decimal('0'),
+        'por_cobrar_n': por_cobrar['n'],
+        'por_facturar_total': por_facturar['total'] or Decimal('0'),
+        'por_facturar_n': por_facturar['n'],
+        'obras_por_facturar': obras_por_facturar,
+        'serie': serie,
+        'total_12m': sum(x['total'] for x in serie),
         'top_clientes': top_clientes,
         'top_servicios': top_servicios,
+        'ultimas_facturas': sede.facturas_de(ciudad).select_related('obra', 'constructora').order_by('-fecha_emision', '-pk')[:6],
+        'total_constructoras': sede.constructoras_de(ciudad).count(),
+        'total_obras': sede.obras_de(ciudad).count(),
     }
     return render(request, 'facturacion/dashboard.html', context)
-
 
 @staff_required
 def api_facturacion_mensual(request):
