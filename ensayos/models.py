@@ -114,7 +114,7 @@ class HojaTrabajo(models.Model):
     def muestras_para_hoy(self):
         """Muestras que deben fallarse hoy"""
         from django.utils import timezone
-        hoy = timezone.now().date()
+        hoy = timezone.localdate()
         return self.resultados.filter(
             estado='pendiente'
         ).filter(
@@ -329,7 +329,7 @@ class ResultadoMuestra(models.Model):
         """Indica si esta muestra debe fallarse hoy"""
         from django.utils import timezone
         if self.fecha_falla_programada:
-            return self.fecha_falla_programada == timezone.now().date()
+            return self.fecha_falla_programada == timezone.localdate()
         return False
 
     @property
@@ -337,7 +337,7 @@ class ResultadoMuestra(models.Model):
         """Días restantes hasta la fecha de falla (negativo si ya pasó)"""
         from django.utils import timezone
         if self.fecha_falla_programada:
-            return (self.fecha_falla_programada - timezone.now().date()).days
+            return (self.fecha_falla_programada - timezone.localdate()).days
         return None
 
     @property
@@ -454,7 +454,7 @@ class ResultadoMuestra(models.Model):
             self.estado = 'completado'
             if not self.fecha_ensayo:
                 from django.utils import timezone
-                self.fecha_ensayo = timezone.now().date()
+                self.fecha_ensayo = timezone.localdate()
             self.save()
             # Actualizar estado de la hoja de trabajo
             self.hoja_trabajo.actualizar_estado()

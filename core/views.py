@@ -32,57 +32,59 @@ def dashboard_router(request):
 
 @login_required
 def dashboard_staff(request):
-    """Vista Tipo Torre de Control para Geolab"""
+    """Panel principal del staff: el día del laboratorio (agenda de falla) y la actividad reciente."""
+    from collections import Counter
+    from datetime import datetime, timedelta
     from users.models import Constructora
-    from solicitudes.models import RemisionMuestras, Muestra
-    from django.utils import timezone
-    from datetime import timedelta
+    from solicitudes.models import RemisionMuestras
+    from ensayos.models import ResultadoMuestra
 
-    # Estadísticas Globales
-    total_empresas = Constructora.objects.count()
-    total_obras = Obra.objects.count()
-    total_informes = Informe.objects.count()
+    hoy = timezone.localdate()
+    ahora = timezone.localtime()
 
-    # Remisiones
-    remisiones_pendientes = RemisionMuestras.objects.filter(estado='enviada').count()
-    remisiones_completadas = RemisionMuestras.objects.filter(estado='completada').count()
+    # Agenda de falla: muestras pendientes por fecha de ensayo (fecha_toma + edad), vencidas y próximos 7 días
+    por_dia, vencidas = Counter(), 0
+    pendientes = (ResultadoMuestra.objects.filter(estado='pendiente')
+                  .exclude(muestra__fecha_toma__isnull=True).exclude(muestra__edad_ensayo_dias__isnull=True)
+                  .values_list('muestra__fecha_toma', 'muestra__edad_ensayo_dias'))
+    for fecha_toma, edad in pendientes:
+        dia = fecha_toma + timedelta(days=edad)
+        if dia < hoy:
+            vencidas += 1
+        elif (dia - hoy).days < 7:
+            por_dia[dia] += 1
+    agenda = [{'fecha': hoy + timedelta(days=i), 'n': por_dia[hoy + timedelta(days=i)], 'hoy': i == 0, 'manana': i == 1}
+              for i in range(7)]
+    pico = max([d['n'] for d in agenda] + [1])
+    for d in agenda:
+        d['alto'] = round(d['n'] * 100 / pico)
 
-    # Ensayos programados para hoy
-    hoy = timezone.now().date()
-    ensayos_hoy = Muestra.objects.filter(
-        remision__estado='completada',
-        fecha_toma__lte=hoy
-    ).annotate(
-        fecha_ensayo=models.ExpressionWrapper(
-            models.F('fecha_toma') + timedelta(days=1) * models.F('edad_ensayo_dias'),
-            output_field=models.DateField()
+    inicio_mes = timezone.make_aware(datetime(hoy.year, hoy.month, 1))
+    hace_30 = ahora - timedelta(days=30)
+    obras_activas = (
+        Obra.objects.select_related('constructora')
+        .annotate(
+            informes_recientes=Count('informes', filter=Q(informes__fecha_creacion__gte=hace_30), distinct=True),
+            remisiones_recientes=Count('remisiones', filter=Q(remisiones__fecha_creacion__gte=hace_30), distinct=True),
         )
-    ).filter(fecha_ensayo=hoy).count()
-
-    # Últimos 8 informes cargados al sistema
-    ultimos_informes = Informe.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:8]
-
-    # Últimas 5 remisiones
-    ultimas_remisiones = RemisionMuestras.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:5]
-
-    # Obras con más actividad reciente (últimos 30 días)
-    hace_30_dias = timezone.now() - timedelta(days=30)
-    obras_activas = Obra.objects.annotate(
-        informes_recientes=Count('informes', filter=Q(informes__fecha_creacion__gte=hace_30_dias)),
-        remisiones_recientes=Count('remisiones', filter=Q(remisiones__fecha_creacion__gte=hace_30_dias))
-    ).filter(
-        Q(informes_recientes__gt=0) | Q(remisiones_recientes__gt=0)
-    ).order_by('-informes_recientes', '-remisiones_recientes')[:5]
+        .filter(Q(informes_recientes__gt=0) | Q(remisiones_recientes__gt=0))
+        .order_by('-informes_recientes', '-remisiones_recientes')[:6]
+    )
 
     context = {
-        'total_empresas': total_empresas,
-        'total_obras': total_obras,
-        'total_informes': total_informes,
-        'remisiones_pendientes': remisiones_pendientes,
-        'remisiones_completadas': remisiones_completadas,
-        'ensayos_hoy': ensayos_hoy,
-        'ultimos_informes': ultimos_informes,
-        'ultimas_remisiones': ultimas_remisiones,
+        'saludo': 'Buenos días' if ahora.hour < 12 else 'Buenas tardes' if ahora.hour < 19 else 'Buenas noches',
+        'total_empresas': Constructora.objects.count(),
+        'total_obras': Obra.objects.count(),
+        'total_informes': Informe.objects.count(),
+        'informes_mes': Informe.objects.filter(fecha_creacion__gte=inicio_mes).count(),
+        'remisiones_pendientes': RemisionMuestras.objects.filter(estado='enviada').count(),
+        'agenda': agenda,
+        'ensayos_hoy': agenda[0]['n'],
+        'ensayos_semana': sum(d['n'] for d in agenda),
+        'ensayos_vencidos': vencidas,
+        'ultimos_informes': Informe.objects.select_related('obra', 'obra__constructora').order_by('-fecha_creacion')[:8],
+        'ultimas_remisiones': (RemisionMuestras.objects.select_related('obra', 'obra__constructora')
+                               .annotate(num_muestras=Count('muestras')).order_by('-fecha_creacion')[:6]),
         'obras_activas': obras_activas,
     }
     return render(request, 'core/home_staff.html', context)

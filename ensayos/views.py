@@ -72,7 +72,7 @@ def muestras_para_hoy(request):
         messages.error(request, "No tienes permiso para acceder a esta sección.")
         return redirect('home')
 
-    hoy = timezone.now().date()
+    hoy = timezone.localdate()
 
     # Obtener todos los resultados pendientes
     resultados_pendientes = ResultadoMuestra.objects.filter(
@@ -145,7 +145,7 @@ def detalle_hoja_trabajo(request, pk):
         'hoja': hoja,
         'resultados': resultados,
         'resultados_agrupados': resultados_agrupados,
-        'fecha_hoy': timezone.now().date(),
+        'fecha_hoy': timezone.localdate(),
     }
     return render(request, 'ensayos/detalle_hoja_trabajo.html', context)
 
@@ -223,7 +223,7 @@ def editar_resultado(request, pk):
             if resultado.tiene_mediciones_completas and resultado.estado == 'pendiente':
                 resultado.estado = 'completado'
                 if not resultado.fecha_ensayo:
-                    resultado.fecha_ensayo = timezone.now().date()
+                    resultado.fecha_ensayo = timezone.localdate()
 
             resultado.save()
 
@@ -254,7 +254,7 @@ def editar_resultado(request, pk):
                 if resultado.tiene_mediciones_completas and resultado.estado == 'pendiente':
                     resultado.estado = 'completado'
                     if not resultado.fecha_ensayo:
-                        resultado.fecha_ensayo = timezone.now().date()
+                        resultado.fecha_ensayo = timezone.localdate()
 
                 resultado.save()
 
@@ -265,7 +265,7 @@ def editar_resultado(request, pk):
                     # Respuesta HTMX: renderizar solo la fila actualizada
                     return render(request, 'ensayos/partials/resultado_row.html', {
                         'resultado': resultado,
-                        'fecha_hoy': timezone.now().date(),
+                        'fecha_hoy': timezone.localdate(),
                     })
                 else:
                     messages.success(request, f"Resultado de muestra #{resultado.muestra.numero_muestra} actualizado.")
@@ -312,7 +312,7 @@ def completar_resultado(request, pk):
     if request.headers.get('HX-Request'):
         return render(request, 'ensayos/partials/resultado_row.html', {
             'resultado': resultado,
-            'fecha_hoy': timezone.now().date(),
+            'fecha_hoy': timezone.localdate(),
         })
 
     return redirect('detalle_hoja_trabajo', pk=resultado.hoja_trabajo.pk)
@@ -353,7 +353,7 @@ def lista_obras_hojas_trabajo(request):
         messages.error(request, "No tienes permiso para acceder a esta sección.")
         return redirect('home')
 
-    hoy = timezone.now().date()
+    hoy = timezone.localdate()
 
     # Obtener obras que tienen al menos una hoja de trabajo (remision completada)
     obras_con_hojas = Obra.objects.filter(
@@ -451,7 +451,7 @@ def hoja_trabajo_obra(request, obra_pk):
         return redirect('home')
 
     obra = get_object_or_404(Obra.objects.select_related('constructora'), pk=obra_pk)
-    hoy = timezone.now().date()
+    hoy = timezone.localdate()
 
     # Obtener TODOS los resultados de esta obra
     resultados = ResultadoMuestra.objects.filter(
@@ -552,7 +552,7 @@ def seleccionar_muestras_hoy(request):
         return JsonResponse({'error': 'No autorizado'}, status=403)
 
     if request.method == 'POST':
-        hoy = timezone.now().date()
+        hoy = timezone.localdate()
 
         # Obtener todas las muestras pendientes
         resultados = ResultadoMuestra.objects.filter(
@@ -606,7 +606,7 @@ def dashboard_tecnico(request):
         messages.error(request, "No tienes permiso para acceder a esta sección.")
         return redirect('home')
 
-    hoy = timezone.now().date()
+    hoy = timezone.localdate()
 
     # Obtener todos los resultados pendientes
     resultados_pendientes = ResultadoMuestra.objects.filter(

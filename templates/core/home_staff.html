@@ -1,422 +1,284 @@
 {% extends 'base.html' %}
-{% load static %}
+{% load humanize informes_tags %}
 
-{% block title %}Panel de Control - Geolab{% endblock %}
+{% block title %}Panel de control · Geolab{% endblock %}
 
 {% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
 <style>
-    .stat-card {
-        border: none;
-        border-radius: 12px;
-        transition: all 0.2s ease;
-        overflow: hidden;
+    /* Panel principal del staff (esquema "registro"): banda con el día, agenda de falla y actividad reciente */
+    .pc-grid { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); gap: 1rem; align-items: start; margin-top: 1rem; }
+    .pc-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .pc-head h2 { display: flex; align-items: center; font-size: .875rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .pc-head h2 .inf-ico { vertical-align: 0; }
+    .pc-head h2 small { color: var(--inf-muted); font-weight: 500; font-size: .8125rem; margin-left: .35rem; }
+    .pc-mas { font-size: .8125rem; color: var(--inf-link); text-decoration: none; white-space: nowrap; }
+    .pc-mas:hover { text-decoration: underline; }
+    .pc-vacio { padding: 2rem 1rem; text-align: center; color: var(--inf-muted); }
+    .pc-vacio i { display: block; font-size: 1.5rem; color: #cbd5e1; margin-bottom: .35rem; }
+
+    /* Resumen del día en la banda */
+    .pc-dia { margin-top: .35rem; color: rgba(255, 255, 255, .82); font-size: .875rem; }
+    .pc-dia strong { color: #fff; }
+    .pc-dia .alerta { color: #ffc9c2; }
+
+    /* ===== Agenda de falla: vencidas + 7 días ===== */
+    .pc-agenda { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: .5rem; padding: .9rem; }
+    .pc-dia-c {
+        display: flex; flex-direction: column; align-items: center; gap: .25rem; min-width: 0;
+        padding: .6rem .25rem .55rem; border-radius: 10px; border: 1px solid var(--inf-line); background: #fff;
+        text-decoration: none; color: var(--inf-text); transition: border-color .15s ease, background-color .15s ease;
     }
-    .stat-card:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 8px 25px rgba(0,0,0,0.1) !important;
+    a.pc-dia-c:hover { border-color: #9ccbea; background: #f5f9fd; }
+    .pc-dia-c .dsem { font-size: .7rem; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--inf-muted); }
+    .pc-dia-c .dnum { font-size: .8125rem; color: var(--inf-muted); font-variant-numeric: tabular-nums; }
+    /* Probeta: la altura del relleno es la carga de ese día frente al día más cargado */
+    .pc-probeta { position: relative; width: 22px; height: 58px; border-radius: 6px 6px 4px 4px; background: #eef3f8; overflow: hidden; margin: .15rem 0; }
+    .pc-probeta i { position: absolute; left: 0; right: 0; bottom: 0; border-radius: 3px 3px 0 0; background: linear-gradient(180deg, #38b6f5, #0077b6); }
+    .pc-dia-c .cnt { font-family: var(--inf-mono); font-size: 1.05rem; font-weight: 500; color: var(--inf-ink); line-height: 1; }
+    .pc-dia-c .cnt-eti { font-size: .68rem; color: var(--inf-muted); }
+    .pc-dia-c.cero .cnt { color: #cbd5e1; }
+    .pc-dia-c.hoy { border-color: #0077b6; box-shadow: 0 0 0 1px #0077b6 inset; background: #f2f8fd; }
+    .pc-dia-c.hoy .dsem { color: #0b5c8f; }
+    .pc-dia-c.vencidas { background: #fdf3f2; border-color: #f3d6d3; }
+    .pc-dia-c.vencidas .dsem, .pc-dia-c.vencidas .cnt { color: var(--inf-danger); }
+    .pc-dia-c.vencidas .pc-probeta { background: #f9dedb; }
+    .pc-dia-c.vencidas .pc-probeta i { background: #d6453a; }
+    .pc-dia-c.vencidas.cero { background: #fff; border-color: var(--inf-line); }
+    .pc-dia-c.vencidas.cero .dsem { color: var(--inf-muted); }
+    .pc-dia-c.vencidas.cero .cnt { color: #cbd5e1; }
+    .pc-agenda-pie { display: flex; justify-content: space-between; gap: .75rem; flex-wrap: wrap; padding: 0 .9rem .8rem; font-size: .78rem; color: var(--inf-muted); }
+
+    /* ===== Últimos informes ===== */
+    .pc-inf td { padding-top: .5rem; padding-bottom: .5rem; }
+    .pc-inf .obra { display: block; color: var(--inf-ink); font-weight: 500; text-decoration: none; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+    a.obra:hover { color: var(--inf-link); text-decoration: underline; }
+    .pc-inf .emp { display: block; font-size: .75rem; color: var(--inf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 260px; }
+    .pc-inf .inf-tipo { display: block; font-size: .78rem; color: var(--inf-muted); margin-top: .15rem; max-width: 230px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+    /* ===== Remisiones ===== */
+    .pc-rem { list-style: none; margin: 0; padding: 0; }
+    .pc-rem li + li { border-top: 1px solid var(--inf-line); }
+    .pc-rem a { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: .2rem .75rem; align-items: center;
+                padding: .6rem .9rem; color: inherit; text-decoration: none; }
+    .pc-rem a:hover { background: #f2f8fd; }
+    .pc-rem .ot { grid-row: span 2; }
+    .pc-rem .obra { color: var(--inf-ink); font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-rem .det { font-size: .75rem; color: var(--inf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .pc-rem .fecha { font-family: var(--inf-mono); font-size: .75rem; color: var(--inf-muted); text-align: right; white-space: nowrap; }
+    .pc-estado { display: inline-flex; align-items: center; gap: .3rem; font-size: .72rem; font-weight: 500; white-space: nowrap;
+                 border-radius: 999px; padding: .08rem .5rem; justify-self: end; }
+    .pc-estado::before { content: ''; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+    .pc-estado.enviada { background: #fcefd6; color: #864900; }
+    .pc-estado.completada { background: #daf2ec; color: #0e6353; }
+    .pc-estado.borrador { background: #eef1f5; color: #3d4a5c; }
+    .pc-estado.vencida { background: #fdecea; color: var(--inf-danger); }
+
+    /* ===== Obras con actividad ===== */
+    .pc-obras td { padding-top: .5rem; padding-bottom: .5rem; }
+    .pc-obras .num { text-align: right; width: 1%; white-space: nowrap; }
+
+    .pc-corto, .pc-fecha-movil { display: none; }
+    @media (max-width: 1199.98px) { .pc-grid { grid-template-columns: minmax(0, 1fr); } }
+    @media (max-width: 767.98px) {
+        .pc-agenda { gap: .3rem; padding: .7rem .6rem; }
+        .pc-dia-c { padding: .45rem .1rem; border-radius: 8px; }
+        .pc-dia-c .dsem { font-size: .62rem; letter-spacing: .02em; }
+        .pc-dia-c .cnt-eti { display: none; }
+        .pc-probeta { width: 16px; height: 44px; }
+        .pc-dia-c .cnt { font-size: .9rem; }
+        .pc-col-emp, .pc-col-fecha, .pc-largo { display: none; }
+        .pc-corto, .pc-fecha-movil { display: inline; }
+        .pc-dia-c .dnum { font-size: .75rem; }
+        .pc-inf { table-layout: fixed; }
+        .pc-inf th:first-child { width: 44%; }
+        .pc-inf th:last-child { width: 40px; }
+        .pc-inf .obra, .pc-inf .emp, .pc-inf .inf-tipo { max-width: 100%; }
+        .pc-inf .inf-nofile { font-size: 0; padding: 0; }
+        .pc-inf .inf-nofile::after { content: '—'; font-size: .8rem; color: #cbd5e1; }
+        .pc-inf .inf-open { padding: 0 .35rem; }
+        .pc-inf td, .pc-inf th { padding-left: .5rem; padding-right: .5rem; }
+        .pc-agenda-pie { flex-direction: column; gap: .25rem; }
     }
-    .stat-card .stat-icon {
-        width: 56px;
-        height: 56px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        font-size: 1.5rem;
-    }
-    .quick-action {
-        border: 1px solid var(--border-color);
-        border-radius: 12px;
-        padding: 1.25rem;
-        text-align: center;
-        transition: all 0.2s ease;
-        text-decoration: none;
-        display: block;
-        height: 100%;
-    }
-    .quick-action:hover {
-        border-color: var(--brand-blue);
-        background: rgba(0, 142, 214, 0.03);
-        transform: translateY(-2px);
-    }
-    .quick-action .action-icon {
-        width: 48px;
-        height: 48px;
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        border-radius: 12px;
-        font-size: 1.3rem;
-        margin: 0 auto 0.75rem;
-    }
-    .activity-item {
-        padding: 1rem 1.25rem;
-        border-bottom: 1px solid var(--border-color);
-        transition: background 0.15s;
-    }
-    .activity-item:hover {
-        background: #f8fafc;
-    }
-    .activity-item:last-child {
-        border-bottom: none;
-    }
-    .badge-estado {
-        padding: 0.35em 0.7em;
-        border-radius: 6px;
-        font-size: 0.7rem;
-        font-weight: 600;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
-    .badge-enviada { background-color: #fef3c7; color: #92400e; }
-    .badge-completada { background-color: #d1fae5; color: #065f46; }
-    .badge-borrador { background-color: #e5e7eb; color: #374151; }
-    .section-header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        margin-bottom: 1rem;
-    }
-    .section-title {
-        font-size: 1rem;
-        font-weight: 700;
-        color: var(--text-main);
-        margin: 0;
-        display: flex;
-        align-items: center;
-        gap: 0.5rem;
-    }
+    @media (prefers-reduced-motion: reduce) { .pc-dia-c { transition: none; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid">
-    <!-- Encabezado de bienvenida -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center flex-wrap gap-3">
-                <div>
-                    <h2 class="fw-bold mb-1" style="color: var(--text-main);">
-                        Panel de Control
-                    </h2>
-                    <p class="text-muted mb-0">
-                        Bienvenido, <strong class="text-primary">{{ user.first_name|default:user.username }}</strong>.
-                        Resumen de actividad del laboratorio.
-                    </p>
-                </div>
-                <div class="d-flex align-items-center gap-2">
-                    <span class="badge px-3 py-2" style="background-color: rgba(0, 142, 214, 0.1); color: #008ed6;">
-                        <i class="bi bi-shield-check me-1"></i> Staff Geolab
-                    </span>
-                </div>
-            </div>
-        </div>
-    </div>
+<div class="inf pc">
+    {% include "includes/_mensajes.html" %}
 
-    <!-- Tarjetas de estadisticas -->
-    <div class="row g-3 mb-4">
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon bg-primary bg-opacity-10 text-primary me-3">
-                        <i class="bi bi-briefcase"></i>
-                    </div>
-                    <div>
-                        <div class="fs-3 fw-bold text-primary">{{ total_empresas }}</div>
-                        <div class="text-muted small">Empresas</div>
-                    </div>
-                </div>
+    <section class="inf-hero">
+        <header class="inf-head">
+            <div>
+                <div class="inf-eyebrow">Panel de control · {% now "l j \d\e F" %}</div>
+                <h1 class="inf-title">{{ saludo }}, {{ user.first_name|default:user.username }}</h1>
+                <p class="pc-dia mb-0">
+                    {% if ensayos_hoy %}<strong>{{ ensayos_hoy }}</strong> muestra{{ ensayos_hoy|pluralize }} por fallar hoy{% else %}Sin muestras por fallar hoy{% endif %}{% if ensayos_vencidos %} · <span class="alerta"><strong>{{ ensayos_vencidos }}</strong> vencida{{ ensayos_vencidos|pluralize }}</span>{% endif %}
+                    · {% if remisiones_pendientes %}<strong>{{ remisiones_pendientes }}</strong> remisi{{ remisiones_pendientes|pluralize:"ón,ones" }} por responder{% else %}ninguna remisión por responder{% endif %}
+                </p>
+            </div>
+            <div class="inf-actions">
+                <a href="{% url 'lista_constructoras' %}" class="btn btn-sm btn-hero"><i class="bi bi-buildings me-1"></i>Directorio</a>
+                <a href="{% url 'cargar_informe' %}" class="btn btn-sm btn-hero-primary"><i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes</a>
+            </div>
+        </header>
+        <div class="inf-hero-facts" aria-label="Totales del portal">
+            <div class="dato">
+                <div class="eti">Empresas</div>
+                <div class="val">{{ total_empresas|intcomma }}</div>
+                <div class="sub"><a href="{% url 'lista_constructoras' %}" style="color: inherit;">Ver directorio</a></div>
+            </div>
+            <div class="dato">
+                <div class="eti">Obras</div>
+                <div class="val">{{ total_obras|intcomma }}</div>
+                <div class="sub">{{ obras_activas|length }} con actividad reciente</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Informes</div>
+                <div class="val">{{ total_informes|intcomma }}</div>
+                <div class="sub">{{ informes_mes|intcomma }} este mes</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Remisiones por responder</div>
+                <div class="val">{{ remisiones_pendientes }}</div>
+                <div class="sub"><a href="{% url 'lista_remisiones' %}" style="color: inherit;">Ver remisiones</a></div>
             </div>
         </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon bg-success bg-opacity-10 text-success me-3">
-                        <i class="bi bi-buildings"></i>
-                    </div>
-                    <div>
-                        <div class="fs-3 fw-bold text-success">{{ total_obras }}</div>
-                        <div class="text-muted small">Obras</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon bg-danger bg-opacity-10 text-danger me-3">
-                        <i class="bi bi-file-earmark-pdf"></i>
-                    </div>
-                    <div>
-                        <div class="fs-3 fw-bold text-danger">{{ total_informes }}</div>
-                        <div class="text-muted small">Informes</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-6 col-lg-3">
-            <div class="card stat-card shadow-sm h-100">
-                <div class="card-body d-flex align-items-center">
-                    <div class="stat-icon bg-warning bg-opacity-10 text-warning me-3">
-                        <i class="bi bi-hourglass-split"></i>
-                    </div>
-                    <div>
-                        <div class="fs-3 fw-bold text-warning">{{ remisiones_pendientes }}</div>
-                        <div class="text-muted small">Pendientes</div>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    </section>
 
-    <!-- Acciones rapidas -->
-    <div class="row g-3 mb-4">
-        <div class="col-12">
-            <div class="section-header">
-                <h5 class="section-title">
-                    <i class="bi bi-lightning-charge text-warning"></i>
-                    Acciones Rapidas
-                </h5>
-            </div>
+    <!-- Agenda de falla -->
+    <section class="inf-panel" aria-labelledby="pcAgenda">
+        <div class="pc-head">
+            <h2 id="pcAgenda"><span class="inf-ico" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>Agenda de falla<small>próximos 7 días</small></h2>
+            <a class="pc-mas" href="{% url 'muestras_para_hoy' %}">Ensayos del día <i class="bi bi-arrow-right"></i></a>
         </div>
-        <div class="col-6 col-lg">
-            <a href="{% url 'lista_constructoras' %}" class="quick-action bg-white">
-                <div class="action-icon bg-primary bg-opacity-10 text-primary">
-                    <i class="bi bi-briefcase"></i>
-                </div>
-                <div class="fw-semibold text-dark small">Directorio Empresas</div>
+        <div class="pc-agenda">
+            <a class="pc-dia-c vencidas{% if not ensayos_vencidos %} cero{% endif %}" href="{% url 'muestras_para_hoy' %}"
+               aria-label="{{ ensayos_vencidos }} muestra{{ ensayos_vencidos|pluralize }} vencida{{ ensayos_vencidos|pluralize }}">
+                <span class="dsem"><span class="pc-largo">Vencidas</span><span class="pc-corto">Venc.</span></span>
+                <span class="dnum">antes</span>
+                <span class="pc-probeta" aria-hidden="true"><i style="height: {% if ensayos_vencidos %}100{% else %}0{% endif %}%"></i></span>
+                <span class="cnt">{{ ensayos_vencidos }}</span>
+                <span class="cnt-eti">muestras</span>
             </a>
-        </div>
-        <div class="col-6 col-lg">
-            <a href="{% url 'cargar_informe' %}" class="quick-action bg-white">
-                <div class="action-icon bg-danger bg-opacity-10 text-danger">
-                    <i class="bi bi-cloud-arrow-up"></i>
-                </div>
-                <div class="fw-semibold text-dark small">Cargar Informe</div>
+            {% for d in agenda %}
+            <a class="pc-dia-c{% if d.hoy %} hoy{% endif %}{% if not d.n %} cero{% endif %}" href="{% url 'muestras_para_hoy' %}"
+               {% if d.hoy %}aria-current="date"{% endif %}
+               aria-label="{% if d.hoy %}Hoy{% elif d.manana %}Mañana{% else %}{{ d.fecha|date:'l j' }}{% endif %}: {{ d.n }} muestra{{ d.n|pluralize }}">
+                <span class="dsem">{% if d.hoy %}Hoy{% elif d.manana %}Mañ{% else %}{{ d.fecha|date:"D" }}{% endif %}</span>
+                <span class="dnum">{{ d.fecha|date:"j" }}<span class="pc-largo"> {{ d.fecha|date:"M" }}</span></span>
+                <span class="pc-probeta" aria-hidden="true"><i style="height: {{ d.alto }}%"></i></span>
+                <span class="cnt">{{ d.n }}</span>
+                <span class="cnt-eti">muestra{{ d.n|pluralize }}</span>
             </a>
+            {% endfor %}
         </div>
-        <div class="col-6 col-lg">
-            <a href="{% url 'lista_remisiones' %}" class="quick-action bg-white">
-                <div class="action-icon bg-info bg-opacity-10 text-info">
-                    <i class="bi bi-file-earmark-medical"></i>
-                </div>
-                <div class="fw-semibold text-dark small">Remisiones</div>
-                {% if remisiones_pendientes > 0 %}
-                <span class="badge bg-warning text-dark mt-2">{{ remisiones_pendientes }} pendiente{{ remisiones_pendientes|pluralize:"s" }}</span>
-                {% endif %}
-            </a>
+        <div class="pc-agenda-pie">
+            <span>Fecha de falla = fecha de toma + edad de ensayo. Solo muestras con resultado pendiente.</span>
+            <span><strong>{{ ensayos_semana }}</strong> en la semana</span>
         </div>
-        <div class="col-6 col-lg">
-            <a href="{% url 'muestras_para_hoy' %}" class="quick-action bg-white">
-                <div class="action-icon bg-success bg-opacity-10 text-success">
-                    <i class="bi bi-calendar-check"></i>
-                </div>
-                <div class="fw-semibold text-dark small">Ensayos del Dia</div>
-                {% if ensayos_hoy > 0 %}
-                <span class="badge bg-success mt-2">{{ ensayos_hoy }} muestra{{ ensayos_hoy|pluralize:"s" }}</span>
-                {% endif %}
-            </a>
-        </div>
-        <div class="col-6 col-lg">
-            <a href="{% url 'lista_usuarios_cliente' %}" class="quick-action bg-white">
-                <div class="action-icon bg-secondary bg-opacity-10 text-secondary">
-                    <i class="bi bi-people"></i>
-                </div>
-                <div class="fw-semibold text-dark small">Usuarios</div>
-            </a>
-        </div>
-    </div>
+    </section>
 
-    <!-- Contenido principal en dos columnas -->
-    <div class="row g-4">
-        <!-- Columna izquierda: Ultimos informes -->
-        <div class="col-lg-7">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3">
-                    <div class="section-header mb-0">
-                        <h5 class="section-title">
-                            <i class="bi bi-clock-history text-primary"></i>
-                            Ultimos Informes
-                        </h5>
-                        <a href="{% url 'lista_constructoras' %}" class="btn btn-sm btn-outline-primary">
-                            Ver todos <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    {% if ultimos_informes %}
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="ps-4 border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Documento</th>
-                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Empresa / Obra</th>
-                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Fecha</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for informe in ultimos_informes %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-danger bg-opacity-10 text-danger rounded p-2 me-3">
-                                                <i class="bi bi-file-earmark-pdf"></i>
-                                            </div>
-                                            <div class="text-truncate" style="max-width: 200px;">
-                                                <div class="fw-medium text-dark small" title="{{ informe.titulo }}">{{ informe.titulo|truncatechars:35 }}</div>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td>
-                                        <div class="small">
-                                            <span class="badge bg-dark me-1" style="font-size: 0.65rem;">{{ informe.obra.constructora.codigo }}</span>
-                                            <span class="text-muted">{{ informe.obra.constructora.nombre|truncatechars:15 }}</span>
-                                        </div>
-                                        <div class="text-muted" style="font-size: 0.75rem;">{{ informe.obra.nombre|truncatechars:25 }}</div>
-                                    </td>
-                                    <td class="text-muted small">
-                                        {{ informe.fecha_creacion|date:"d/m/Y" }}
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
-                        <p class="text-muted mt-2 mb-0">No hay informes recientes</p>
-                    </div>
-                    {% endif %}
-                </div>
+    <div class="pc-grid">
+        <!-- Últimos informes -->
+        <section class="inf-panel" aria-labelledby="pcInformes">
+            <div class="pc-head">
+                <h2 id="pcInformes"><span class="inf-ico" aria-hidden="true"><i class="bi bi-file-earmark-pdf"></i></span>Últimos informes cargados</h2>
+                <a class="pc-mas" href="{% url 'cargar_informe' %}">Cargar más <i class="bi bi-arrow-right"></i></a>
             </div>
-        </div>
-
-        <!-- Columna derecha: Remisiones recientes -->
-        <div class="col-lg-5">
-            <div class="card border-0 shadow-sm h-100">
-                <div class="card-header bg-white border-0 py-3">
-                    <div class="section-header mb-0">
-                        <h5 class="section-title">
-                            <i class="bi bi-file-earmark-medical text-info"></i>
-                            Remisiones Recientes
-                        </h5>
-                        <a href="{% url 'lista_remisiones' %}" class="btn btn-sm btn-outline-info">
-                            Ver todas <i class="bi bi-arrow-right ms-1"></i>
-                        </a>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    {% if ultimas_remisiones %}
-                    {% for remision in ultimas_remisiones %}
-                    <a href="{{ remision.get_absolute_url }}" class="activity-item d-block text-decoration-none">
-                        <div class="d-flex justify-content-between align-items-start">
-                            <div class="flex-grow-1 min-width-0">
-                                <div class="d-flex align-items-center gap-2 mb-1">
-                                    <span class="fw-semibold text-dark small">Remision #{{ remision.orden_trabajo }}</span>
-                                    <span class="badge-estado badge-{{ remision.estado }}">{{ remision.get_estado_display }}</span>
-                                </div>
-                                <div class="text-muted small text-truncate">
-                                    <i class="bi bi-building me-1"></i>
-                                    {{ remision.obra.nombre|truncatechars:30 }}
-                                </div>
-                                <div class="text-muted" style="font-size: 0.7rem;">
-                                    {{ remision.obra.constructora.nombre }}
-                                </div>
-                            </div>
-                            <div class="text-end">
-                                <div class="text-muted" style="font-size: 0.7rem;">
-                                    {{ remision.fecha_creacion|date:"d/m/Y" }}
-                                </div>
-                                {% if remision.muestras.count > 0 %}
-                                <div class="text-muted" style="font-size: 0.7rem;">
-                                    <i class="bi bi-box-seam me-1"></i>{{ remision.muestras.count }} muestra{{ remision.muestras.count|pluralize:"s" }}
-                                </div>
-                                {% endif %}
-                            </div>
-                        </div>
-                    </a>
+            {% if ultimos_informes %}
+            <table class="inf-table pc-inf">
+                <thead>
+                    <tr>
+                        <th scope="col">Informe</th>
+                        <th scope="col">Obra</th>
+                        <th scope="col" class="text-end pc-col-fecha">Fecha</th>
+                        <th scope="col"><span class="visually-hidden">Abrir</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for informe in ultimos_informes %}
+                    {% with p=informe.titulo|partes_informe %}
+                    <tr class="inf-row">
+                        <td>
+                            {% if p.numero %}<span class="inf-num {{ p.clase }}">{{ p.numero }}</span>{% else %}<span class="inf-num otro">PDF</span>{% endif %}
+                            <span class="inf-tipo" title="{{ informe.titulo }}">{% if p.numero %}<span class="punto {{ p.clase }}"></span>{% endif %}{{ p.tipo }}</span>
+                        </td>
+                        <td>
+                            <a class="obra" href="{% url 'lista_informes_obra' informe.obra.pk %}">{{ informe.obra.nombre }}</a>
+                            <span class="emp"><span class="pc-fecha-movil">{{ informe.fecha_creacion|date:"j M" }} · </span>{{ informe.obra.codigo_obra }} · {{ informe.obra.constructora.nombre }}</span>
+                        </td>
+                        <td class="inf-fecha pc-col-fecha">{{ informe.fecha_creacion|date:"j M" }}</td>
+                        <td class="inf-acc">
+                            {% if informe.archivo %}
+                            <a href="{{ informe.archivo.url }}" target="_blank" rel="noopener" class="inf-open" aria-label="Abrir {{ informe.titulo }} en otra pestaña"><i class="bi bi-box-arrow-up-right"></i></a>
+                            {% else %}<span class="inf-nofile">sin PDF</span>{% endif %}
+                        </td>
+                    </tr>
+                    {% endwith %}
                     {% endfor %}
-                    {% else %}
-                    <div class="text-center py-5">
-                        <i class="bi bi-inbox text-muted" style="font-size: 3rem;"></i>
-                        <p class="text-muted mt-2 mb-0">No hay remisiones recientes</p>
-                    </div>
-                    {% endif %}
-                </div>
+                </tbody>
+            </table>
+            {% else %}
+            <div class="pc-vacio"><i class="bi bi-inbox"></i>Todavía no hay informes. <a href="{% url 'cargar_informe' %}">Carga el primero</a>.</div>
+            {% endif %}
+        </section>
+
+        <!-- Remisiones recientes -->
+        <section class="inf-panel" aria-labelledby="pcRemisiones">
+            <div class="pc-head">
+                <h2 id="pcRemisiones"><span class="inf-ico verde" aria-hidden="true"><i class="bi bi-box-seam"></i></span>Remisiones recientes</h2>
+                <a class="pc-mas" href="{% url 'lista_remisiones' %}">Ver todas <i class="bi bi-arrow-right"></i></a>
             </div>
-        </div>
+            {% if ultimas_remisiones %}
+            <ul class="pc-rem">
+                {% for r in ultimas_remisiones %}
+                <li>
+                    <a href="{{ r.get_absolute_url }}">
+                        <span class="ot"><span class="inf-num ot">OT {{ r.orden_trabajo|default:"—" }}</span></span>
+                        <span class="obra">{{ r.obra.nombre }}</span>
+                        <span class="pc-estado {{ r.estado }}">{% if r.estado == 'enviada' %}Por responder{% else %}{{ r.get_estado_display }}{% endif %}</span>
+                        <span class="det">{{ r.obra.constructora.nombre }} · {{ r.num_muestras }} muestra{{ r.num_muestras|pluralize }}</span>
+                        <span class="fecha">{{ r.fecha_creacion|date:"j M" }}</span>
+                    </a>
+                </li>
+                {% endfor %}
+            </ul>
+            {% else %}
+            <div class="pc-vacio"><i class="bi bi-inbox"></i>No han llegado remisiones.</div>
+            {% endif %}
+        </section>
     </div>
 
-    <!-- Obras con actividad reciente -->
+    <!-- Obras con actividad -->
     {% if obras_activas %}
-    <div class="row g-4 mt-2">
-        <div class="col-12">
-            <div class="card border-0 shadow-sm">
-                <div class="card-header bg-white border-0 py-3">
-                    <div class="section-header mb-0">
-                        <h5 class="section-title">
-                            <i class="bi bi-graph-up-arrow text-success"></i>
-                            Obras con Actividad Reciente
-                        </h5>
-                        <span class="text-muted small">Ultimos 30 dias</span>
-                    </div>
-                </div>
-                <div class="card-body p-0">
-                    <div class="table-responsive">
-                        <table class="table table-hover align-middle mb-0">
-                            <thead class="bg-light">
-                                <tr>
-                                    <th class="ps-4 border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Obra</th>
-                                    <th class="border-0" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Empresa</th>
-                                    <th class="border-0 text-center" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Informes</th>
-                                    <th class="border-0 text-center" style="font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.5px; color: var(--text-muted);">Remisiones</th>
-                                    <th class="border-0 pe-4"></th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {% for obra in obras_activas %}
-                                <tr>
-                                    <td class="ps-4">
-                                        <div class="d-flex align-items-center">
-                                            <div class="bg-success bg-opacity-10 text-success rounded p-2 me-3">
-                                                <i class="bi bi-building"></i>
-                                            </div>
-                                            <div>
-                                                <div class="fw-medium text-dark">{{ obra.nombre|truncatechars:35 }}</div>
-                                                <span class="badge bg-light text-secondary border" style="font-size: 0.65rem;">{{ obra.codigo_obra }}</span>
-                                            </div>
-                                        </div>
-                                    </td>
-                                    <td class="text-muted small">{{ obra.constructora.nombre|truncatechars:20 }}</td>
-                                    <td class="text-center">
-                                        {% if obra.informes_recientes > 0 %}
-                                        <span class="badge bg-danger bg-opacity-10 text-danger">{{ obra.informes_recientes }}</span>
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="text-center">
-                                        {% if obra.remisiones_recientes > 0 %}
-                                        <span class="badge bg-info bg-opacity-10 text-info">{{ obra.remisiones_recientes }}</span>
-                                        {% else %}
-                                        <span class="text-muted">-</span>
-                                        {% endif %}
-                                    </td>
-                                    <td class="pe-4 text-end">
-                                        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-outline-secondary">
-                                            <i class="bi bi-eye"></i>
-                                        </a>
-                                    </td>
-                                </tr>
-                                {% endfor %}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+    <section class="inf-panel mt-3" aria-labelledby="pcObras">
+        <div class="pc-head">
+            <h2 id="pcObras"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-activity"></i></span>Obras con más actividad<small>últimos 30 días</small></h2>
+            <a class="pc-mas" href="{% url 'lista_constructoras' %}">Directorio <i class="bi bi-arrow-right"></i></a>
         </div>
-    </div>
+        <table class="inf-table pc-obras">
+            <thead>
+                <tr>
+                    <th scope="col">Obra</th>
+                    <th scope="col" class="pc-col-emp">Empresa</th>
+                    <th scope="col" class="text-end"><span class="pc-largo">Informes</span><span class="pc-corto" title="Informes">Inf.</span></th>
+                    <th scope="col" class="text-end"><span class="pc-largo">Remisiones</span><span class="pc-corto" title="Remisiones">Rem.</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for obra in obras_activas %}
+                <tr class="inf-row">
+                    <td><a class="inf-nombre" href="{% url 'detalle_obra' obra.pk %}">{{ obra.nombre }}</a><span class="inf-code">{{ obra.codigo_obra }}</span></td>
+                    <td class="pc-col-emp"><span class="inf-sub" style="font-size: .8125rem;">{{ obra.constructora.nombre }}</span></td>
+                    <td class="num"><span class="inf-cifra{% if not obra.informes_recientes %} cero{% endif %}">{{ obra.informes_recientes }}</span></td>
+                    <td class="num"><span class="inf-cifra{% if not obra.remisiones_recientes %} cero{% endif %}">{{ obra.remisiones_recientes }}</span></td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
     {% endif %}
 </div>
 {% endblock %}

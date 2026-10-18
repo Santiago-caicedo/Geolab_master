@@ -842,3 +842,40 @@ class PaginasErrorTests(TestCase):
         self.assertIn('F-ERR-500', cuerpo)
         self.assertIn('Reintentar', cuerpo)
 
+
+class PanelStaffTests(TestCase):
+    """Panel principal: agenda de falla (vencidas + 7 días) y obras activas sin conteos multiplicados."""
+
+    def setUp(self):
+        from users.models import FuncionarioGeolab
+        u = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True, first_name='Ana')
+        FuncionarioGeolab.objects.create(user=u, area='admin')
+        self.client.force_login(u)
+        c = Constructora.objects.create(codigo='BUC46', nombre='JAIMES', ciudad='Bucaramanga')
+        self.obra = Obra.objects.create(nombre='LA GRANJA', codigo_obra='BUC46-5', constructora=c)
+
+    def test_agenda_y_obras_activas(self):
+        from datetime import timedelta
+        from django.utils import timezone
+        from solicitudes.models import Muestra, RemisionMuestras
+        from solicitudes.views import crear_hoja_trabajo_y_resultados
+        hoy = timezone.localdate()
+        for _ in range(2):   # 2 remisiones + 3 informes: el conteo cruzado daría 6
+            r = RemisionMuestras.objects.create(obra=self.obra, estado='completada')
+            for n, (toma, edad) in enumerate([(hoy - timedelta(days=7), 7), (hoy - timedelta(days=10), 7), (hoy, 3)], 1):
+                Muestra.objects.create(remision=r, numero_muestra=n, cantidad=1, tipo_muestra='concreto',
+                                       dimension_especimen='6_pulg', fecha_toma=toma, edad_ensayo_dias=edad)
+            crear_hoja_trabajo_y_resultados(r)
+        for i in range(3):
+            Informe.objects.create(titulo=f'INF-000{i}', obra=self.obra, fecha_creacion=timezone.now())
+        r = self.client.get('/')
+        self.assertTemplateUsed(r, 'core/home_staff.html')
+        ctx = r.context
+        self.assertEqual(ctx['ensayos_hoy'], 2)
+        self.assertEqual(ctx['ensayos_vencidos'], 2)
+        self.assertEqual([d['n'] for d in ctx['agenda']], [2, 0, 0, 2, 0, 0, 0])
+        obra = ctx['obras_activas'][0]
+        self.assertEqual((obra.informes_recientes, obra.remisiones_recientes), (3, 2))
+        self.assertContains(r, 'Ana')
+        self.assertContains(r, 'Agenda de falla')
+

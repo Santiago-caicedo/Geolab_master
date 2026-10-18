@@ -394,7 +394,7 @@ LIBREOFFICE_PATH=
 2. **Transacción atómica:** `responder_remision` y `crear_remision_cliente` usan `transaction.atomic()`
 3. **Auto-creación:** Al completar remisión se crea HojaTrabajo + ResultadoMuestra automáticamente (función helper `crear_hoja_trabajo_y_resultados`, no signal)
 4. **Muestras múltiples edades:** Una muestra puede tener varias filas con diferentes `edad_ensayo_dias`
-5. **Detección automática HOY:** `fecha_falla = fecha_toma + edad_dias`, marca en ROJO si == hoy
+5. **Detección automática HOY:** `fecha_falla = fecha_toma + edad_dias`, marca en ROJO si == hoy. "Hoy" es SIEMPRE `timezone.localdate()` (hora Colombia); `timezone.now().date()` es la fecha UTC y desde las 7 p. m. ya es mañana. El panel del staff (`home_staff.html`) muestra la agenda de falla: vencidas + 7 días de `ResultadoMuestra` pendientes.
 6. **Firma automática remitente:** Datos del firmante se toman del usuario logueado
 7. **Notificación dual:** Email + campana al crear remisión
 8. **Sidebar condicional:** 5 sidebars según rol (staff, tecnico, calidad, remitente, client)
