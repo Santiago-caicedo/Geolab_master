@@ -33,13 +33,15 @@ from decimal import Decimal
 from django.db.models import Q
 
 from core.models import Obra
-from core.wp_normalizar import misma_empresa
+from core.wp_normalizar import _tokens_empresa, misma_empresa
 from users.ciudades import CIUDADES
 from users.models import Constructora
 
 HOJA_PRECIOS = 'LISTA DE PRECIO'
 HOJA_NOMBRES_OBRAS = 'LISTA EMPRESAS REGULARES'
 HOJA_NOMBRES_VARIOS = 'LISTA EMPRESAS VARIOS OBRAS'
+HOJA_CLIENTES = 'CLIENTES'          # F-GC-01: C.C | RAZÓN SOCIAL | ...
+HOJA_OBRAS = 'OBRAS'                # F-GC-01: RAZÓN SOCIAL | COD EMP | COD OBRA | NOMBRE PROYECTO
 PRIMERA_COL_OBRA = 4          # columna E (DESCUENTO, si existe, no parece código y se salta)
 FILA_ENCABEZADO = 3           # índice 0 -> fila 4 de Excel (la fila 3 es igual pero con celdas "0")
 SUFIJO_CATEGORIA = {'11L': 'Laboratorista', '11A': 'Auxiliar', '11B': 'Laboratorista mes'}
@@ -235,12 +237,49 @@ def _leer_nombres(wb):
                 empresas[cod] = texto
             elif cod not in obras and texto.lower() != empresas[cod].lower():
                 obras[cod] = texto
+    # Hojas del formato F-GC-01: traen razones sociales que las listas no tienen (SIKA, VALU...)
+    if HOJA_CLIENTES in wb.sheetnames:
+        for fila in wb[HOJA_CLIENTES].iter_rows(values_only=True):
+            if not fila or fila[0] in (None, '') or len(fila) < 2 or fila[1] in (None, ''):
+                continue
+            cod, nombre = _codigo(fila[0]), _norm(fila[1])
+            if cod.isdigit() and nombre and cod not in empresas:
+                empresas[cod] = nombre
+    if HOJA_OBRAS in wb.sheetnames:
+        for fila in wb[HOJA_OBRAS].iter_rows(values_only=True):
+            celdas = [c for c in fila if c not in (None, '')]
+            if len(celdas) < 4:
+                continue
+            cod_obra, proyecto = _codigo(celdas[2]), _norm(celdas[3])
+            if _CODIGO_OBRA.match(cod_obra) and proyecto and cod_obra not in obras and proyecto != cod_obra:
+                obras[cod_obra] = proyecto
     return obras, empresas
 
 
 # ═══════════════════════════════════════════════════════════════════════════
 # Resolución de obras del Excel -> Obra del sistema
 # ═══════════════════════════════════════════════════════════════════════════
+
+class SinCrear(list):
+    """Candidatas de una columna que el usuario debe confirmar con --obra: --crear-obras no debe inventar nada."""
+
+
+def _afinidad(razon, nombre):
+    """Palabras significativas compartidas entre dos razones sociales (0 = nada que ver)."""
+    return len(set(_tokens_empresa(razon)) & set(_tokens_empresa(nombre)))
+
+
+def _misma_fuerte(razon, nombre):
+    """
+    Coincidencia fuerte: dos palabras significativas en común, o una cuando alguno de los
+    nombres solo tiene una ("ASFALTEMOS"). Una sola palabra compartida entre nombres largos
+    ("ARENAS Y GRAVAS DE COLOMBIA" ~ "SIKA COLOMBIA") NO cuenta: sirve para detectar códigos
+    reutilizados sin inventar parecidos.
+    """
+    a, b = set(_tokens_empresa(razon)), set(_tokens_empresa(nombre))
+    comunes = len(a & b)
+    return comunes >= 2 or (comunes == 1 and min(len(a), len(b)) == 1)
+
 
 def _clave_obra(nombre):
     """
@@ -285,22 +324,67 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
     if not constructoras:
         return None, f'ninguna constructora en {ciudad} con código {", ".join(sorted(codigos_emp))}' + (f' ni razón social "{razon}"' if razon else ''), []
 
+    # El código manda sobre la razón social (en WordPress hay razones mal capturadas), SALVO
+    # que la razón social del Excel sea claramente la de OTRA empresa que sí existe en la sede:
+    # entonces es un código reutilizado y no se asigna solo.
+    if razon and not any(_es(razon, c) for c in constructoras):
+        ajenas = Constructora.objects.filter(ciudad__iexact=ciudad).exclude(pk__in=[c.pk for c in constructoras])
+        otra = max((c for c in ajenas if _misma_fuerte(razon, c.nombre)), key=lambda c: _afinidad(razon, c.nombre), default=None)
+        if otra:
+            cand = SinCrear(Obra.objects.filter(constructora__in=constructoras + [otra]).select_related('constructora').order_by('codigo_obra'))
+            return None, (f'el Excel dice que la empresa {emp} es "{razon}", que en el portal es {otra.codigo} "{otra.nombre[:30]}", '
+                          f'pero el código {constructoras[0].codigo} es de "{constructoras[0].nombre[:30]}": '
+                          f'confirmar con --obra {codigo_excel}=CODIGO_OBRA'), cand
+
     proyecto = lectura.nombres_obras.get(codigo_excel)
-    candidatas = []
+    codigos_obra = {x.upper() for x in (codigo_excel, f'{prefijo}{codigo_excel}')} | {f'{c.codigo}-{num}'.upper() for c in constructoras}
+    candidatas = list(Obra.objects.filter(constructora__in=constructoras).select_related('constructora').order_by('codigo_obra'))
+
+    # 1) Obra con el código exacto, buscada en todas las empresas que comparten el código
+    #    (BOG1-13 cuelga de BOG1B). Si hay dos con el mismo código (BUC25-2 en BUC25 y BUC25B),
+    #    la razón social del Excel decide; si no decide, no se asigna.
+    por_codigo = [o for o in candidatas if o.codigo_obra.upper() in codigos_obra]
+    if len(por_codigo) > 1 and razon:
+        por_codigo = [o for o in por_codigo if _es(razon, o.constructora)] or por_codigo
+    if len(por_codigo) == 1:
+        o = por_codigo[0]
+        # La obra está bajo una empresa hermana (mismo código con sufijo) y el Excel nombra a la OTRA
+        # hermana: puede ser una obra distinta con el mismo número. Se confirma.
+        if razon and len(constructoras) > 1 and not _es(razon, o.constructora) and any(_es(razon, c) for c in constructoras):
+            duena = next(c for c in constructoras if _es(razon, c))
+            return None, (f'la obra {o.codigo_obra} está en {o.constructora.codigo} "{o.constructora.nombre[:26]}" pero el Excel dice que '
+                          f'{codigo_excel} es de "{razon}" ({duena.codigo}): use --obra {codigo_excel}={o.codigo_obra} si es la misma, '
+                          f'o --crear-obras tras confirmar'), SinCrear(candidatas)
+        aviso = '' if not razon or _es(razon, o.constructora) else f' ⚠ el Excel llama "{razon}" a esta empresa'
+        return o, f'código de obra {o.codigo_obra}' + (f' (en {o.constructora.codigo} {o.constructora.nombre[:30]})' if len(constructoras) > 1 else '') + aviso, candidatas
+    if len(por_codigo) > 1:
+        quienes = ' / '.join(f'{o.constructora.codigo} "{o.constructora.nombre[:26]}" ({o.nombre[:24]})' for o in por_codigo)
+        return None, (f'hay {len(por_codigo)} obras con el código {codigo_excel}: {quienes}; el Excel '
+                      + (f'dice "{razon}" y no decide' if razon else 'no trae la razón social')
+                      + f'. Use --obra {codigo_excel}=CODIGO_OBRA'), SinCrear(por_codigo)
+
+    # 2) Sin obra por código: si el código de empresa lo comparten varias, la razón social decide
+    if len(constructoras) > 1:
+        afines = [c for c in constructoras if razon and _es(razon, c)]
+        if len(afines) == 1:
+            constructoras = afines
+            candidatas = [o for o in candidatas if o.constructora_id == afines[0].pk]
+        else:
+            quienes = ' / '.join(f'{c.codigo} "{c.nombre[:28]}"' for c in constructoras)
+            return None, (f'el código {emp} lo comparten {quienes} y el Excel '
+                          + (f'dice "{razon}", que no decide' if razon else 'no trae la razón social')
+                          + f': use --obra {codigo_excel}=CODIGO_OBRA'), SinCrear(candidatas)
+
     for c in constructoras:
-        obras = list(Obra.objects.filter(constructora=c).order_by('codigo_obra'))
-        candidatas.extend(obras)
-        codigos_obra = {x.upper() for x in (f'{c.codigo}-{num}', codigo_excel, f'{prefijo}{codigo_excel}')}
-        for o in obras:
-            if o.codigo_obra.upper() in codigos_obra:
-                return o, f'código de obra {o.codigo_obra}' + (f' (en {c.codigo} {c.nombre[:30]})' if len(constructoras) > 1 else ''), candidatas
+        obras = [o for o in candidatas if o.constructora_id == c.pk]
+        aviso = '' if not razon or _es(razon, c) else f' ⚠ el Excel llama "{razon}" a esta empresa'
         for o in obras:
             if _clave_obra(o.nombre) == codigo_excel:
-                return o, f'nombre de obra "{o.nombre}"', candidatas
+                return o, f'nombre de obra "{o.nombre}"{aviso}', candidatas
         if proyecto:
             for o in obras:
                 if o.nombre.strip().lower() == proyecto.lower():
-                    return o, f'nombre de proyecto "{proyecto}"', candidatas
+                    return o, f'nombre de proyecto "{proyecto}"{aviso}', candidatas
     if len(candidatas) == 1 and (columnas_de_la_empresa or 1) == 1:
         return candidatas[0], f'única obra de {candidatas[0].constructora.nombre} y única columna de la empresa en el Excel (supuesto)', candidatas
     n_cols = columnas_de_la_empresa or 1
@@ -354,6 +438,11 @@ def _resolver_varios(ciudad, codigo_excel, lectura, prefijo):
         + (f' y la razón social "{razon}" no desempata' if razon else excel)
         + f' (use --obra {codigo_excel}=CODIGO_OBRA)'
     ), obras
+
+
+def _es(razon, constructora):
+    """¿La razón social del Excel es (una variante de) esta constructora?"""
+    return misma_empresa(razon, constructora.nombre)
 
 
 def _constructoras_de(ciudad, codigos_emp, razon):
@@ -413,11 +502,18 @@ def crear_obra(ciudad, codigo_excel, lectura):
             codigo_obra = f'{codigo_obra}-1'
         return Obra.objects.create(constructora=c, nombre=proyecto, codigo_obra=codigo_obra)
     if c is None:
-        return None
+        # Empresa que no está en WordPress: se crea solo si el libro trae su razón social
+        # (hoja CLIENTES) y el código está libre en todo el portal
+        emp = codigo_excel.partition('-')[0]
+        razon = lectura.nombres_empresas.get(emp)
+        codigo_emp = f'{prefijo}{emp}'
+        if not razon or Constructora.objects.filter(codigo__iexact=codigo_emp).exists():
+            return None
+        c = Constructora.objects.create(codigo=codigo_emp, nombre=razon, ciudad=ciudad)
     num = codigo_excel.partition('-')[2]
     proyecto = lectura.nombres_obras.get(codigo_excel)
     nombre = f'{proyecto} ({prefijo} {codigo_excel})' if proyecto else f'{prefijo} {codigo_excel}'.strip()
     codigo_obra = f'{c.codigo}-{num}'
     if Obra.objects.filter(codigo_obra__iexact=codigo_obra).exists():
-        codigo_obra = f'{c.codigo}-{codigo_excel}'
+        return None   # ya hay una obra con ese código (bajo otra empresa): se confirma con --obra, no se inventa BUC11-11-1
     return Obra.objects.create(constructora=c, nombre=nombre, codigo_obra=codigo_obra)

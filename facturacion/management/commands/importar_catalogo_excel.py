@@ -24,7 +24,7 @@ from django.db import transaction
 
 from collections import Counter
 
-from facturacion.importar_excel import crear_obra, leer_lista_precios, resolver_obra
+from facturacion.importar_excel import SinCrear, crear_obra, leer_lista_precios, resolver_obra
 from facturacion.models import CategoriaServicio, PrecioServicio, TipoServicio
 from users.ciudades import normalizar_ciudad
 
@@ -164,7 +164,7 @@ class Command(BaseCommand):
             obra, motivo, candidatas = resolver_obra(
                 ciudad, cod_excel, lectura, overrides, columnas_por_empresa[cod_excel.partition('-')[0]],
             )
-            if obra is None and crear_obras and candidatas is not None:
+            if obra is None and crear_obras and not isinstance(candidatas, SinCrear):
                 nueva = crear_obra(ciudad, cod_excel, lectura)
                 if nueva is not None:
                     obra, motivo, creadas = nueva, f'obra CREADA (--crear-obras) bajo {nueva.constructora.nombre}', creadas + 1
@@ -232,6 +232,6 @@ class Command(BaseCommand):
             self.stdout.write(self.style.WARNING(f'\n{len(sin_resolver)} columnas de obra NO se pudieron asignar (sus precios se omitieron):'))
             for cod_excel, etiqueta, n, motivo, candidatas in sin_resolver:
                 self.stdout.write(f'  ✗ {cod_excel:>6} {etiqueta[:28]:28} {n:>3} precios · {motivo}')
-                for o in candidatas[:6]:
+                for o in (candidatas or [])[:6]:
                     self.stdout.write(f'        candidata: --obra {cod_excel}={o.codigo_obra}   ({o.nombre[:50]})')
             self.stdout.write('  Asigna con --obra CODIGO_EXCEL=CODIGO_OBRA y vuelve a correr (es idempotente).')

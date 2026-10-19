@@ -590,7 +590,8 @@ class ResolverObraTests(TestCase):
 
 
 class ResolverObraCodigoMandaTests(TestCase):
-    """En WordPress hay razones sociales mal capturadas: el código de empresa manda sobre la razón social."""
+    """El código de empresa manda sobre la razón social (en WordPress hay razones mal capturadas),
+    salvo que la razón social del Excel sea la de OTRA empresa que existe en la sede: ahí se confirma."""
 
     @classmethod
     def setUpTestData(cls):
@@ -601,17 +602,36 @@ class ResolverObraCodigoMandaTests(TestCase):
         # IBA10 existe pero con OTRA razón social; una constructora ajena se llama 'ASFALTEMOS'
         cls.iba10 = Constructora.objects.create(codigo='IBA10', nombre='AP COELLO', ciudad='Ibagué')
         cls.o = Obra.objects.create(constructora=cls.iba10, nombre='IBA 10-2', codigo_obra='IBA10-9')
-        ajena = Constructora.objects.create(codigo='IBA14', nombre='ASFALTEMOS', ciudad='Ibagué')
-        Obra.objects.create(constructora=ajena, nombre='IBA 14-1', codigo_obra='IBA14-1')
+        cls.ajena = Constructora.objects.create(codigo='IBA14', nombre='ASFALTEMOS', ciudad='Ibagué')
+        cls.o14 = Obra.objects.create(constructora=cls.ajena, nombre='IBA 14-1', codigo_obra='IBA14-1')
 
     @classmethod
     def tearDownClass(cls):
         cls.tmp.cleanup()
         super().tearDownClass()
 
-    def test_codigo_gana_a_razon_social(self):
-        obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
+    def test_codigo_gana_si_la_razon_social_no_es_de_otra_empresa(self):
+        from .importar_excel import SinCrear
+        self.ajena.delete()   # 'ASFALTEMOS' no existe aparte: la razón mal capturada de IBA10 no estorba
+        obra, motivo, cand = resolver_obra('Ibagué', '10-2', self.lectura)
         self.assertEqual(obra, self.o)
+        self.assertIn('⚠', motivo)
+        self.assertNotIsInstance(cand, SinCrear)
+
+    def test_codigo_reutilizado_se_confirma_con_obra(self):
+        from .importar_excel import SinCrear
+        obra, motivo, cand = resolver_obra('Ibagué', '10-2', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIn('IBA14', motivo)
+        self.assertIsInstance(cand, SinCrear)
+        self.assertIn(self.o14, cand)
+        obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura, overrides={'10-2': 'IBA10-9'})
+        self.assertEqual(obra, self.o)
+        # --crear-obras no inventa nada mientras no se confirme
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Ibagué', '--crear-obras', stdout=out)
+        self.assertIn('✗   10-2', out.getvalue())
+        self.assertFalse(Obra.objects.filter(codigo_obra__startswith='IBA10-10').exists())
 
     def test_razon_social_solo_si_no_hay_codigo(self):
         Constructora.objects.filter(codigo='IBA10').update(codigo='IBA77')
@@ -621,9 +641,25 @@ class ResolverObraCodigoMandaTests(TestCase):
         self.assertEqual([c.codigo_obra for c in candidatas], ['IBA14-1'])
 
     def test_sufijo_de_codigo_reutilizado_cuenta(self):
+        self.ajena.delete()
         Constructora.objects.filter(codigo='IBA10').update(codigo='IBA10B')
         obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
         self.assertEqual(obra, self.o)
+
+    def test_dos_obras_con_el_mismo_codigo_las_decide_la_razon_social(self):
+        from .importar_excel import SinCrear
+        # BUC25-2 en BUC25 (URBACOLOMBIA) y en BUC25B (FINANCIAL): el Excel dice FINANCIAL -> BUC25B
+        a = Constructora.objects.create(codigo='IBA8', nombre='URBACOLOMBIA SAS', ciudad='Ibagué')
+        b = Constructora.objects.create(codigo='IBA8B', nombre='DYCO S.A.S', ciudad='Ibagué')
+        oa = Obra.objects.create(constructora=a, nombre='UIS', codigo_obra='IBA8-1')
+        ob = Obra.objects.create(constructora=b, nombre='LIVING', codigo_obra='IBA8-1')
+        obra, motivo, _ = resolver_obra('Ibagué', '8-1', self.lectura)   # Excel: empresa 8 = DYCO SAS
+        self.assertEqual(obra, ob)
+        Constructora.objects.filter(pk=b.pk).update(nombre='OTRA COSA')   # ya nadie coincide: no se asigna
+        obra, motivo, cand = resolver_obra('Ibagué', '8-1', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIsInstance(cand, SinCrear)
+        self.assertEqual(set(cand), {oa, ob})
 
 
 class IntegridadFacturacionTests(TestCase):
