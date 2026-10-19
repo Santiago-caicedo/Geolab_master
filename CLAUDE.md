@@ -295,8 +295,15 @@ python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de factu
 # IBA8 / 8 (o razón social del Excel) por: codigo_obra IBA8-1, NOMBRE de obra "IBA 8-1" (así
 # se llaman las migradas de WordPress; codigo_obra es IBA8-<id_wp>), nombre de proyecto de la
 # hoja LISTA EMPRESAS REGULARES, o única obra si el Excel también tiene una sola columna
-# El CÓDIGO manda sobre la razón social (en WP hay razones mal capturadas: IBA14 dice ASFALTEMOS
-# pero es ARENAS Y GRAVAS); IBA10 e IBA10B (código reutilizado) se buscan juntos.
+# Nombres: hojas LISTA EMPRESAS REGULARES, LISTA EMPRESAS VARIOS OBRAS y, de respaldo, CLIENTES y
+# OBRAS (F-GC-01). El CÓDIGO manda sobre la razón social (en WP hay razones mal capturadas: IBA14 dice
+# ASFALTEMOS pero es ARENAS Y GRAVAS → se asigna con ⚠), SALVO que la razón social del Excel sea
+# claramente (≥2 palabras significativas) la de OTRA empresa de la sede (Bogotá 3 = 3C KENNEDY, no
+# BOG3 PROAR) o que la obra con ese código cuelgue de la hermana (IBA10-1 en IBA10B y el Excel dice
+# ASFALTEMOS): ahí queda SIN asignar con sugerencia --obra (candidatas `SinCrear`: --crear-obras no
+# inventa nada). IBA10 e IBA10B (código reutilizado) se buscan juntos y la razón social decide entre
+# ellos; dos obras con el mismo código y sin razón social que decida (BUC11-1) no se asignan.
+# --crear-obras también crea la EMPRESA si CLIENTES trae su razón social y el código está libre.
 # ("supuesto"). Una obra recibe UNA sola columna. Lo no resuelto se lista con sugerencias.
 # --crear-obras crea las que falten (nombre "IBA 1-2", codigo IBA1-2) bajo su constructora.
 # Las columnas de obra se detectan por encabezado desde la columna E (Bogotá no tiene DESCUENTO).
