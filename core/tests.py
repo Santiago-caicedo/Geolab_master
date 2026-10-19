@@ -879,3 +879,51 @@ class PanelStaffTests(TestCase):
         self.assertContains(r, 'Ana')
         self.assertContains(r, 'Agenda de falla')
 
+
+class FormulariosCodigoTests(TestCase):
+    """Editar empresa/obra muestra el código actual aunque no sea un entero (clientes varios, sufijos, migradas)."""
+
+    def setUp(self):
+        from users.models import FuncionarioGeolab
+        u = UsuarioBase.objects.create_user('staff', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=u, area='admin')
+        self.client.force_login(u)
+
+    def test_empresa_cliente_varios_y_sufijo(self):
+        from django.urls import reverse
+        from core.forms import ConstructoraForm
+        varios = Constructora.objects.create(codigo='BUC0-12', nombre='DISCON', ciudad='Bucaramanga')
+        r = self.client.get(reverse('editar_constructora', args=[varios.pk]))
+        self.assertContains(r, 'name="numero_codigo" value="0-12"')
+        self.assertContains(r, 'type="text"')
+        self.assertNotContains(r, 'type="number"')
+        # guardar sin tocar el código lo conserva; con sufijo también vale
+        form = ConstructoraForm({'nombre': 'DISCON', 'ciudad': 'Bucaramanga', 'numero_codigo': '0-12', 'nit': ''}, instance=varios)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().codigo, 'BUC0-12')
+        bog = Constructora.objects.create(codigo='BOG1B', nombre='HOSPITAL BOSA', ciudad='Bogotá')
+        self.assertEqual(ConstructoraForm(instance=bog).fields['numero_codigo'].initial, '1B')
+        form = ConstructoraForm({'nombre': 'X', 'ciudad': 'Bogotá', 'numero_codigo': 'abc', 'nit': ''})
+        self.assertIn('numero_codigo', form.errors)
+
+    def test_obra_con_codigo_propio_y_normal(self):
+        from django.urls import reverse
+        from core.forms import ObraForm
+        bog = Constructora.objects.create(codigo='BOG1B', nombre='HOSPITAL BOSA', ciudad='Bogotá')
+        obra = Obra.objects.create(constructora=bog, nombre='BOSA 08', codigo_obra='BOG1-13')   # no sigue a BOG1B
+        r = self.client.get(reverse('editar_obra', args=[obra.pk]))
+        self.assertContains(r, 'name="numero_codigo" value="BOG1-13"')
+        self.assertContains(r, 'se edita el código completo')
+        form = ObraForm({'nombre': 'BOSA 08', 'numero_codigo': 'BOG1-13'}, instance=obra)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().codigo_obra, 'BOG1-13')
+        normal = Obra.objects.create(constructora=bog, nombre='OTRA', codigo_obra='BOG1B-4')
+        r = self.client.get(reverse('editar_obra', args=[normal.pk]))
+        self.assertContains(r, 'name="numero_codigo" value="4"')
+        self.assertContains(r, '>BOG1B-<')
+        form = ObraForm({'nombre': 'OTRA', 'numero_codigo': '5'}, instance=normal)
+        self.assertTrue(form.is_valid(), form.errors)
+        self.assertEqual(form.save().codigo_obra, 'BOG1B-5')
+        form = ObraForm({'nombre': 'NUEVA', 'numero_codigo': 'x1'}, constructora=bog)
+        self.assertIn('numero_codigo', form.errors)
+

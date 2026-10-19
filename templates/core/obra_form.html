@@ -28,11 +28,11 @@
                     <div class="mb-3">
                         <label class="form-label fw-bold small text-muted text-uppercase">Código de obra</label>
                         <div class="input-group">
-                            <span class="input-group-text fw-bold">{{ form.prefijo_codigo }}</span>
+                            {% if form.prefijo_codigo %}<span class="input-group-text fw-bold">{{ form.prefijo_codigo }}</span>{% endif %}
                             {{ form.numero_codigo }}
                         </div>
                         {% if form.numero_codigo.errors %}<div class="text-danger small mt-1">{{ form.numero_codigo.errors.0 }}</div>{% endif %}
-                        <div class="form-text">El prefijo corresponde al código de la empresa.</div>
+                        <div class="form-text">{% if form.codigo_completo %}Esta obra no sigue el código de su empresa ({{ form.constructora.codigo }}); se edita el código completo.{% else %}El prefijo corresponde al código de la empresa.{% endif %}</div>
                     </div>
 
                     <div class="d-grid mt-4">

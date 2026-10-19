@@ -1,6 +1,8 @@
 import unicodedata
 from datetime import datetime, time
 
+import re
+
 from django import forms
 from django.utils import timezone
 from users.models import Constructora
@@ -149,14 +151,18 @@ class ConstructoraForm(forms.ModelForm):
         choices=CIUDAD_CHOICES,
         widget=forms.Select(attrs={'class': 'form-select', 'id': 'id_ciudad'}),
     )
+    # Texto, no <input type="number">: los códigos de clientes varios (BUC0-12) y los sufijos de
+    # código reutilizado (BOG1B) no son enteros y un campo numérico los mostraba vacío al editar.
     numero_codigo = forms.CharField(
         label='Número de código',
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ej: 23',
-            'min': '1',
+            'inputmode': 'numeric',
+            'autocomplete': 'off',
         }),
     )
+    _NUMERO_EMPRESA = re.compile(r'^\d+(-\d+)?[A-Z]?$')   # 23 · 0-12 (cliente varios) · 1B (código reutilizado)
 
     class Meta:
         model = Constructora
@@ -186,9 +192,11 @@ class ConstructoraForm(forms.ModelForm):
                 self.fields['numero_codigo'].initial = codigo
 
     def clean_numero_codigo(self):
-        numero = (self.cleaned_data.get('numero_codigo') or '').strip()
-        if not numero.isdigit():
-            raise forms.ValidationError('Ingrese solo el número (ej: 23), sin el prefijo.')
+        numero = (self.cleaned_data.get('numero_codigo') or '').strip().upper().replace(' ', '')
+        if not self._NUMERO_EMPRESA.match(numero):
+            raise forms.ValidationError(
+                'Ingrese solo el número, sin el prefijo de ciudad: 23, o 0-12 para clientes varios.'
+            )
         return numero
 
     def clean_ciudad(self):
@@ -235,14 +243,19 @@ class ConstructoraForm(forms.ModelForm):
 
 class ObraForm(forms.ModelForm):
     # El código de obra se arma como CODIGO_EMPRESA + '-' + número (ej: BUC52-1).
+    # Texto (ver ConstructoraForm): hay obras migradas con código que no sigue al de su empresa
+    # (BOG1-13 bajo BOG1B, BOG10-WP590); al editarlas se muestra el código completo.
     numero_codigo = forms.CharField(
         label='Número de obra',
-        widget=forms.NumberInput(attrs={
+        widget=forms.TextInput(attrs={
             'class': 'form-control',
             'placeholder': 'Ej: 1',
-            'min': '1',
+            'inputmode': 'numeric',
+            'autocomplete': 'off',
         }),
     )
+    _NUMERO_OBRA = re.compile(r'^\d+(-\d+)*$')                      # 1 · 12-1 (obra de cliente varios)
+    _CODIGO_COMPLETO = re.compile(r'^[A-Z]{3}\d+(-\d+)?[A-Z]?-[\w-]+$')  # BOG1-13 · BOG10-WP590
 
     class Meta:
         model = Obra
@@ -257,21 +270,32 @@ class ObraForm(forms.ModelForm):
         # Al editar, la constructora viene de la instancia.
         if self.constructora is None and self.instance and self.instance.pk:
             self.constructora = self.instance.constructora
-        # Pre-llenar el número separándolo del prefijo.
+        # Pre-llenar el número separándolo del prefijo. Si el código no sigue al de la
+        # empresa, se edita completo (sin prefijo delante).
+        self.codigo_completo = False
         if self.instance and self.instance.pk and self.instance.codigo_obra:
             codigo = self.instance.codigo_obra
-            if self.prefijo_codigo and codigo.startswith(self.prefijo_codigo):
+            if self.prefijo_codigo and codigo.upper().startswith(self.prefijo_codigo.upper()):
                 self.fields['numero_codigo'].initial = codigo[len(self.prefijo_codigo):]
             else:
+                self.codigo_completo = True
                 self.fields['numero_codigo'].initial = codigo
+                self.fields['numero_codigo'].label = 'Código de obra'
+                self.fields['numero_codigo'].widget.attrs.pop('inputmode', None)
 
     @property
     def prefijo_codigo(self):
+        if self.codigo_completo:
+            return ''
         return f"{self.constructora.codigo}-" if self.constructora else ''
 
     def clean_numero_codigo(self):
-        numero = (self.cleaned_data.get('numero_codigo') or '').strip()
-        if not numero.isdigit():
+        numero = (self.cleaned_data.get('numero_codigo') or '').strip().upper().replace(' ', '')
+        if self.codigo_completo:
+            if not self._CODIGO_COMPLETO.match(numero):
+                raise forms.ValidationError('Escriba el código completo de la obra, por ejemplo BOG1-13.')
+            return numero
+        if not self._NUMERO_OBRA.match(numero):
             raise forms.ValidationError('Ingrese solo el número de obra (ej: 1), sin el prefijo.')
         return numero
 
@@ -279,7 +303,7 @@ class ObraForm(forms.ModelForm):
         cleaned = super().clean()
         numero = cleaned.get('numero_codigo')
         if numero and self.constructora:
-            codigo = f"{self.constructora.codigo}-{numero}"
+            codigo = numero if self.codigo_completo else f"{self.constructora.codigo}-{numero}"
             duplicados = Obra.objects.filter(
                 constructora=self.constructora, codigo_obra__iexact=codigo
             )
