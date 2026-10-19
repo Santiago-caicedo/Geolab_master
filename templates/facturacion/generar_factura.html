@@ -49,6 +49,16 @@
     <input type="hidden" name="obra_id" value="{{ obra.pk }}">
     <input type="hidden" name="fecha_inicio" value="{{ form.fecha_inicio.value }}">
     <input type="hidden" name="fecha_fin" value="{{ form.fecha_fin.value }}">
+    {# Lo que se ve es lo que se factura: si cambia algo en la obra, el servidor avisa y no crea la factura #}
+    {% for r in registros_normales %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
+    {% for r in registros_transporte %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
+    {% if not hay_iva %}
+    <div class="alert alert-warning">
+        <i class="bi bi-exclamation-triangle me-1"></i>
+        No hay un impuesto activo llamado <strong>IVA</strong>: esta factura saldría <strong>sin IVA</strong>.
+        Revísalo en <a href="{% url 'lista_impuestos' %}">Impuestos</a> antes de generarla.
+    </div>
+    {% endif %}
 
     <!-- Info obra -->
     <div class="alert alert-info">

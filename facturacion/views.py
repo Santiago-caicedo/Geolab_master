@@ -2,6 +2,7 @@ import json
 import logging
 import re
 import os
+import uuid
 
 from decimal import Decimal
 from django.shortcuts import render, redirect, get_object_or_404
@@ -15,6 +16,7 @@ from django.db.models.functions import TruncMonth
 from django.http import JsonResponse, Http404, HttpResponse
 from django.template.loader import render_to_string
 from django.utils import timezone
+from django.utils.dateparse import parse_date
 from django.utils.http import url_has_allowed_host_and_scheme
 from django.views.decorators.http import require_POST
 from django.conf import settings
@@ -55,22 +57,34 @@ def staff_sin_ciudad(view_func):
     return wrapper
 
 
+def _es_ajax(request):
+    return (request.headers.get('X-Requested-With') == 'XMLHttpRequest'
+            or request.content_type == 'application/json')
+
+
 def staff_required(view_func):
     """
     Decorador: staff + ciudad seleccionada.
 
     Todo el módulo trabaja sobre una ciudad (sede) guardada en la sesión.
-    Si no hay ciudad, redirige a seleccionar_ciudad (las APIs JSON devuelven
-    403 en vez de redirigir). Deja la ciudad en `request.ciudad_facturacion`
-    para vistas y templates.
+    Si no hay ciudad, redirige a seleccionar_ciudad (las APIs JSON y las
+    peticiones AJAX devuelven JSON en vez de redirigir: una pantalla que
+    espera JSON y recibe el login mostraba "Error de conexión"). Deja la
+    ciudad en `request.ciudad_facturacion` para vistas y templates.
     """
     def wrapper(request, *args, **kwargs):
         rechazo = _rechazo_staff(request)
         if rechazo:
+            if _es_ajax(request):
+                return JsonResponse(
+                    {'status': 'error', 'sesion': True,
+                     'message': 'Tu sesión venció o no tienes permiso. Recarga la página e inicia sesión de nuevo.'},
+                    status=401 if not request.user.is_authenticated else 403,
+                )
             return rechazo
         ciudad = sede.ciudad_actual(request)
         if not ciudad:
-            if request.path.startswith('/facturacion/api/'):
+            if request.path.startswith('/facturacion/api/') or _es_ajax(request):
                 return JsonResponse(
                     {'status': 'error', 'message': 'Selecciona una ciudad primero.'},
                     status=403,
@@ -80,6 +94,16 @@ def staff_required(view_func):
         request.ciudad_facturacion = ciudad
         return view_func(request, *args, **kwargs)
     return wrapper
+
+
+def _porcentaje_iva():
+    """(% del impuesto 'IVA' activo, True) o (0, False) si no hay. Con varios del mismo nombre, el más antiguo."""
+    imp = Impuesto.objects.filter(nombre__iexact='IVA', activo=True).order_by('pk').first()
+    return (imp.porcentaje, True) if imp else (Decimal('0'), False)
+
+
+def _json_error(mensaje, status=400):
+    return JsonResponse({'status': 'error', 'message': mensaje}, status=status)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -513,112 +537,109 @@ def crear_registro(request):
     """
     Crear registro(s) de servicio.
     GET: formulario multi-paso.
-    POST (AJAX JSON): creación atómica de múltiples registros.
+    POST (AJAX JSON): creación de varios registros, todos o ninguno.
+    `envio_id` identifica el envío: si la respuesta se perdió y el usuario
+    reintenta, no se vuelven a crear.
     """
+    ciudad = request.ciudad_facturacion
     if request.method == 'POST':
         try:
             data = json.loads(request.body)
         except json.JSONDecodeError:
-            return JsonResponse({'status': 'error', 'message': 'JSON inválido.'}, status=400)
+            return _json_error('JSON inválido.')
 
         obra_id = data.get('obra_id')
         fecha_str = data.get('fecha_realizacion')
         servicios = data.get('servicios', [])
+        try:
+            envio_id = uuid.UUID(str(data.get('envio_id'))) if data.get('envio_id') else None
+        except ValueError:
+            envio_id = None
 
         if not obra_id or not fecha_str or not servicios:
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Faltan datos requeridos (obra, fecha, servicios).'
-            }, status=400)
+            return _json_error('Faltan datos requeridos (obra, fecha, servicios).')
+
+        # Reintento de un envío que ya quedó guardado (se perdió la respuesta): no se duplica
+        if envio_id:
+            previos = sede.registros_de(ciudad).filter(envio_id=envio_id).count()
+            if previos:
+                return JsonResponse({
+                    'status': 'success', 'repetido': True,
+                    'message': f'Estos {previos} registro(s) ya se habían guardado en el envío anterior; no se crearon de nuevo.',
+                })
+
+        fecha = parse_date(str(fecha_str))
+        if fecha is None:
+            return _json_error('La fecha de realización no es válida.')
+        if fecha > timezone.localdate():
+            return _json_error('La fecha de realización no puede ser futura.')
 
         try:
-            obra = sede.obras_de(request.ciudad_facturacion).get(pk=obra_id)
-        except Obra.DoesNotExist:
-            return JsonResponse({
-                'status': 'error', 'message': 'Obra no encontrada.'
-            }, status=404)
+            obra = sede.obras_de(ciudad).get(pk=obra_id)
+        except (Obra.DoesNotExist, ValueError):
+            return _json_error('Obra no encontrada.', status=404)
 
         errores = []
-        registros_creados = 0
+        nuevos = []
+        for i, srv in enumerate(servicios, 1):
+            tipo_id = srv.get('tipo_servicio_id')
+            num_informe = (srv.get('numero_informe') or '').strip()
+            try:
+                cantidad = int(srv.get('cantidad', 1))
+            except (TypeError, ValueError):
+                cantidad = 0
+            if not tipo_id or not num_informe:
+                errores.append(f'Línea {i}: faltan datos.')
+                continue
+            if cantidad < 1:
+                errores.append(f'Línea {i}: la cantidad debe ser 1 o más.')
+                continue
+            try:
+                tipo_servicio = sede.servicios_de(ciudad).get(pk=tipo_id)
+            except (TipoServicio.DoesNotExist, ValueError):
+                errores.append(f'Línea {i}: servicio no encontrado.')
+                continue
+            precio = PrecioServicio.objects.filter(
+                obra=obra, tipo_servicio=tipo_servicio
+            ).values_list('precio', flat=True).first()
+            if precio is None:
+                errores.append(
+                    f'Línea {i}: {tipo_servicio.codigo} no tiene precio configurado para esta obra.'
+                )
+                continue
+            nuevos.append(RegistroServicio(
+                obra=obra, tipo_servicio=tipo_servicio, fecha_realizacion=fecha,
+                cantidad=cantidad, numero_informe=num_informe,
+                precio_unitario_congelado=precio, creado_por=request.user, envio_id=envio_id,
+            ))
+
+        # Todos o ninguno: guardar solo las líneas buenas obligaba a reenviar y duplicaba
+        if errores:
+            return _json_error('No se guardó ningún registro. ' + ' | '.join(errores))
 
         try:
             with transaction.atomic():
-                for i, srv in enumerate(servicios, 1):
-                    tipo_id = srv.get('tipo_servicio_id')
-                    num_informe = srv.get('numero_informe', '').strip()
-                    cantidad = int(srv.get('cantidad', 1))
-
-                    if not tipo_id or not num_informe:
-                        errores.append(f"Línea {i}: faltan datos.")
-                        continue
-
-                    try:
-                        tipo_servicio = sede.servicios_de(request.ciudad_facturacion).get(pk=tipo_id)
-                    except TipoServicio.DoesNotExist:
-                        errores.append(f"Línea {i}: servicio no encontrado.")
-                        continue
-
-                    try:
-                        precio_obj = PrecioServicio.objects.get(
-                            obra=obra, tipo_servicio=tipo_servicio
-                        )
-                        if precio_obj.precio is None:
-                            errores.append(
-                                f"Línea {i}: {tipo_servicio.codigo} no tiene precio "
-                                f"configurado para esta obra."
-                            )
-                            continue
-                        precio = precio_obj.precio
-                    except PrecioServicio.DoesNotExist:
-                        errores.append(
-                            f"Línea {i}: no existe precio para {tipo_servicio.codigo} "
-                            f"en esta obra."
-                        )
-                        continue
-
-                    RegistroServicio.objects.create(
-                        obra=obra,
-                        tipo_servicio=tipo_servicio,
-                        fecha_realizacion=fecha_str,
-                        cantidad=cantidad,
-                        numero_informe=num_informe,
-                        precio_unitario_congelado=precio,
-                        creado_por=request.user,
-                    )
-                    registros_creados += 1
-
-                if errores and registros_creados == 0:
-                    raise ValueError("Ningún registro pudo crearse.")
-
-        except ValueError:
-            return JsonResponse({
-                'status': 'error',
-                'message': ' | '.join(errores),
-            }, status=400)
-
+                for r in nuevos:
+                    r.save()
         except Exception as e:
             logger.exception(f"Error creando registros: {e}")
-            return JsonResponse({
-                'status': 'error',
-                'message': 'Error interno al crear registros.',
-            }, status=500)
+            return _json_error('Error interno al crear registros.', status=500)
 
-        msg = f'{registros_creados} registro(s) creado(s) exitosamente.'
-        if errores:
-            msg += f' Advertencias: {"; ".join(errores)}'
-
-        return JsonResponse({'status': 'success', 'message': msg})
+        return JsonResponse({
+            'status': 'success',
+            'message': f'{len(nuevos)} registro(s) creado(s) exitosamente.',
+        })
 
     # GET: renderizar formulario
-    constructoras = sede.constructoras_de(request.ciudad_facturacion).order_by('nombre')
-    servicios = sede.servicios_de(request.ciudad_facturacion).select_related('categoria').order_by(
+    constructoras = sede.constructoras_de(ciudad).order_by('nombre')
+    servicios = sede.servicios_de(ciudad).select_related('categoria').order_by(
         'categoria__clave_orden', 'clave_orden'
     )
 
     context = {
         'constructoras': constructoras,
         'servicios': servicios,
-        'fecha_hoy': timezone.now().date().isoformat(),
+        'fecha_hoy': timezone.localdate().isoformat(),
     }
     return render(request, 'facturacion/crear_registro.html', context)
 
@@ -627,7 +648,8 @@ def crear_registro(request):
 def editar_registro(request, pk):
     """
     Editar registro no facturado.
-    Al guardar, re-congela el precio desde PrecioServicio actual.
+    El precio congelado se conserva; solo se vuelve a tomar de la lista de la
+    obra si cambia la obra o el servicio, y si no hay precio no se guarda.
     """
     ciudad = request.ciudad_facturacion
     registro = get_object_or_404(sede.registros_de(ciudad), pk=pk)
@@ -640,17 +662,27 @@ def editar_registro(request, pk):
         form = RegistroServicioForm(request.POST, instance=registro, ciudad=ciudad)
         if form.is_valid():
             registro = form.save(commit=False)
-            # Re-congelar precio
-            try:
-                precio_obj = PrecioServicio.objects.get(
+            if 'obra' in form.changed_data or 'tipo_servicio' in form.changed_data:
+                precio = PrecioServicio.objects.filter(
                     obra=registro.obra, tipo_servicio=registro.tipo_servicio
-                )
-                registro.precio_unitario_congelado = precio_obj.precio or Decimal('0')
-            except PrecioServicio.DoesNotExist:
-                registro.precio_unitario_congelado = Decimal('0')
-            registro.save()
-            messages.success(request, 'Registro actualizado correctamente.')
-            return redirect('historico_facturacion')
+                ).values_list('precio', flat=True).first()
+                if precio is None:
+                    form.add_error(None, (
+                        f'{registro.tipo_servicio.codigo} no tiene precio en {registro.obra.nombre}: '
+                        'configúralo en Precios por obra antes de mover el registro.'
+                    ))
+                else:
+                    registro.precio_unitario_congelado = precio
+            if form.is_valid():
+                with transaction.atomic():
+                    # Si alguien lo facturó mientras se editaba, no se toca
+                    bloqueado = RegistroServicio.objects.select_for_update(of=('self',)).get(pk=pk)
+                    if bloqueado.factura_id:
+                        messages.error(request, 'Este registro se facturó mientras lo editabas; no se guardaron los cambios.')
+                        return redirect('historico_facturacion')
+                    registro.save()
+                messages.success(request, 'Registro actualizado correctamente.')
+                return redirect('historico_facturacion')
     else:
         form = RegistroServicioForm(instance=registro, ciudad=ciudad)
 
@@ -662,13 +694,16 @@ def editar_registro(request, pk):
 @staff_required
 @require_POST
 def eliminar_registro(request, pk):
-    """Eliminar registro no facturado."""
-    registro = get_object_or_404(sede.registros_de(request.ciudad_facturacion), pk=pk)
-    if registro.esta_facturado:
-        messages.error(request, 'No se puede eliminar un registro facturado.')
-    else:
-        registro.delete()
-        messages.success(request, 'Registro eliminado.')
+    """Eliminar registro no facturado (con la fila bloqueada: no se borra lo que se está facturando)."""
+    with transaction.atomic():
+        registro = get_object_or_404(
+            sede.registros_de(request.ciudad_facturacion).select_for_update(of=('self',)), pk=pk
+        )
+        if registro.esta_facturado:
+            messages.error(request, 'No se puede eliminar un registro facturado.')
+        else:
+            registro.delete()
+            messages.success(request, 'Registro eliminado.')
     return redirect('historico_facturacion')
 
 
@@ -728,7 +763,9 @@ def historico_facturacion(request):
 def generar_factura(request):
     """
     Preview de factura.
-    Muestra registros pendientes separados en normales y transporte.
+    Muestra registros pendientes separados en normales y transporte. Los ids
+    de lo que se muestra viajan en el formulario: la factura se hace sobre
+    exactamente esos registros.
     """
     ciudad = request.ciudad_facturacion
     form = GenerarFacturaForm(request.GET or None, ciudad=ciudad)
@@ -736,18 +773,21 @@ def generar_factura(request):
     registros_transporte = []
     subtotal_normales = Decimal('0')
     subtotal_transporte = Decimal('0')
-    iva_porcentaje = Decimal('0')
+    iva_porcentaje, hay_iva = Decimal('0'), True
     obra = None
     tiene_registros = False
 
     if request.GET.get('obra') and request.GET.get('fecha_inicio') and request.GET.get('fecha_fin'):
         obra_id = request.GET.get('obra')
-        fecha_inicio = request.GET.get('fecha_inicio')
-        fecha_fin = request.GET.get('fecha_fin')
+        fecha_inicio = parse_date(request.GET.get('fecha_inicio'))
+        fecha_fin = parse_date(request.GET.get('fecha_fin'))
+        if not fecha_inicio or not fecha_fin or fecha_inicio > fecha_fin:
+            messages.error(request, 'El periodo no es válido: revisa las fechas.')
+            return render(request, 'facturacion/generar_factura.html', {'form': form})
 
         try:
             obra = sede.obras_de(ciudad).select_related('constructora').get(pk=obra_id)
-        except Obra.DoesNotExist:
+        except (Obra.DoesNotExist, ValueError):
             messages.error(request, 'Obra no encontrada.')
             return render(request, 'facturacion/generar_factura.html', {'form': form})
 
@@ -769,13 +809,7 @@ def generar_factura(request):
                 subtotal_normales += r.subtotal
 
         tiene_registros = len(registros_normales) > 0 or len(registros_transporte) > 0
-
-        # Obtener IVA
-        try:
-            impuesto = Impuesto.objects.get(nombre__iexact='IVA', activo=True)
-            iva_porcentaje = impuesto.porcentaje
-        except Impuesto.DoesNotExist:
-            iva_porcentaje = Decimal('0')
+        iva_porcentaje, hay_iva = _porcentaje_iva()
 
     context = {
         'form': form,
@@ -786,6 +820,7 @@ def generar_factura(request):
         'subtotal_transporte': subtotal_transporte,
         'subtotal_total': subtotal_normales + subtotal_transporte,
         'iva_porcentaje': iva_porcentaje,
+        'hay_iva': hay_iva,
         'tiene_registros': tiene_registros,
     }
     return render(request, 'facturacion/generar_factura.html', context)
@@ -800,32 +835,53 @@ def finalizar_factura(request):
     REGLA DE IVA:
     - Servicios normales: SIEMPRE en base IVA
     - Transporte (categoría '7'): SOLO si seleccionado via checkbox
+
+    Se factura exactamente lo que se vio en la vista previa (`registro_ids`),
+    con las filas bloqueadas: si cambiaron, o si ya se facturaron (doble
+    envío), no se crea nada y se avisa.
     """
     obra_id = request.POST.get('obra_id')
-    fecha_inicio = request.POST.get('fecha_inicio')
-    fecha_fin = request.POST.get('fecha_fin')
-    ids_transporte_con_iva = request.POST.getlist('transporte_con_iva')
+    fecha_inicio = parse_date(request.POST.get('fecha_inicio') or '')
+    fecha_fin = parse_date(request.POST.get('fecha_fin') or '')
+    ids_transporte_con_iva = set(request.POST.getlist('transporte_con_iva'))
+    ids_vistos = {int(x) for x in request.POST.getlist('registro_ids') if x.isdigit()}
 
-    if not obra_id or not fecha_inicio or not fecha_fin:
+    if not obra_id or not fecha_inicio or not fecha_fin or fecha_inicio > fecha_fin:
         messages.error(request, 'Datos incompletos.')
+        return redirect('generar_factura')
+    if not ids_vistos:
+        messages.error(request, 'La vista previa no trajo servicios. Vuelve a generarla.')
         return redirect('generar_factura')
 
     obra = get_object_or_404(
         sede.obras_de(request.ciudad_facturacion).select_related('constructora'), pk=obra_id
     )
+    volver_a_previa = (reverse('generar_factura')
+                       + f'?obra={obra.pk}&fecha_inicio={fecha_inicio:%Y-%m-%d}&fecha_fin={fecha_fin:%Y-%m-%d}')
 
     try:
         with transaction.atomic():
-            # Obtener registros a facturar
-            registros_a_facturar = RegistroServicio.objects.filter(
-                obra=obra,
-                fecha_realizacion__range=(fecha_inicio, fecha_fin),
-                factura__isnull=True,
-            ).select_related('tipo_servicio__categoria')
+            registros_a_facturar = list(
+                RegistroServicio.objects.select_for_update(of=('self',)).filter(
+                    obra=obra,
+                    fecha_realizacion__range=(fecha_inicio, fecha_fin),
+                    factura__isnull=True,
+                ).select_related('tipo_servicio__categoria')
+            )
+            actuales = {r.pk for r in registros_a_facturar}
 
-            if not registros_a_facturar.exists():
-                messages.error(request, 'No hay registros pendientes en ese periodo.')
-                return redirect('generar_factura')
+            if actuales != ids_vistos:
+                ya = (Factura.objects.filter(registros__pk__in=ids_vistos)
+                      .exclude(estado='ANULADA').distinct().first())
+                if ya and not actuales:
+                    # Doble clic o doble pestaña: la factura ya existe, no se crea otra
+                    messages.info(request, f'La factura #{ya.pk} ya se había generado con estos servicios.')
+                    return redirect('repositorio_facturas_obra', obra_pk=obra.pk)
+                messages.error(request, (
+                    'Los servicios pendientes de esta obra cambiaron desde la vista previa '
+                    '(alguien registró, editó o facturó algo). Revisa la vista previa de nuevo.'
+                ))
+                return redirect(volver_a_previa)
 
             # Calcular montos
             subtotal_completo = Decimal('0')
@@ -840,12 +896,7 @@ def finalizar_factura(request):
                 else:
                     base_iva_normales += r.subtotal
 
-            # Obtener IVA
-            try:
-                impuesto = Impuesto.objects.get(nombre__iexact='IVA', activo=True)
-                iva_porcentaje = impuesto.porcentaje
-            except Impuesto.DoesNotExist:
-                iva_porcentaje = Decimal('0')
+            iva_porcentaje, _ = _porcentaje_iva()
 
             base_para_iva = base_iva_normales + base_iva_transporte
             monto_iva = base_para_iva * (iva_porcentaje / 100)
@@ -857,15 +908,18 @@ def finalizar_factura(request):
                 obra=obra,
                 fecha_inicio_periodo=fecha_inicio,
                 fecha_fin_periodo=fecha_fin,
+                fecha_emision=timezone.localdate(),
                 subtotal=subtotal_completo,
                 monto_iva=monto_iva.quantize(Decimal('0.01')),
                 total=total.quantize(Decimal('0.01')),
-                iva_transporte_facturado=bool(ids_transporte_con_iva),
+                iva_transporte_facturado=any(
+                    r.es_transporte and str(r.pk) in ids_transporte_con_iva for r in registros_a_facturar
+                ),
                 emitida_por=request.user,
             )
 
-            # Vincular registros
-            registros_a_facturar.update(factura=factura)
+            # Vincular registros (solo los bloqueados)
+            RegistroServicio.objects.filter(pk__in=actuales).update(factura=factura)
 
             # Generar PDF
             try:
@@ -891,7 +945,7 @@ def finalizar_factura(request):
     except Exception as e:
         logger.exception(f"Error finalizando factura: {e}")
         messages.error(request, 'Error al generar la factura. Intente nuevamente.')
-        return redirect('generar_factura')
+        return redirect(volver_a_previa)
 
 
 def _generar_pdf_factura(factura, request):
@@ -934,51 +988,85 @@ def _generar_pdf_factura(factura, request):
 # ANULACIÓN DE FACTURAS
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _regenerar_pdf(factura, request):
+    """Vuelve a generar el PDF tras un cambio de estado, para que el archivo no diga 'Pendiente'."""
+    try:
+        _generar_pdf_factura(factura, request)
+    except Exception as e:
+        logger.exception(f"Error regenerando PDF de factura #{factura.pk}: {e}")
+        messages.warning(request, 'El estado cambió, pero no se pudo actualizar el PDF.')
+
+
 @staff_required
 @require_POST
 def anular_factura(request, pk):
     """
     Anula una factura: desvincula registros y marca como ANULADA.
     Los registros quedan disponibles para re-facturación.
+    Una factura PAGADA no se anula (habría que devolverla a pendiente primero).
     """
-    factura = get_object_or_404(sede.facturas_de(request.ciudad_facturacion), pk=pk)
+    with transaction.atomic():
+        factura = get_object_or_404(
+            sede.facturas_de(request.ciudad_facturacion).select_for_update(of=('self',)), pk=pk
+        )
+        if factura.esta_anulada:
+            messages.warning(request, 'Esta factura ya está anulada.')
+            return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
+        if factura.estado == 'PAGADA':
+            messages.error(request, (
+                f'La factura #{factura.pk} está pagada y no se puede anular. '
+                'Si el pago fue un error, primero devuélvela a pendiente.'
+            ))
+            return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
 
-    if factura.esta_anulada:
-        messages.warning(request, 'Esta factura ya está anulada.')
-        return redirect('repositorio_facturas_obra', obra_pk=factura.obra.pk)
+        factura.registros.all().update(factura=None)
+        factura.estado = 'ANULADA'
+        factura.save(update_fields=['estado'])
+        logger.info(f"Factura #{factura.pk} anulada por {request.user.username}")
 
-    try:
-        with transaction.atomic():
-            # Liberar registros
-            factura.registros.all().update(factura=None)
-            # Marcar como anulada
-            factura.estado = 'ANULADA'
-            factura.save(update_fields=['estado'])
-
-            logger.info(
-                f"Factura #{factura.pk} anulada por {request.user.username}"
-            )
-
-        messages.success(request, f'Factura #{factura.pk} anulada correctamente.')
-    except Exception as e:
-        logger.exception(f"Error anulando factura #{factura.pk}: {e}")
-        messages.error(request, 'Error al anular la factura.')
-
-    return redirect('repositorio_facturas_obra', obra_pk=factura.obra.pk)
+    _regenerar_pdf(factura, request)
+    messages.success(request, f'Factura #{factura.pk} anulada correctamente.')
+    return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
 
 
 @staff_required
 @require_POST
 def marcar_factura_pagada(request, pk):
     """Marca una factura como pagada."""
-    factura = get_object_or_404(sede.facturas_de(request.ciudad_facturacion), pk=pk)
-    if factura.esta_anulada:
-        messages.error(request, 'No se puede marcar como pagada una factura anulada.')
-    else:
+    with transaction.atomic():
+        factura = get_object_or_404(
+            sede.facturas_de(request.ciudad_facturacion).select_for_update(of=('self',)), pk=pk
+        )
+        if factura.esta_anulada:
+            messages.error(request, 'No se puede marcar como pagada una factura anulada.')
+            return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
+        if factura.estado == 'PAGADA':
+            messages.info(request, f'La factura #{factura.pk} ya estaba marcada como pagada.')
+            return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
         factura.estado = 'PAGADA'
         factura.save(update_fields=['estado'])
-        messages.success(request, f'Factura #{factura.pk} marcada como pagada.')
-    return redirect('repositorio_facturas_obra', obra_pk=factura.obra.pk)
+    _regenerar_pdf(factura, request)
+    messages.success(request, f'Factura #{factura.pk} marcada como pagada.')
+    return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
+
+
+@staff_required
+@require_POST
+def marcar_factura_pendiente(request, pk):
+    """Devuelve a PENDIENTE una factura marcada como pagada por error."""
+    with transaction.atomic():
+        factura = get_object_or_404(
+            sede.facturas_de(request.ciudad_facturacion).select_for_update(of=('self',)), pk=pk
+        )
+        if factura.estado != 'PAGADA':
+            messages.error(request, 'Solo una factura pagada se puede devolver a pendiente.')
+            return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
+        factura.estado = 'PENDIENTE'
+        factura.save(update_fields=['estado'])
+        logger.info(f"Factura #{factura.pk} devuelta a pendiente por {request.user.username}")
+    _regenerar_pdf(factura, request)
+    messages.success(request, f'Factura #{factura.pk} volvió a pendiente.')
+    return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -1075,20 +1163,18 @@ def api_get_obras(request):
 
 @staff_required
 def api_get_precio(request):
-    """API: obtener precio de un servicio para una obra."""
+    """API: obtener precio de un servicio para una obra (de la sede activa). $0 es un precio válido."""
     obra_id = request.GET.get('obra_id')
     tipo_id = request.GET.get('tiposervicio_id')
     if not obra_id or not tipo_id:
         return JsonResponse({'precio': None})
     try:
         precio = PrecioServicio.objects.get(
-            obra_id=obra_id, tipo_servicio_id=tipo_id
+            obra__in=sede.obras_de(request.ciudad_facturacion), obra_id=obra_id, tipo_servicio_id=tipo_id
         )
-        return JsonResponse({
-            'precio': str(precio.precio) if precio.precio else None
-        })
-    except PrecioServicio.DoesNotExist:
+    except (PrecioServicio.DoesNotExist, ValueError):
         return JsonResponse({'precio': None})
+    return JsonResponse({'precio': str(precio.precio) if precio.precio is not None else None})
 
 
 @staff_required

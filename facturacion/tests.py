@@ -4,6 +4,10 @@ Tests del módulo de facturación.
     python manage.py test facturacion
 """
 
+import json
+from decimal import Decimal
+from unittest import mock
+
 from django.test import SimpleTestCase, TestCase
 
 from .models import CategoriaServicio, TipoServicio
@@ -85,7 +89,7 @@ from django.urls import reverse
 from core.models import Obra
 from users.models import Constructora, FuncionarioGeolab, UsuarioBase
 
-from .models import Factura, PrecioServicio, RegistroServicio
+from .models import Factura, Impuesto, PrecioServicio, RegistroServicio
 from .sede import SESSION_KEY
 
 
@@ -516,3 +520,160 @@ class ResolverObraCodigoMandaTests(TestCase):
         Constructora.objects.filter(codigo='IBA10').update(codigo='IBA10B')
         obra, motivo, _ = resolver_obra('Ibagué', '10-2', self.lectura)
         self.assertEqual(obra, self.o)
+
+
+class IntegridadFacturacionTests(TestCase):
+    """Doble clic, conexiones cortadas y cambios cruzados: nada se duplica ni se descuadra."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = UsuarioBase.objects.create_user('admin_int', password='clave-de-prueba', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.staff, area='admin')
+        cls.c = Constructora.objects.create(nombre='Buc SAS', codigo='B1', ciudad='Bucaramanga')
+        cls.obra = Obra.objects.create(nombre='Obra Buc', codigo_obra='B1-1', constructora=cls.c)
+        cat = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='1', nombre='CONCRETOS')
+        cls.srv = TipoServicio.objects.create(categoria=cat, codigo='1-1', nombre='Compresión')
+        cls.srv2 = TipoServicio.objects.create(categoria=cat, codigo='1-2', nombre='Flexión')
+        PrecioServicio.objects.create(obra=cls.obra, tipo_servicio=cls.srv, precio=1000)
+        PrecioServicio.objects.create(obra=cls.obra, tipo_servicio=cls.srv2, precio=None)
+        Impuesto.objects.create(nombre='IVA', porcentaje='19.00')
+
+    def setUp(self):
+        self.client.login(username='admin_int', password='clave-de-prueba')
+        session = self.client.session
+        session[SESSION_KEY] = 'Bucaramanga'
+        session.save()
+        self.pdf = mock.patch('facturacion.views._generar_pdf_factura')
+        self.pdf.start()
+        self.addCleanup(self.pdf.stop)
+
+    def _registro(self, **extra):
+        datos = dict(obra=self.obra, tipo_servicio=self.srv, fecha_realizacion='2026-09-10',
+                     cantidad=2, numero_informe='INF-1', precio_unitario_congelado=1000, creado_por=self.staff)
+        datos.update(extra)
+        return RegistroServicio.objects.create(**datos)
+
+    def _finalizar(self, ids):
+        return self.client.post(reverse('finalizar_factura'), {
+            'obra_id': self.obra.pk, 'fecha_inicio': '2026-09-01', 'fecha_fin': '2026-09-30',
+            'registro_ids': [str(i) for i in ids],
+        })
+
+    def test_doble_envio_no_crea_dos_facturas(self):
+        r = self._registro()
+        r1 = self._finalizar([r.pk])
+        self.assertEqual(Factura.objects.count(), 1)
+        self.assertRedirects(r1, reverse('repositorio_facturas_obra', args=[self.obra.pk]), fetch_redirect_response=False)
+        r2 = self._finalizar([r.pk])    # el segundo clic llega con los mismos ids
+        self.assertEqual(Factura.objects.count(), 1)
+        self.assertRedirects(r2, reverse('repositorio_facturas_obra', args=[self.obra.pk]), fetch_redirect_response=False)
+        f = Factura.objects.get()
+        self.assertEqual((f.registros.count(), f.subtotal, f.monto_iva, f.total), (1, 2000, 380, 2380))
+
+    def test_vista_previa_desactualizada_no_factura(self):
+        a = self._registro()
+        b = self._registro(numero_informe='INF-2')    # registrado después de la vista previa
+        r = self._finalizar([a.pk])
+        self.assertEqual(Factura.objects.count(), 0)
+        self.assertIn('fecha_inicio=2026-09-01', r.url)
+        a.refresh_from_db(); b.refresh_from_db()
+        self.assertIsNone(a.factura_id)
+        self.assertIsNone(b.factura_id)
+
+    def test_anular_pagada_requiere_volver_a_pendiente(self):
+        r = self._registro()
+        self._finalizar([r.pk])
+        f = Factura.objects.get()
+        self.client.post(reverse('marcar_factura_pagada', args=[f.pk]))
+        self.client.post(reverse('anular_factura', args=[f.pk]))
+        f.refresh_from_db()
+        self.assertEqual(f.estado, 'PAGADA')
+        self.assertEqual(f.registros.count(), 1)
+        self.client.post(reverse('marcar_factura_pendiente', args=[f.pk]))
+        self.client.post(reverse('anular_factura', args=[f.pk]))
+        f.refresh_from_db(); r.refresh_from_db()
+        self.assertEqual(f.estado, 'ANULADA')
+        self.assertIsNone(r.factura_id)
+
+    def test_editar_conserva_precio_congelado_y_no_pone_cero(self):
+        r = self._registro()
+        PrecioServicio.objects.filter(obra=self.obra, tipo_servicio=self.srv).update(precio=5000)
+        datos = {'obra': self.obra.pk, 'tipo_servicio': self.srv.pk, 'fecha_realizacion': '2026-09-10',
+                 'numero_informe': 'INF-1 corregido', 'cantidad': 3}
+        self.client.post(reverse('editar_registro_facturacion', args=[r.pk]), datos)
+        r.refresh_from_db()
+        self.assertEqual((r.precio_unitario_congelado, r.cantidad, r.subtotal), (1000, 3, 3000))
+        # cambiar a un servicio sin precio en la obra: no se guarda
+        datos['tipo_servicio'] = self.srv2.pk
+        resp = self.client.post(reverse('editar_registro_facturacion', args=[r.pk]), datos)
+        self.assertEqual(resp.status_code, 200)
+        self.assertContains(resp, 'no tiene precio')
+        r.refresh_from_db()
+        self.assertEqual((r.tipo_servicio_id, r.precio_unitario_congelado), (self.srv.pk, 1000))
+
+    def _crear(self, servicios, envio_id='11111111-2222-4333-8444-555555555555', fecha='2026-09-10'):
+        return self.client.post(reverse('crear_registro_facturacion'), data=json.dumps({
+            'obra_id': self.obra.pk, 'fecha_realizacion': fecha, 'servicios': servicios, 'envio_id': envio_id,
+        }), content_type='application/json')
+
+    def test_registro_reintentado_no_se_duplica_y_es_todo_o_nada(self):
+        linea = {'tipo_servicio_id': self.srv.pk, 'numero_informe': 'INF-9', 'cantidad': 2}
+        r = self._crear([linea])
+        self.assertEqual(r.json()['status'], 'success')
+        self.assertEqual(RegistroServicio.objects.count(), 1)
+        r = self._crear([linea])    # se cortó la conexión y el usuario volvió a dar Guardar
+        self.assertTrue(r.json()['repetido'])
+        self.assertEqual(RegistroServicio.objects.count(), 1)
+        # una línea mala (cantidad 0) tumba todo el envío
+        r = self._crear([dict(linea, numero_informe='INF-10'), dict(linea, cantidad=0)], envio_id=None)
+        self.assertEqual(r.status_code, 400)
+        self.assertIn('cantidad debe ser 1', r.json()['message'])
+        self.assertEqual(RegistroServicio.objects.count(), 1)
+        r = self._crear([linea], envio_id=None, fecha='2099-01-01')
+        self.assertEqual(r.status_code, 400)
+        # sesión vencida: JSON, no la página de login
+        self.client.logout()
+        r = self._crear([linea])
+        self.assertEqual(r.status_code, 401)
+        self.assertTrue(r.json()['sesion'])
+
+    def test_seed_no_corre_en_produccion(self):
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+        from django.test import override_settings
+        with override_settings(DEBUG=False), self.assertRaises(CommandError):
+            call_command('seed_facturacion')
+
+    def test_iva_duplicado_o_ausente_no_rompe_la_vista_previa(self):
+        self._registro()
+        Impuesto.objects.create(nombre='iva', porcentaje='5.00')
+        r = self.client.get(reverse('generar_factura'), {'obra': self.obra.pk, 'fecha_inicio': '2026-09-01', 'fecha_fin': '2026-09-30'})
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.context['iva_porcentaje'], Decimal('19.00'))
+        Impuesto.objects.update(activo=False)
+        r = self.client.get(reverse('generar_factura'), {'obra': self.obra.pk, 'fecha_inicio': '2026-09-01', 'fecha_fin': '2026-09-30'})
+        self.assertFalse(r.context['hay_iva'])
+        self.assertContains(r, 'sin IVA')
+
+    def test_api_precio_cero_y_otra_sede(self):
+        PrecioServicio.objects.filter(obra=self.obra, tipo_servicio=self.srv).update(precio=0)
+        r = self.client.get(reverse('api_get_precio'), {'obra_id': self.obra.pk, 'tiposervicio_id': self.srv.pk})
+        self.assertEqual(r.json()['precio'], '0.00')
+        session = self.client.session
+        session[SESSION_KEY] = 'Bogotá'
+        session.save()
+        r = self.client.get(reverse('api_get_precio'), {'obra_id': self.obra.pk, 'tiposervicio_id': self.srv.pk})
+        self.assertIsNone(r.json()['precio'])
+
+    def test_no_cambiar_ciudad_de_empresa_con_facturas_ni_categoria_7_con_registros(self):
+        from core.forms import ConstructoraForm
+        from .forms import CategoriaServicioForm
+        self._registro()
+        form = ConstructoraForm({'nombre': 'Buc SAS', 'ciudad': 'Bogotá', 'numero_codigo': '1', 'nit': ''}, instance=self.c)
+        self.assertFalse(form.is_valid())
+        self.assertIn('ciudad', form.errors)
+        cat = self.srv.categoria
+        form = CategoriaServicioForm({'codigo': '7', 'nombre': 'CONCRETOS'}, instance=cat)
+        self.assertFalse(form.is_valid())
+        self.assertIn('transporte', form.errors['codigo'][0])
+

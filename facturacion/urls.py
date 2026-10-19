@@ -44,6 +44,7 @@ urlpatterns = [
     # Acciones sobre facturas
     path('facturacion/factura/<int:pk>/anular/', views.anular_factura, name='anular_factura'),
     path('facturacion/factura/<int:pk>/pagada/', views.marcar_factura_pagada, name='marcar_factura_pagada'),
+    path('facturacion/factura/<int:pk>/pendiente/', views.marcar_factura_pendiente, name='marcar_factura_pendiente'),
     path('facturacion/factura/<int:pk>/pdf/', views.descargar_factura_pdf, name='descargar_factura_pdf'),
 
     # APIs

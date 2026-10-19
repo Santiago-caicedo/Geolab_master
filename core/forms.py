@@ -191,6 +191,22 @@ class ConstructoraForm(forms.ModelForm):
             raise forms.ValidationError('Ingrese solo el número (ej: 23), sin el prefijo.')
         return numero
 
+    def clean_ciudad(self):
+        ciudad = self.cleaned_data.get('ciudad')
+        # La sede de facturación sale de esta ciudad: cambiarla movería facturas y registros
+        # a otra sede, cuyo catálogo de servicios es distinto.
+        if self.instance.pk and ciudad and _sin_acentos(ciudad) != _sin_acentos(self.instance.ciudad or ''):
+            from facturacion.models import RegistroServicio
+            facturas = self.instance.facturas.count()
+            registros = RegistroServicio.objects.filter(obra__constructora=self.instance).count()
+            if facturas or registros:
+                raise forms.ValidationError(
+                    f'Esta empresa tiene {facturas} factura(s) y {registros} servicio(s) registrado(s) en '
+                    f'{self.instance.ciudad}. Cambiar la ciudad los pasaría a otra sede con otro catálogo; '
+                    'si de verdad cambió de sede, hay que hacerlo con cuidado desde la base de datos.'
+                )
+        return ciudad
+
     def clean(self):
         cleaned = super().clean()
         ciudad = cleaned.get('ciudad')

@@ -1,3 +1,4 @@
+from django.core.validators import MinValueValidator
 from django.db import models
 
 from .orden import clave_orden
@@ -95,6 +96,7 @@ class PrecioServicio(models.Model):
     )
     precio = models.DecimalField(
         max_digits=12, decimal_places=2, null=True, blank=True,
+        validators=[MinValueValidator(0)],
         verbose_name='Precio unitario',
         help_text='Dejar vacío si no aplica para esta obra'
     )
@@ -142,9 +144,11 @@ class RegistroServicio(models.Model):
         related_name='registros', verbose_name='Tipo de Servicio'
     )
     fecha_realizacion = models.DateField(
-        default=timezone.now, verbose_name='Fecha de realización'
+        default=timezone.localdate, verbose_name='Fecha de realización'
     )
-    cantidad = models.PositiveIntegerField(default=1, verbose_name='Cantidad')
+    cantidad = models.PositiveIntegerField(
+        default=1, validators=[MinValueValidator(1)], verbose_name='Cantidad'
+    )
     numero_informe = models.CharField(
         max_length=100, verbose_name='Número de informe',
         help_text='Número del informe de laboratorio'
@@ -170,6 +174,9 @@ class RegistroServicio(models.Model):
         null=True, blank=True, related_name='registros_facturacion'
     )
     fecha_creacion = models.DateTimeField(auto_now_add=True)
+    # Identificador que manda la pantalla en cada "Guardar": si la respuesta se pierde y el
+    # usuario reintenta, el servidor reconoce el envío y no vuelve a crear los registros.
+    envio_id = models.UUIDField(null=True, blank=True, editable=False, db_index=True)
 
     class Meta:
         ordering = ['-fecha_realizacion', '-id']
@@ -212,7 +219,7 @@ class Factura(models.Model):
     )
     fecha_inicio_periodo = models.DateField(verbose_name='Inicio del periodo')
     fecha_fin_periodo = models.DateField(verbose_name='Fin del periodo')
-    fecha_emision = models.DateField(default=timezone.now, verbose_name='Fecha de emisión')
+    fecha_emision = models.DateField(default=timezone.localdate, verbose_name='Fecha de emisión')
     subtotal = models.DecimalField(
         max_digits=14, decimal_places=2, verbose_name='Subtotal'
     )

@@ -479,6 +479,21 @@
             }
         });
     </script>
+    <script>
+        // Un solo envío por formulario: tras enviar un POST, sus botones se bloquean (evita facturas,
+        // registros o cambios duplicados por doble clic). Un formulario puede excluirse con data-reenvio.
+        document.addEventListener('submit', function (e) {
+            const form = e.target;
+            if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== 'post' || form.dataset.reenvio !== undefined) return;
+            setTimeout(function () {
+                if (e.defaultPrevented) return;
+                form.querySelectorAll('button[type="submit"], input[type="submit"]').forEach(function (b) {
+                    b.disabled = true;
+                    b.setAttribute('aria-busy', 'true');
+                });
+            }, 0);
+        });
+    </script>
     {% block extra_js %}{% endblock %}
 </body>
 </html>

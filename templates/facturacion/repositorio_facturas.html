@@ -67,6 +67,13 @@
                                     <i class="bi bi-x-circle"></i>
                                 </button>
                             </form>
+                            {% elif f.estado == 'PAGADA' %}
+                            <form method="post" action="{% url 'marcar_factura_pendiente' f.pk %}" style="display:inline">
+                                {% csrf_token %}
+                                <button type="submit" class="btn btn-outline-secondary" title="Volver a pendiente (si se marcó pagada por error)" onclick="return confirm('¿Devolver esta factura a pendiente?')">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                            </form>
                             {% endif %}
                         </div>
                     </td>

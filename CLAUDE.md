@@ -91,8 +91,9 @@ geolab_master/
 - Ambos tienen `clave_orden` (calculada en `save()` desde `codigo` vía `facturacion/orden.py`): orden natural 1, 2, … 8A, 8V, 9, 10, 11A… y `1-2` antes de `1-10`. `Meta.ordering` la usa; en `order_by()` usar `clave_orden`/`categoria__clave_orden`, nunca `codigo`.
 - **PrecioServicio**: Precio personalizado por obra
 - **Impuesto**: Configuración IVA
-- **RegistroServicio**: Servicio realizado con precio congelado (price freezing)
-- **Factura**: Generada por periodo, con PDF vía WeasyPrint
+- **RegistroServicio**: Servicio realizado con precio congelado (price freezing). Se crean por JSON desde `crear_registro`, **todos o ninguno**, con `envio_id` (UUID de la pantalla): un reintento con el mismo id no duplica. Editar NO re-congela el precio salvo que cambie la obra o el servicio (y sin precio, no guarda).
+- **Factura**: Generada por periodo, con PDF vía WeasyPrint. `finalizar_factura` factura **exactamente los `registro_ids` de la vista previa** con `select_for_update`: si cambiaron, avisa y no crea nada; un doble envío redirige a la factura ya creada. Estados PENDIENTE → PAGADA (y `marcar_factura_pendiente` para deshacer) → ANULADA; una PAGADA no se anula. Al cambiar de estado se regenera el PDF. IVA = impuesto `IVA` activo más antiguo (`_porcentaje_iva`); sin IVA la vista previa avisa.
+- Integridad: `base.html` bloquea los botones de todo formulario POST tras enviarlo (`data-reenvio` lo exime). `staff_required` responde JSON (401/403, `sesion: true`) a peticiones AJAX. `ConstructoraForm` no deja cambiar la ciudad de una empresa con facturas/registros; el catálogo no deja mover servicios entre transporte (código 7) y otras categorías si ya tienen registros. `seed_facturacion` solo corre con `DEBUG=True`. Fechas por defecto con `timezone.localdate`.
 
 **Ciudad (sede) activa:** al entrar al módulo (el enlace del sidebar de staff apunta a
 `seleccionar_ciudad_facturacion`) se elige una ciudad, guardada en sesión

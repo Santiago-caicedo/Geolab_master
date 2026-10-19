@@ -1,5 +1,6 @@
 from django import forms
 from django.forms import modelformset_factory
+from django.utils import timezone
 
 from .models import (
     CategoriaServicio, TipoServicio, PrecioServicio,
@@ -35,6 +36,14 @@ class CategoriaServicioForm(forms.ModelForm):
         ).exclude(pk=self.instance.pk).exists()
         if repetida:
             raise forms.ValidationError(f'Ya existe la categoría {codigo} en {self.ciudad}.')
+        # El código '7' decide si los servicios son transporte (IVA opcional): no se cambia con registros hechos
+        if self.instance.pk and (codigo == '7') != (self.instance.codigo == '7'):
+            n = RegistroServicio.objects.filter(tipo_servicio__categoria=self.instance).count()
+            if n:
+                raise forms.ValidationError(
+                    f'No se puede cambiar el código: la categoría tiene {n} servicio(s) registrado(s) y el '
+                    'código 7 define si son transporte (IVA opcional).'
+                )
         return codigo
 
 
@@ -79,6 +88,16 @@ class TipoServicioForm(forms.ModelForm):
         if self._repetido('nombre__iexact', nombre):
             raise forms.ValidationError(f'Ya existe un servicio con ese nombre en {self.ciudad}.')
         return nombre
+
+    def clean_categoria(self):
+        categoria = self.cleaned_data.get('categoria')
+        # Mover un servicio entre transporte y no transporte cambiaría el IVA de lo ya registrado
+        if categoria and self.instance.pk and self.instance.categoria_id:
+            if categoria.es_transporte != self.instance.categoria.es_transporte and self.instance.registros.exists():
+                raise forms.ValidationError(
+                    'Este servicio ya tiene registros: no se puede pasar entre transporte y otra categoría.'
+                )
+        return categoria
 
 
 class PrecioServicioForm(forms.ModelForm):
@@ -145,6 +164,12 @@ class RegistroServicioForm(forms.ModelForm):
                 ciudad__iexact=ciudad
             ).select_related('categoria')
         self.fields['obra'].queryset = obras.order_by('constructora__nombre', 'nombre')
+
+    def clean_fecha_realizacion(self):
+        fecha = self.cleaned_data.get('fecha_realizacion')
+        if fecha and fecha > timezone.localdate():
+            raise forms.ValidationError('La fecha de realización no puede ser futura.')
+        return fecha
         self.fields['obra'].label_from_instance = (
             lambda obj: f"{obj.constructora.nombre} → {obj.nombre}"
         )

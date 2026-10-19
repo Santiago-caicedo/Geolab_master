@@ -227,23 +227,34 @@ btnGuardar.addEventListener('click', function() {
     btnGuardar.disabled = true;
     btnGuardar.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Guardando...';
 
+    // Identificador del envío: si se corta la conexión y se reintenta, el servidor reconoce
+    // el mismo envío y no duplica. Se renueva solo cuando el envío se resolvió.
+    if (!envioId) envioId = nuevoEnvioId();
+    const alertDiv = document.getElementById('resultado-alert');
+    const restaurar = () => {
+        btnGuardar.disabled = false;
+        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Registros';
+    };
+
     fetch("{% url 'crear_registro_facturacion' %}", {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
             'X-CSRFToken': '{{ csrf_token }}',
+            'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({
             obra_id: obraSeleccionada,
             fecha_realizacion: fecha,
             servicios: servicios,
+            envio_id: envioId,
         })
     })
-    .then(r => r.json())
-    .then(data => {
-        const alertDiv = document.getElementById('resultado-alert');
+    .then(r => r.json().then(data => ({ ok: r.ok, status: r.status, data })))
+    .then(({ ok, status, data }) => {
         if (data.status === 'success') {
-            alertDiv.innerHTML = `<div class="alert alert-success">${data.message}</div>`;
+            envioId = null;
+            alertDiv.innerHTML = `<div class="alert alert-${data.repetido ? 'info' : 'success'}">${data.message}</div>`;
             // Destruir Tom Select de cada línea antes de limpiar
             tbody.querySelectorAll('.sel-servicio').forEach(sel => {
                 if (sel.tomselect) sel.tomselect.destroy();
@@ -251,18 +262,31 @@ btnGuardar.addEventListener('click', function() {
             tbody.innerHTML = '';
             crearLinea();
         } else {
-            alertDiv.innerHTML = `<div class="alert alert-danger">${data.message}</div>`;
+            if (!data.sesion) envioId = null;   // error de datos: el próximo envío es otro
+            const msg = data.sesion
+                ? `${data.message} <a href="" class="alert-link">Recargar</a>`
+                : (data.message || `Error ${status} al guardar.`);
+            alertDiv.innerHTML = `<div class="alert alert-danger">${msg}</div>`;
         }
         alertDiv.style.display = 'block';
-        btnGuardar.disabled = false;
-        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Registros';
+        restaurar();
     })
     .catch(() => {
-        alert('Error de conexión.');
-        btnGuardar.disabled = false;
-        btnGuardar.innerHTML = '<i class="bi bi-check-circle"></i> Guardar Registros';
+        alertDiv.innerHTML = '<div class="alert alert-warning">No hubo respuesta del servidor. Revisa la conexión y vuelve a dar <strong>Guardar</strong>: si el envío ya había quedado, no se duplica.</div>';
+        alertDiv.style.display = 'block';
+        restaurar();
     });
 });
+
+let envioId = null;
+function nuevoEnvioId() {
+    if (window.crypto && crypto.randomUUID) return crypto.randomUUID();
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, c => {
+        const r = Math.random() * 16 | 0; return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+    });
+}
+// Si el usuario cambia algo del formulario, el próximo envío es otro envío
+document.getElementById('tabla-servicios')?.addEventListener('input', () => { envioId = null; });
 
 // Inicializar con una línea
 btnAgregar.addEventListener('click', crearLinea);
