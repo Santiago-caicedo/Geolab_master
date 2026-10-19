@@ -1,4 +1,5 @@
 {% extends 'base_facturacion.html' %}
+{% load l10n %}
 {% block title %}Generar Factura{% endblock %}
 
 {% block extra_css %}
@@ -125,7 +126,7 @@
                     <tr>
                         <td>
                             <input type="checkbox" name="transporte_con_iva" value="{{ r.pk }}"
-                                   class="form-check-input chk-transporte">
+                                   class="form-check-input chk-transporte" data-subtotal="{{ r.subtotal|unlocalize }}">
                         </td>
                         <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
                         <td>{{ r.tipo_servicio.nombre }}</td>
@@ -210,25 +211,25 @@ const tsObra = new TomSelect('#id_obra', {
     placeholder: 'Buscar obra...',
 });
 
-// Calcular IVA dinámicamente
+// Calcular IVA dinámicamente. Los números van sin formato local (|unlocalize): con es-co Django
+// escribe "2815000,00" y eso en JavaScript es un error de sintaxis que detenía todo este script.
 function recalcularTotal() {
-    const subtotalNormales = {{ subtotal_normales|default:"0" }};
-    const ivaPct = {{ iva_porcentaje|default:"0" }};
+    const subtotalNormales = Number("{{ subtotal_normales|default:0|unlocalize }}");
+    const ivaPct = Number("{{ iva_porcentaje|default:0|unlocalize }}");
+    const subtotalCompleto = Number("{{ subtotal_total|default:0|unlocalize }}");
     let baseTransporteIVA = 0;
 
     document.querySelectorAll('.chk-transporte:checked').forEach(chk => {
-        const row = chk.closest('tr');
-        const subtotalText = row.querySelector('td:last-child').textContent;
-        baseTransporteIVA += parseFloat(subtotalText.replace('$', '').replace(/,/g, ''));
+        baseTransporteIVA += Number(chk.dataset.subtotal) || 0;
     });
 
-    const baseIVA = subtotalNormales + baseTransporteIVA;
-    const montoIVA = baseIVA * (ivaPct / 100);
-    const subtotalCompleto = {{ subtotal_total|default:"0" }};
+    // Mismo cálculo que finalizar_factura: IVA sobre normales + transporte marcado, redondeado a centavos
+    const montoIVA = Math.round((subtotalNormales + baseTransporteIVA) * ivaPct) / 100;
     const total = subtotalCompleto + montoIVA;
+    const pesos = n => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
-    document.getElementById('monto-iva').textContent = '$' + montoIVA.toLocaleString('es-CO', {minimumFractionDigits: 2});
-    document.getElementById('total-factura').textContent = '$' + total.toLocaleString('es-CO', {minimumFractionDigits: 2});
+    document.getElementById('monto-iva').textContent = pesos(montoIVA);
+    document.getElementById('total-factura').textContent = pesos(total);
 }
 
 document.querySelectorAll('.chk-transporte').forEach(chk => {

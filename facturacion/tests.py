@@ -168,6 +168,17 @@ class CiudadFacturacionTests(TestCase):
         self.assertEqual(r.context['por_facturar_n'], 1)
 
 
+    def test_vista_previa_entrega_numeros_validos_al_javascript(self):
+        # Con es-co Django escribe "1000,00": en JavaScript eso rompía el script y el IVA no se calculaba
+        from .models import Impuesto
+        Impuesto.objects.create(nombre='IVA', porcentaje='19.00')
+        self._elegir('Bucaramanga')
+        r = self.client.get(reverse('generar_factura'),
+                            {'obra': self.o_buc.pk, 'fecha_inicio': '2026-09-01', 'fecha_fin': '2026-09-30'})
+        self.assertContains(r, 'const subtotalNormales = Number("1000.00");')
+        self.assertContains(r, 'const ivaPct = Number("19.00");')
+        self.assertNotContains(r, '1000,00;')
+
     def test_panel_clientes_sin_anuladas_y_doce_meses(self):
         from datetime import timedelta
         from django.utils import timezone
