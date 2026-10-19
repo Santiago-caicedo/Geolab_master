@@ -282,6 +282,98 @@ def _libro_de_prueba(ruta):
     wb.save(ruta)
 
 
+def _libro_bogota(ruta):
+    """Libro como BASE DATOS BOGOTA.xlsm: sin columna DESCUENTO (las obras empiezan en E),
+    un encabezado suelto "1" y clientes varios 0-N con su hoja de nombres."""
+    import openpyxl
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = 'LISTA DE PRECIO'
+    ws.append(['', '', 'LISTA DE PRECIOS 2019'])
+    ws.append([])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34'])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34'])
+    ws.append(['\xa0       1', 'CONCRETOS'])
+    ws.append(['1-1', 'Compresión de cilindros', 'NTC 673', 5500, 4500, 4800, 9, 5000, 5100, 5200])
+    ws2 = wb.create_sheet('LISTA EMPRESAS REGULARES')
+    ws2.append(['1', 'MAB INGENIERIA DE VALORES'])
+    ws2.append(['1-1', 'CONTRATO IDU 1286'])
+    ws3 = wb.create_sheet('LISTA EMPRESAS VARIOS OBRAS')
+    for fila in (['0-10', 'CONSORCIO DC 2025'], ['0-10', 'MALLA VIAL LOCAL'], ['0-2', 'CONSORCIO INFRACENTRO DP'],
+                 ['0-2', 'CONSORCIO INFRACENTRO DP'], ['0-22', 'Columna1'], ['0-34', 'CONSORCIO ESTACIONES NAVARRA'],
+                 ['0-34', 'RENOVACION ESTACION NAVARRA']):
+        ws3.append(fila)
+    wb.save(ruta)
+
+
+class ImportarBogotaTests(TestCase):
+    """Bogotá: columnas de obra desde la E y clientes varios 0-N (constructora/obra BOG0-N)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.tmp = tempfile.TemporaryDirectory()
+        cls.ruta = str(Path(cls.tmp.name) / 'bogota.xlsx')
+        _libro_bogota(cls.ruta)
+        cls.lectura = leer_lista_precios(cls.ruta)
+        mab = Constructora.objects.create(codigo='BOG1', nombre='MAB INGENIERIA DE SERVICIOS SA', ciudad='Bogotá')
+        cls.o11 = Obra.objects.create(constructora=mab, nombre='CONTRATO IDU No.1286', codigo_obra='BOG1-1')
+        # 0-10: la obra BOG0-10 cuelga de una constructora con otro código (así vino de WordPress)
+        dc = Constructora.objects.create(codigo='BOG0-0B', nombre='CONSORCIO DC 2025', ciudad='Bogotá')
+        cls.o010 = Obra.objects.create(constructora=dc, nombre='0-10 EJECUTAR A MONTO', codigo_obra='BOG0-10')
+        # 0-2: tres obras con el mismo código; solo una es de INFRACENTRO
+        proar = Constructora.objects.create(codigo='BOG0-2', nombre='CONSORCIO OBRAS ACUEDUCTO PROAR', ciudad='Bogotá')
+        Obra.objects.create(constructora=proar, nombre='ALCANTARILLADO ZONA 1', codigo_obra='BOG0-2')
+        infra = Constructora.objects.create(codigo='BOG0-2B', nombre='CONSORCIO INFRACENTRO DP', ciudad='Bogotá')
+        cls.o02 = Obra.objects.create(constructora=infra, nombre='INTERVENTORIA IDU 1523-2025', codigo_obra='BOG0-2')
+        # 0-34 existe pero en otra ciudad: el código es único en el portal
+        Constructora.objects.create(codigo='BOG0-34', nombre='OTRA', ciudad='Ibagué')
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.tmp.cleanup()
+        super().tearDownClass()
+
+    def test_lee_columnas_desde_la_e_y_nombres_de_varios(self):
+        self.assertEqual(self.lectura.obras, ['1-1', '0-10', '0-2', '0-22', '0-34'])
+        self.assertTrue(any('"1" no es un código de obra' in l for l in self.lectura.log))
+        self.assertEqual(self.lectura.nombres_empresas['0-10'], 'CONSORCIO DC 2025')
+        self.assertEqual(self.lectura.nombres_obras['0-10'], 'MALLA VIAL LOCAL')
+        self.assertNotIn('0-22', self.lectura.nombres_empresas)
+        self.assertEqual({s.codigo: s.precios['1-1'] for s in self.lectura.servicios}, {'1-1': Decimal('4500')})
+
+    def test_resuelve_clientes_varios(self):
+        self.assertEqual(resolver_obra('Bogotá', '1-1', self.lectura)[0], self.o11)
+        obra, motivo, _ = resolver_obra('Bogotá', '0-10', self.lectura)
+        self.assertEqual((obra, 'cliente varios BOG0-10' in motivo, '⚠' in motivo), (self.o010, True, False))
+        obra, motivo, cand = resolver_obra('Bogotá', '0-2', self.lectura)
+        self.assertEqual(obra, self.o02)
+        self.assertIn('razón social', motivo)
+        obra, motivo, _ = resolver_obra('Bogotá', '0-22', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIn('sin nombre', motivo)
+        obra, motivo, _ = resolver_obra('Bogotá', '0-34', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIn('Ibagué', motivo)
+
+    def test_crear_obras_crea_cliente_varios_con_nombre(self):
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Bogotá', '--crear-obras', stdout=out)
+        salida = out.getvalue()
+        self.assertIn('✓    1-1', salida)
+        self.assertIn('✓   0-10', salida)
+        self.assertIn('✓    0-2', salida)
+        self.assertIn('✗   0-22', salida)      # sin nombre: no se inventa
+        self.assertIn('✗   0-34', salida)      # el código es de otra ciudad: no se crea
+        self.assertFalse(Constructora.objects.filter(codigo='BOG0-22').exists())
+        self.assertEqual(Constructora.objects.filter(codigo='BOG0-34').count(), 1)
+        self.assertEqual(PrecioServicio.objects.filter(obra=self.o02, precio=5000).count(), 1)
+        self.assertEqual(PrecioServicio.objects.filter(obra=self.o010, precio=4800).count(), 1)
+        # misma corrida otra vez: idempotente
+        out = StringIO()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Bogotá', '--crear-obras', stdout=out)
+        self.assertIn('0 nuevos', out.getvalue())
+
+
 class LecturaExcelTests(SimpleTestCase):
 
     @classmethod

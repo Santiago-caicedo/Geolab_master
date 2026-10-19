@@ -1,10 +1,14 @@
 """
 Lectura de la hoja "LISTA DE PRECIO" de los libros BASE DATOS <CIUDAD>.xlsm.
 
-La hoja tiene una fila por servicio (ÍTEM, DESCRIPCIÓN, NORMA, PRECIO LISTA,
-DESCUENTO) y, a partir de la columna F, una columna por obra cuyo encabezado
-es el código de obra del Excel ("8-1" = empresa 8, obra 1) con el precio
-pactado para esa obra. Las filas cuyo ÍTEM no tiene guion y cuya DESCRIPCIÓN
+La hoja tiene una fila por servicio (ÍTEM, DESCRIPCIÓN, NORMA, PRECIO LISTA y,
+en Bucaramanga e Ibagué, DESCUENTO) y después una columna por obra cuyo
+encabezado es el código de obra del Excel ("8-1" = empresa 8, obra 1) con el
+precio pactado para esa obra. Las columnas de obra se detectan por su
+encabezado (Bogotá no tiene DESCUENTO y empiezan una columna antes).
+Los códigos "0-N" son clientes varios: cada N es una empresa distinta, que
+en el portal se llama BOG0-N (constructora y obra), con nombre en la hoja
+LISTA EMPRESAS VARIOS OBRAS. Las filas cuyo ÍTEM no tiene guion y cuya DESCRIPCIÓN
 va en mayúsculas son encabezados de categoría.
 
 Limpieza aplicada (la misma que se usó para generar catalogo_bucaramanga.py):
@@ -29,12 +33,14 @@ from decimal import Decimal
 from django.db.models import Q
 
 from core.models import Obra
+from core.wp_normalizar import misma_empresa
 from users.ciudades import CIUDADES
 from users.models import Constructora
 
 HOJA_PRECIOS = 'LISTA DE PRECIO'
 HOJA_NOMBRES_OBRAS = 'LISTA EMPRESAS REGULARES'
-PRIMERA_COL_OBRA = 5          # columna F
+HOJA_NOMBRES_VARIOS = 'LISTA EMPRESAS VARIOS OBRAS'
+PRIMERA_COL_OBRA = 4          # columna E (DESCUENTO, si existe, no parece código y se salta)
 FILA_ENCABEZADO = 3           # índice 0 -> fila 4 de Excel (la fila 3 es igual pero con celdas "0")
 SUFIJO_CATEGORIA = {'11L': 'Laboratorista', '11A': 'Auxiliar', '11B': 'Laboratorista mes'}
 _CODIGO_OBRA = re.compile(r'^\d+-\d+$')
@@ -123,6 +129,8 @@ def leer_lista_precios(ruta, hoja=HOJA_PRECIOS):
         cod = _codigo(celda)
         if _CODIGO_OBRA.match(cod):
             columnas.append((j, cod))
+        elif cod.upper().strip() not in ('DESCUENTO', 'PRECIO LISTA'):
+            log.append(f'columna {j + 1}: el encabezado "{cod}" no es un código de obra (empresa-obra): se omite')
     repetidas = [c for c, n in Counter(c for _, c in columnas).items() if n > 1]
     for c in repetidas:
         log.append(f'columna de obra "{c}" aparece más de una vez: se toma el primer precio no vacío')
@@ -214,6 +222,19 @@ def _leer_nombres(wb):
         return out
     empresas = pares(filas[0]) if filas else {}
     obras = pares(filas[1]) if len(filas) > 1 else {}
+    # Clientes varios: una fila por (código, texto); la primera vez es la razón social y la segunda el proyecto
+    if HOJA_NOMBRES_VARIOS in wb.sheetnames:
+        for fila in wb[HOJA_NOMBRES_VARIOS].iter_rows(values_only=True):
+            celdas = [c for c in fila if c not in (None, '')]
+            if len(celdas) < 2:
+                continue
+            cod, texto = _codigo(celdas[0]), _norm(celdas[1])
+            if not _CODIGO_OBRA.match(cod) or not texto or texto.startswith('Columna'):
+                continue
+            if cod not in empresas:
+                empresas[cod] = texto
+            elif cod not in obras and texto.lower() != empresas[cod].lower():
+                obras[cod] = texto
     return obras, empresas
 
 
@@ -256,6 +277,8 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
 
     emp, _, num = codigo_excel.partition('-')
     prefijo = CIUDADES.get(ciudad, '')
+    if emp == '0':
+        return _resolver_varios(ciudad, codigo_excel, lectura, prefijo)
     codigos_emp = {f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'}
     razon = lectura.nombres_empresas.get(emp)
     constructoras = _constructoras_de(ciudad, codigos_emp, razon)
@@ -289,6 +312,48 @@ def resolver_obra(ciudad, codigo_excel, lectura, overrides=None, columnas_de_la_
     ), candidatas
 
 
+def _resolver_varios(ciudad, codigo_excel, lectura, prefijo):
+    """
+    "0-10" es el cliente varios número 10: en el portal su constructora y su obra
+    se llaman BOG0-10 (a veces la constructora lleva sufijo B, o la obra cuelga
+    de otra constructora pero conserva el código). Si hay varias obras con el
+    código (WordPress lo reutilizó), desempata la razón social del Excel.
+    """
+    cod = f'{prefijo}{codigo_excel}'
+    razon = lectura.nombres_empresas.get(codigo_excel)
+    obras = list(
+        Obra.objects.filter(constructora__ciudad__iexact=ciudad).filter(
+            Q(codigo_obra__iexact=cod)
+            | Q(codigo_obra__iregex=rf'^{re.escape(cod)}-\d+$')
+            | Q(constructora__codigo__iregex=rf'^{re.escape(cod)}[A-Z]?$')
+        ).select_related('constructora').distinct().order_by('codigo_obra')
+    )
+    excel = f' (el Excel lo llama "{razon}")' if razon else ' (el Excel no trae su nombre)'
+    if not obras:
+        ajena = Constructora.objects.filter(codigo__iexact=cod).exclude(ciudad__iexact=ciudad).first()
+        if ajena:
+            return None, (f'el código {cod} ya lo tiene "{ajena.nombre}" en {ajena.ciudad or "sin ciudad"}{excel}: '
+                          f'corrige la ciudad de esa empresa o use --obra {codigo_excel}=CODIGO_OBRA'), []
+        if not razon:
+            return None, f'ningún cliente varios {cod} en {ciudad}{excel}: sin nombre no se puede crear; use --obra {codigo_excel}=CODIGO_OBRA', []
+        return None, f'ningún cliente varios {cod} en {ciudad}{excel}; use --crear-obras (crea empresa y obra) o --obra {codigo_excel}=CODIGO_OBRA', []
+    if len(obras) == 1:
+        o = obras[0]
+        aviso = ''
+        if razon and not (misma_empresa(razon, o.constructora.nombre) or misma_empresa(razon, o.nombre)):
+            aviso = f' ⚠ el Excel dice "{razon}" y en el portal es "{o.constructora.nombre}": confirmar'
+        return o, f'cliente varios {cod}{aviso}', obras
+    if razon:
+        afines = [o for o in obras if misma_empresa(razon, o.constructora.nombre) or misma_empresa(razon, o.nombre)]
+        if len(afines) == 1:
+            return afines[0], f'cliente varios {cod}, razón social "{razon}"', obras
+    return None, (
+        f'{len(obras)} obras con el código {cod} en {ciudad}'
+        + (f' y la razón social "{razon}" no desempata' if razon else excel)
+        + f' (use --obra {codigo_excel}=CODIGO_OBRA)'
+    ), obras
+
+
 def _constructoras_de(ciudad, codigos_emp, razon):
     """
     El CÓDIGO manda: si hay constructora con ese código (IBA14), es esa aunque
@@ -312,6 +377,11 @@ def constructora_de(ciudad, codigo_excel, lectura):
     """Constructora a la que pertenece una columna del Excel (o None). Misma regla que resolver_obra."""
     emp = codigo_excel.partition('-')[0]
     prefijo = CIUDADES.get(ciudad, '')
+    if emp == '0':
+        cod = f'{prefijo}{codigo_excel}'
+        return Constructora.objects.filter(
+            ciudad__iexact=ciudad, codigo__iregex=rf'^{re.escape(cod)}[A-Z]?$'
+        ).order_by('codigo').first()
     codigos_emp = {f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'}
     lista = _constructoras_de(ciudad, codigos_emp, lectura.nombres_empresas.get(emp))
     return lista[0] if lista else None
@@ -324,9 +394,22 @@ def crear_obra(ciudad, codigo_excel, lectura):
     Excel si se conoce) y codigo_obra "IBA8-1". Devuelve None si no hay constructora.
     """
     c = constructora_de(ciudad, codigo_excel, lectura)
+    prefijo = CIUDADES.get(ciudad, '')
+    if codigo_excel.startswith('0-'):
+        # Cliente varios nuevo: empresa + obra con el código del Excel, solo si el libro trae su nombre
+        razon = lectura.nombres_empresas.get(codigo_excel)
+        if c is None:
+            # Sin nombre no se inventa; y el código es único en todo el portal (otra ciudad lo bloquea)
+            if not razon or Constructora.objects.filter(codigo__iexact=f'{prefijo}{codigo_excel}').exists():
+                return None
+            c = Constructora.objects.create(codigo=f'{prefijo}{codigo_excel}', nombre=razon, ciudad=ciudad)
+        proyecto = lectura.nombres_obras.get(codigo_excel) or razon or c.nombre
+        codigo_obra = f'{prefijo}{codigo_excel}'
+        if Obra.objects.filter(codigo_obra__iexact=codigo_obra).exists():
+            codigo_obra = f'{codigo_obra}-1'
+        return Obra.objects.create(constructora=c, nombre=proyecto, codigo_obra=codigo_obra)
     if c is None:
         return None
-    prefijo = CIUDADES.get(ciudad, '')
     num = codigo_excel.partition('-')[2]
     proyecto = lectura.nombres_obras.get(codigo_excel)
     nombre = f'{proyecto} ({prefijo} {codigo_excel})' if proyecto else f'{prefijo} {codigo_excel}'.strip()

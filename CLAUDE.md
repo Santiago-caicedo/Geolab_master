@@ -299,6 +299,12 @@ python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de factu
 # pero es ARENAS Y GRAVAS); IBA10 e IBA10B (código reutilizado) se buscan juntos.
 # ("supuesto"). Una obra recibe UNA sola columna. Lo no resuelto se lista con sugerencias.
 # --crear-obras crea las que falten (nombre "IBA 1-2", codigo IBA1-2) bajo su constructora.
+# Las columnas de obra se detectan por encabezado desde la columna E (Bogotá no tiene DESCUENTO).
+# Clientes varios "0-N": cada N es una empresa; se resuelven por el código BOG0-N (constructora con
+# sufijo o la obra con ese codigo_obra aunque cuelgue de otra), desempatando por la razón social de la
+# hoja LISTA EMPRESAS VARIOS OBRAS; --crear-obras crea empresa+obra BOG0-N solo si el libro trae nombre.
+# Avisa ⚠ si la razón social del Excel no se parece a la del portal, y si el código BOG0-N ya existe
+# en OTRA ciudad (WordPress trae clientes de Bogotá con municipio Bucaramanga: corregir la ciudad).
 # Idempotente, transaccional. Lógica en facturacion/importar_excel.py.
 python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --dry-run
 python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --crear-obras --obra 2-2=IBA2-42065
