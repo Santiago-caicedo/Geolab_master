@@ -291,17 +291,17 @@ def _libro_bogota(ruta):
     ws.title = 'LISTA DE PRECIO'
     ws.append(['', '', 'LISTA DE PRECIOS 2019'])
     ws.append([])
-    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34'])
-    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34'])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34', '0-8'])
+    ws.append(['ÍTEM', 'DESCRIPCIÓN', 'NORMA', 'PRECIO LISTA', '1-1', '0-10', '1', '0-2', '0-22', '0-34', '0-8'])
     ws.append(['\xa0       1', 'CONCRETOS'])
-    ws.append(['1-1', 'Compresión de cilindros', 'NTC 673', 5500, 4500, 4800, 9, 5000, 5100, 5200])
+    ws.append(['1-1', 'Compresión de cilindros', 'NTC 673', 5500, 4500, 4800, 9, 5000, 5100, 5200, 5300])
     ws2 = wb.create_sheet('LISTA EMPRESAS REGULARES')
     ws2.append(['1', 'MAB INGENIERIA DE VALORES'])
     ws2.append(['1-1', 'CONTRATO IDU 1286'])
     ws3 = wb.create_sheet('LISTA EMPRESAS VARIOS OBRAS')
     for fila in (['0-10', 'CONSORCIO DC 2025'], ['0-10', 'MALLA VIAL LOCAL'], ['0-2', 'CONSORCIO INFRACENTRO DP'],
                  ['0-2', 'CONSORCIO INFRACENTRO DP'], ['0-22', 'Columna1'], ['0-34', 'CONSORCIO ESTACIONES NAVARRA'],
-                 ['0-34', 'RENOVACION ESTACION NAVARRA']):
+                 ['0-34', 'RENOVACION ESTACION NAVARRA'], ['0-8', 'SERINGTEC S.A.S']):
         ws3.append(fila)
     wb.save(ruta)
 
@@ -327,6 +327,9 @@ class ImportarBogotaTests(TestCase):
         cls.o02 = Obra.objects.create(constructora=infra, nombre='INTERVENTORIA IDU 1523-2025', codigo_obra='BOG0-2')
         # 0-34 existe pero en otra ciudad: el código es único en el portal
         Constructora.objects.create(codigo='BOG0-34', nombre='OTRA', ciudad='Ibagué')
+        # 0-8: mismo número, otra empresa (WordPress lo reutilizó)
+        isnava = Constructora.objects.create(codigo='BOG0-8', nombre='UNION TEMPORAL ISNAVA', ciudad='Bogotá')
+        cls.o08 = Obra.objects.create(constructora=isnava, nombre='ISNAVA NORTE', codigo_obra='BOG0-8')
 
     @classmethod
     def tearDownClass(cls):
@@ -334,7 +337,7 @@ class ImportarBogotaTests(TestCase):
         super().tearDownClass()
 
     def test_lee_columnas_desde_la_e_y_nombres_de_varios(self):
-        self.assertEqual(self.lectura.obras, ['1-1', '0-10', '0-2', '0-22', '0-34'])
+        self.assertEqual(self.lectura.obras, ['1-1', '0-10', '0-2', '0-22', '0-34', '0-8'])
         self.assertTrue(any('"1" no es un código de obra' in l for l in self.lectura.log))
         self.assertEqual(self.lectura.nombres_empresas['0-10'], 'CONSORCIO DC 2025')
         self.assertEqual(self.lectura.nombres_obras['0-10'], 'MALLA VIAL LOCAL')
@@ -354,6 +357,13 @@ class ImportarBogotaTests(TestCase):
         obra, motivo, _ = resolver_obra('Bogotá', '0-34', self.lectura)
         self.assertIsNone(obra)
         self.assertIn('Ibagué', motivo)
+        # otra empresa con el mismo número: no se asigna sola, se sugiere --obra
+        obra, motivo, cand = resolver_obra('Bogotá', '0-8', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIn('--obra 0-8=BOG0-8', motivo)
+        self.assertEqual(cand, [self.o08])
+        obra, motivo, _ = resolver_obra('Bogotá', '0-8', self.lectura, overrides={'0-8': 'BOG0-8'})
+        self.assertEqual(obra, self.o08)
 
     def test_crear_obras_crea_cliente_varios_con_nombre(self):
         out = StringIO()
@@ -364,6 +374,8 @@ class ImportarBogotaTests(TestCase):
         self.assertIn('✓    0-2', salida)
         self.assertIn('✗   0-22', salida)      # sin nombre: no se inventa
         self.assertIn('✗   0-34', salida)      # el código es de otra ciudad: no se crea
+        self.assertIn('✗    0-8', salida)      # otra empresa con el mismo número: se confirma con --obra
+        self.assertFalse(PrecioServicio.objects.filter(obra=self.o08).exists())
         self.assertFalse(Constructora.objects.filter(codigo='BOG0-22').exists())
         self.assertEqual(Constructora.objects.filter(codigo='BOG0-34').count(), 1)
         self.assertEqual(PrecioServicio.objects.filter(obra=self.o02, precio=5000).count(), 1)

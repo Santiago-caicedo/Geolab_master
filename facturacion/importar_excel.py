@@ -339,10 +339,12 @@ def _resolver_varios(ciudad, codigo_excel, lectura, prefijo):
         return None, f'ningún cliente varios {cod} en {ciudad}{excel}; use --crear-obras (crea empresa y obra) o --obra {codigo_excel}=CODIGO_OBRA', []
     if len(obras) == 1:
         o = obras[0]
-        aviso = ''
         if razon and not (misma_empresa(razon, o.constructora.nombre) or misma_empresa(razon, o.nombre)):
-            aviso = f' ⚠ el Excel dice "{razon}" y en el portal es "{o.constructora.nombre}": confirmar'
-        return o, f'cliente varios {cod}{aviso}', obras
+            # Mismo número, otra empresa: cargar precios al cliente equivocado es un error de dinero.
+            # No se asigna solo; el usuario confirma con --obra.
+            return None, (f'el código {cod} es de "{o.constructora.nombre}" en el portal pero el Excel dice "{razon}" '
+                          f'(¿número reutilizado?). Si es la misma empresa, use --obra {codigo_excel}={o.codigo_obra}'), obras
+        return o, f'cliente varios {cod}', obras
     if razon:
         afines = [o for o in obras if misma_empresa(razon, o.constructora.nombre) or misma_empresa(razon, o.nombre)]
         if len(afines) == 1:
@@ -398,6 +400,8 @@ def crear_obra(ciudad, codigo_excel, lectura):
     if codigo_excel.startswith('0-'):
         # Cliente varios nuevo: empresa + obra con el código del Excel, solo si el libro trae su nombre
         razon = lectura.nombres_empresas.get(codigo_excel)
+        if c is not None and razon and not misma_empresa(razon, c.nombre):
+            return None   # el número ya es de otra empresa: no se le cuelga una obra ajena (se confirma con --obra)
         if c is None:
             # Sin nombre no se inventa; y el código es único en todo el portal (otra ciudad lo bloquea)
             if not razon or Constructora.objects.filter(codigo__iexact=f'{prefijo}{codigo_excel}').exists():
