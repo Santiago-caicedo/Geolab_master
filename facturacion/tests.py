@@ -333,8 +333,10 @@ class ImportarBogotaTests(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.tmp.cleanup()
-        super().tearDownClass()
+        try:
+            cls.tmp.cleanup()
+        finally:
+            super().tearDownClass()
 
     def test_lee_columnas_desde_la_e_y_nombres_de_varios(self):
         self.assertEqual(self.lectura.obras, ['1-1', '0-10', '0-2', '0-22', '0-34', '0-8'])
@@ -398,8 +400,10 @@ class LecturaExcelTests(SimpleTestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.tmp.cleanup()
-        super().tearDownClass()
+        try:
+            cls.tmp.cleanup()
+        finally:
+            super().tearDownClass()
 
     def test_categorias_y_columnas(self):
         self.assertEqual(self.lectura.categorias, [('1', 'CONCRETOS'), ('2', 'SUELOS')])
@@ -443,8 +447,10 @@ class ImportarCatalogoExcelTests(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.tmp.cleanup()
-        super().tearDownClass()
+        try:
+            cls.tmp.cleanup()
+        finally:
+            super().tearDownClass()
 
     def _run(self, *extra):
         out = StringIO()
@@ -546,8 +552,10 @@ class ResolverObraTests(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.tmp.cleanup()
-        super().tearDownClass()
+        try:
+            cls.tmp.cleanup()
+        finally:
+            super().tearDownClass()
 
     def test_por_nombre_de_obra_con_codigo(self):
         obra, motivo, _ = resolver_obra('Ibagué', '8-1', self.lectura)
@@ -607,8 +615,10 @@ class ResolverObraCodigoMandaTests(TestCase):
 
     @classmethod
     def tearDownClass(cls):
-        cls.tmp.cleanup()
-        super().tearDownClass()
+        try:
+            cls.tmp.cleanup()
+        finally:
+            super().tearDownClass()
 
     def test_codigo_gana_si_la_razon_social_no_es_de_otra_empresa(self):
         from .importar_excel import SinCrear

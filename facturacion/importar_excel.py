@@ -115,6 +115,13 @@ def leer_lista_precios(ruta, hoja=HOJA_PRECIOS):
     import openpyxl  # import tardío: solo hace falta al importar
 
     wb = openpyxl.load_workbook(ruta, read_only=True, data_only=True)
+    try:
+        return _leer_libro(wb, hoja)
+    finally:
+        wb.close()   # en Windows un libro abierto deja el archivo bloqueado
+
+
+def _leer_libro(wb, hoja):
     if hoja not in wb.sheetnames:
         raise ValueError(f'El libro no tiene la hoja "{hoja}". Hojas: {wb.sheetnames}')
     filas = list(wb[hoja].iter_rows(values_only=True))
