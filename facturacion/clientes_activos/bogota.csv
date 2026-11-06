@@ -1,0 +1,18 @@
+# Clientes activos de Bogotá según el laboratorio (clientes/bogota.jpeg, oct-2026).
+# Solo estas columnas del Excel reciben precios. Formato en facturacion/importar_excel.py (leer_activos).
+codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
+0-27;CONSORCIO 2AC VIAS BOGOTA;;;;
+2-2;CONSTRUCCIONES CFC Y ASOCIADOS S.A;MONTE RIZZO;;;
+# 11-1 y 11-2: TINGUAS DE CANTOVAL (en WordPress dice ALONDRAS: corregir allá), misma lista de precios
+11-1;TINGUAS DE CANTOVAL SAS;PLAN PARCIAL N 15 MAZDA MAVAIA;BOG11;BOG11-1;
+11-2;TINGUAS DE CANTOVAL SAS;PLAN PARCIAL N 15 MAZDA MAVAIA;BOG11;BOG11-2;11-1
+0-12;CONSORCIO REDESTIM ZONA 5;;;;
+0-10;CONSORCIO DC 2025;;;;
+0-13;DIAZAR CONSTRUCCIONES;;;;
+0-14;CONSORCIO OBRAS AZUL-CIA;;;;
+0-22;HOUSING INGENIEROS;HOUSING INGENIEROS;BOG0-22;BOG0-22;
+10-1;CONSORCIO VIAL SITP 2025;;;;
+0-2;CONSORCIO INFRACENTRO DP;;;;
+# 3-1 y 4-1: hay dos obras con cada código; el laboratorio confirma 4GA (ANDES 06) e IKAKOS (ESPACIO 52)
+3-1;PROYECTOS Y SOLUCIONES 4GA SAS;ANDES 06;BOG3B;BOG3-1;
+4-1;IKAKOS DESARROLLOS SAS;ESPACIO 52;BOG4B;BOG4-1;

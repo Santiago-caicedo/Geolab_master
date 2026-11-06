@@ -5,6 +5,7 @@ libro BASE DATOS <CIUDAD>.xlsm (hoja "LISTA DE PRECIO").
     python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --dry-run
     python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué
     python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --obra 8-1=IBA8-1 --obra 10-2=IBA10-2
+    python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --crear-obras         --activos facturacion/clientes_activos/ibague.csv
 
 Qué hace:
 1. Categorías y servicios de la ciudad: crea los que faltan y actualiza
@@ -14,6 +15,9 @@ Qué hace:
    escribe PrecioServicio(obra, servicio, precio) para cada celda con precio.
    Las columnas que no se puedan resolver se listan al final y se omiten;
    se asignan a mano con --obra CODIGO_EXCEL=CODIGO_OBRA.
+3. Con --activos solo se cargan precios a las columnas de esa lista (los clientes
+   que el laboratorio confirmó como activos); ver facturacion/importar_excel.leer_activos.
+   El catálogo se carga completo igual.
 
 Nunca borra nada. Todo corre en una transacción: con --dry-run se muestra el
 resultado completo y no se guarda nada.
@@ -24,7 +28,9 @@ from django.db import transaction
 
 from collections import Counter
 
-from facturacion.importar_excel import SinCrear, crear_obra, leer_lista_precios, resolver_obra
+from facturacion.importar_excel import (
+    SinCrear, aplicar_activos, crear_obra, leer_activos, leer_lista_precios, obra_de_activo, resolver_obra,
+)
 from facturacion.models import CategoriaServicio, PrecioServicio, TipoServicio
 from users.ciudades import normalizar_ciudad
 
@@ -50,6 +56,9 @@ class Command(BaseCommand):
         parser.add_argument('--crear-obras', action='store_true',
                             help='Crea en el sistema las obras del Excel que no existan (bajo su constructora), '
                                  'con nombre "IBA 8-1" y código IBA8-1')
+        parser.add_argument('--activos', metavar='ARCHIVO.csv',
+                            help='Lista de clientes activos: solo esas columnas del Excel reciben precios '
+                                 '(ver facturacion/clientes_activos/)')
 
     # ─────────────────────────────────────────────────────────────────
     def handle(self, *args, **o):
@@ -66,6 +75,19 @@ class Command(BaseCommand):
         except (OSError, ValueError) as e:
             raise CommandError(str(e))
 
+        self._activos = {}
+        self._columnas_excel = list(lectura.obras)   # antes de filtrar: la regla "única columna" mira el Excel entero
+        omitidas = faltantes = ()
+        if o['activos']:
+            try:
+                self._activos = leer_activos(o['activos'])
+                omitidas, faltantes = aplicar_activos(lectura, self._activos)
+            except (OSError, ValueError) as e:
+                raise CommandError(str(e))
+            sobran = [c for c in overrides if c not in self._activos]
+            if sobran:
+                raise CommandError(f'--obra para columnas que no están en la lista de activos: {", ".join(sobran)}')
+
         self.stdout.write(self.style.MIGRATE_HEADING(
             f'{o["archivo"]} -> ciudad {ciudad}: {len(lectura.categorias)} categorías, '
             f'{len(lectura.servicios)} servicios, {len(lectura.obras)} columnas de obra'
@@ -75,6 +97,14 @@ class Command(BaseCommand):
             for linea in lectura.log:
                 self.stdout.write(f'  · {linea}')
 
+        if o['activos']:
+            self.stdout.write(self.style.NOTICE(
+                f'Lista de activos {o["activos"]}: {len(self._activos)} clientes; '
+                f'{len(omitidas)} columnas del Excel no están en la lista y no reciben precios.'))
+            for cod in faltantes:
+                a = self._activos[cod]
+                self.stdout.write(self.style.WARNING(
+                    f'  ! {cod} {a.empresa[:30]} {a.proyecto[:30]}: no tiene columna en el Excel, queda sin precios'))
         self._verificar_conflictos(ciudad, lectura)
 
         try:
@@ -91,18 +121,38 @@ class Command(BaseCommand):
 
     # ─────────────────────────────────────────────────────────────────
     def _verificar_conflictos(self, ciudad, lectura):
-        """nombre único por ciudad: si ya hay un servicio con ese nombre y OTRO código, abortar antes de escribir."""
-        codigo_por_nombre = {s.nombre.lower(): s.codigo for s in lectura.servicios}
-        conflictos = []
-        for s in TipoServicio.objects.filter(ciudad__iexact=ciudad):
-            esperado = codigo_por_nombre.get(s.nombre.lower())
-            if esperado and esperado != s.codigo:
-                conflictos.append(f'  [{s.codigo}] "{s.nombre}"  (en el Excel es [{esperado}])')
+        """
+        Empareja cada servicio del Excel con el del portal y aborta antes de escribir si no se puede.
+
+        El NOMBRE manda sobre el código: el catálogo de Bucaramanga se cargó en septiembre de 2026
+        con otra limpieza de los códigos mal digitados ("13-8" -> 1-3-9, "828-B"), y el Excel de hoy
+        los numera distinto. Si el servicio ya existe con ese nombre, se usa el del portal y conserva
+        su código (puede estar en registros y facturas). Solo se aborta si el código del Excel está
+        ocupado en el portal por un servicio que otra fila del Excel ya reclamó por nombre.
+        """
+        existentes = list(TipoServicio.objects.filter(ciudad__iexact=ciudad))
+        por_nombre = {s.nombre.lower(): s for s in existentes}
+        por_codigo = {s.codigo: s for s in existentes}
+        reclamados = {por_nombre[s.nombre.lower()].pk for s in lectura.servicios if s.nombre.lower() in por_nombre}
+        self._pareja, conflictos = {}, []
+        for s in lectura.servicios:
+            srv = por_nombre.get(s.nombre.lower())
+            if srv is not None:
+                if srv.codigo != s.codigo:
+                    self.stdout.write(self.style.NOTICE(
+                        f'  · [{s.codigo}] del Excel ya existe en el portal como [{srv.codigo}] "{srv.nombre[:60]}": se conserva el código del portal'))
+            else:
+                srv = por_codigo.get(s.codigo)
+                if srv is not None and srv.pk in reclamados:
+                    conflictos.append(f'  [{s.codigo}] "{s.nombre[:60]}": en el portal ese código es "{srv.nombre[:60]}", '
+                                      f'que en el Excel es otra fila')
+                    continue
+            self._pareja[s.codigo] = srv
         if conflictos:
             raise CommandError(
-                f'No se cargó nada. En {ciudad} ya existen servicios con el mismo NOMBRE pero otro código:\n'
+                f'No se cargó nada. En {ciudad} hay códigos del Excel ocupados por otro servicio del portal:\n'
                 + '\n'.join(conflictos)
-                + '\nCorrígelos o elimínalos desde /facturacion/catalogo/ y vuelve a correr el comando.'
+                + '\nCorrige el código en /facturacion/catalogo/ y vuelve a correr el comando.'
             )
 
     def _cargar_catalogo(self, ciudad, lectura, detalle):
@@ -125,7 +175,7 @@ class Command(BaseCommand):
         servicios_db = {}
         for s in lectura.servicios:
             cat = categorias[s.categoria]
-            srv = TipoServicio.objects.filter(ciudad=ciudad, codigo=s.codigo).first()
+            srv = self._pareja.get(s.codigo)
             if srv is None:
                 srv = TipoServicio.objects.create(categoria=cat, codigo=s.codigo, nombre=s.nombre, norma=s.norma)
                 st['srv_nuevos'] += 1
@@ -158,12 +208,18 @@ class Command(BaseCommand):
 
     def _cargar_precios(self, ciudad, lectura, servicios_db, overrides, no_sobrescribir, detalle, crear_obras):
         self.stdout.write(self.style.MIGRATE_HEADING('\nPrecios por obra'))
-        columnas_por_empresa = Counter(cod.partition('-')[0] for cod in lectura.obras)
+        columnas_por_empresa = Counter(cod.partition('-')[0] for cod in self._columnas_excel)
         resueltas, sin_resolver, creadas = {}, [], 0
         for cod_excel in lectura.obras:
-            obra, motivo, candidatas = resolver_obra(
-                ciudad, cod_excel, lectura, overrides, columnas_por_empresa[cod_excel.partition('-')[0]],
-            )
+            activo = self._activos.get(cod_excel)
+            if activo and activo.obra_portal and cod_excel not in overrides:
+                obra, motivo = obra_de_activo(ciudad, activo, crear_obras)
+                candidatas = SinCrear()
+                creadas += 1 if 'CREADA' in motivo else 0
+            else:
+                obra, motivo, candidatas = resolver_obra(
+                    ciudad, cod_excel, lectura, overrides, columnas_por_empresa[cod_excel.partition('-')[0]],
+                )
             if obra is None and crear_obras and not isinstance(candidatas, SinCrear):
                 nueva = crear_obra(ciudad, cod_excel, lectura)
                 if nueva is not None:
@@ -184,7 +240,7 @@ class Command(BaseCommand):
         for pk, cods in por_obra.items():
             if len(cods) < 2:
                 continue
-            prioridad = lambda c: 0 if resueltas[c][1].startswith(('--obra', 'código de obra', 'nombre de obra')) else 1
+            prioridad = lambda c: 0 if resueltas[c][1].startswith(('--obra', 'lista de activos', 'código de obra', 'nombre de obra')) else 1
             cods_orden = sorted(cods, key=prioridad)
             for cod_excel in cods_orden[1:]:
                 obra, motivo, n, etiqueta = resueltas.pop(cod_excel)

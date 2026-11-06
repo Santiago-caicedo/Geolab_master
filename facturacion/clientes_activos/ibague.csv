@@ -1,0 +1,11 @@
+# Clientes activos de Ibagué según el laboratorio (clientes/ibague.jpg, oct-2026).
+# Solo estas columnas del Excel reciben precios. Formato en facturacion/importar_excel.py (leer_activos).
+codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
+3-1;PRETENSADOS DEL TOLIMA S.A.S PRETOLSA;PRETOLSA;;;
+17-1;HITOS URBANOS;VILLA NOVA;;;
+# 1-2: CEDI COORDINADORA es una obra de SIKA (confirmado 2026-11-05)
+1-2;SIKA COLOMBIA S.A;CEDI COORDINADORA G4;;;
+8-1;DYCO;;;;
+15-1;AGREGADOS MARTINEZ;;;;
+# 14-1: ARENAS Y GRAVAS (en WordPress IBA14 dice ASFALTEMOS: corregir allá)
+14-1;ARENAS Y GRAVAS;;;;

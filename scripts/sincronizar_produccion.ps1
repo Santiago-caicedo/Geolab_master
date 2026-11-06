@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Sube el respaldo de WordPress (y opcionalmente el Excel de una sede) al
   servidor de producción y ejecuta allá toda la sincronización.
@@ -25,6 +25,10 @@
   # Solo precios de Bucaramanga, sin tocar WordPress
   .\scripts\sincronizar_produccion.ps1 -SinWordpress -Excel "BASE DATOS BUCARAMANGA.xlsm" -Ciudad Bucaramanga
 
+.EXAMPLE
+  # Precios solo de los clientes activos (la lista viaja con git: hacer push antes, o usar -Push)
+  .\scripts\sincronizar_produccion.ps1 -SinWordpress -Excel "BASE DATOS IBAGUE.xlsm" -Ciudad Ibagué -Activos facturacion/clientes_activos/ibague.csv -Ensayo
+
 .NOTES
   scripts\produccion.env (NO se sube a git):
       GEOLAB_HOST=1.2.3.4
@@ -37,6 +41,7 @@ param(
     [string]$Dump,
     [string]$Excel,
     [string]$Ciudad,
+    [string]$Activos,
     [switch]$Ensayo,
     [switch]$SinWordpress,
     [switch]$SinInformes,
@@ -73,6 +78,8 @@ if (-not $SinWordpress -and -not $Dump) { throw "Indica -Dump ARCHIVO.sql (o -Si
 if ($Dump -and -not (Test-Path $Dump)) { throw "No existe el respaldo: $Dump" }
 if ($Excel -and -not (Test-Path $Excel)) { throw "No existe el Excel: $Excel" }
 if ($Excel -and -not $Ciudad) { throw "-Excel requiere -Ciudad." }
+if ($Activos -and -not $Excel) { throw "-Activos requiere -Excel." }
+if ($Activos -and -not (Test-Path $Activos)) { throw "No existe la lista de activos: $Activos" }
 
 $destino = "$Usuario@$Servidor"
 $modo = if ($Ensayo) { 'ENSAYO (no guarda nada)' } else { 'REAL' }
@@ -96,6 +103,7 @@ function Subir([string]$archivo) {
 $opciones = @()
 if ($Dump)  { $opciones += @('--dump', (Subir $Dump)) }
 if ($Excel) { $opciones += @('--excel', (Subir $Excel), '--ciudad', $Ciudad) }
+if ($Activos)      { $opciones += @('--activos', ($Activos -replace '\\', '/')) }
 if ($Ensayo)       { $opciones += '--ensayo' }
 if ($SinWordpress) { $opciones += '--sin-wordpress' }
 if ($SinInformes)  { $opciones += '--sin-informes' }

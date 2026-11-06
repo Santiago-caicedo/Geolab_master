@@ -19,6 +19,8 @@
 #   --sin-wordpress  Salta la sincronización con WordPress.
 #   --excel ARCHIVO  Libro BASE DATOS <CIUDAD>.xlsm para catálogo + precios.
 #   --ciudad NOMBRE  Sede del Excel (obligatorio con --excel).
+#   --activos CSV    Solo carga precios a los clientes activos de esa lista
+#                    (ruta dentro del repo, p. ej. facturacion/clientes_activos/ibague.csv).
 #   --sin-informes   No trae informes de WordPress (más rápido).
 #   --conservar      No borra el .sql al terminar.
 #   --sin-respaldo   No hace pg_dump antes (NO recomendado).
@@ -28,7 +30,7 @@
 set -euo pipefail
 
 RUTA_PROYECTO="${RUTA_PROYECTO:-/opt/geolab_master}"
-ENSAYO=0; DUMP=""; SIN_WP=0; EXCEL=""; CIUDAD=""; SIN_INFORMES=0; CONSERVAR=0; SIN_RESPALDO=0
+ENSAYO=0; DUMP=""; SIN_WP=0; EXCEL=""; CIUDAD=""; ACTIVOS=""; SIN_INFORMES=0; CONSERVAR=0; SIN_RESPALDO=0
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -37,6 +39,7 @@ while [[ $# -gt 0 ]]; do
         --sin-wordpress) SIN_WP=1 ;;
         --excel) EXCEL="$2"; shift ;;
         --ciudad) CIUDAD="$2"; shift ;;
+        --activos) ACTIVOS="$2"; shift ;;
         --sin-informes) SIN_INFORMES=1 ;;
         --conservar) CONSERVAR=1 ;;
         --sin-respaldo) SIN_RESPALDO=1 ;;
@@ -62,6 +65,7 @@ if [[ $SIN_WP -eq 0 && -z "$DUMP" ]]; then fallo "Falta --dump ARCHIVO.sql (o us
 if [[ -n "$DUMP" && ! -f "$DUMP" ]]; then fallo "No existe el respaldo de WordPress: $DUMP"; fi
 if [[ -n "$EXCEL" && ! -f "$EXCEL" ]]; then fallo "No existe el Excel: $EXCEL"; fi
 if [[ -n "$EXCEL" && -z "$CIUDAD" ]]; then fallo "--excel requiere --ciudad"; fi
+if [[ -n "$ACTIVOS" && -z "$EXCEL" ]]; then fallo "--activos requiere --excel"; fi
 [[ -f venv/bin/activate ]] || fallo "No se encontró venv/bin/activate en $RUTA_PROYECTO"
 # shellcheck disable=SC1091
 source venv/bin/activate
@@ -124,7 +128,12 @@ if [[ -z "$EXCEL" ]]; then
     echo "(sin --excel: se omite)"
 else
     # shellcheck disable=SC2086
-    python manage.py importar_catalogo_excel "$EXCEL" --ciudad "$CIUDAD" --crear-obras $DRY
+    OPC_ACTIVOS=()
+    if [[ -n "$ACTIVOS" ]]; then
+        [[ -f "$ACTIVOS" ]] || fallo "No existe la lista de activos: $ACTIVOS (¿se hizo git push?)"
+        OPC_ACTIVOS=(--activos "$ACTIVOS")
+    fi
+    python manage.py importar_catalogo_excel "$EXCEL" --ciudad "$CIUDAD" --crear-obras ${OPC_ACTIVOS[@]+"${OPC_ACTIVOS[@]}"} $DRY
 fi
 
 # ── limpieza ─────────────────────────────────────────────────────────────

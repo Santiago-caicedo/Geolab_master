@@ -316,6 +316,19 @@ python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de factu
 python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --dry-run
 python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagué --crear-obras --obra 2-2=IBA2-42065
 #   Flags: --sin-precios, --no-sobrescribir (conserva precios ya cargados), --detalle, --hoja
+# --activos facturacion/clientes_activos/<sede>.csv: SOLO esas columnas reciben precios (clientes que el
+# laboratorio confirmó activos, nov-2026; el catálogo se carga completo igual). CSV con ";":
+# codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de. empresa_portal+obra_portal fijan la obra
+# exacta (hay códigos de obra repetidos entre hermanas: BUC27-1 en BUC27 y BUC27B, donde --obra no
+# desempata) y con --crear-obras la crean (y la empresa: BUC0-6B, número reutilizado). precios_de copia
+# otra columna (BOG 11-2 = precios de 11-1). Lo que no está en la lista (21-3, 50-4, 1-4, 15-1 de BUC)
+# va comentado en el CSV con el motivo. Scripts: -Activos / --activos (el CSV viaja con git: push antes).
+# Catálogo: el NOMBRE manda sobre el código; si el servicio ya existe con otro código (BUC 1-3-9/1-3-10/
+# 828-B, cargados en sept-2026 con otra limpieza) se conserva el del portal. Cliente varios con varias
+# obras de la misma empresa: gana la de código exacto (BOG0-12, no la vieja BOG012-602); si hay duda,
+# --crear-obras NO crea otra (SinCrear).
+# Razones sociales: sincronizar_wordpress las reescribe desde WP en cada corrida, así que se corrigen en
+# WordPress (BOG11 = TINGUAS DE CANTOVAL, IBA14 = ARENAS Y GRAVAS), no en el portal.
 
 # Crea el rol Coordinador de Calidad (usuario + perfil en una transacción,
 # evitando la ventana en que es_admin_geolab lo dejaría como admin total).

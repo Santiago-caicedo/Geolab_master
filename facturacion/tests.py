@@ -255,7 +255,7 @@ from django.core.management import call_command
 from django.core.management.base import CommandError
 from io import StringIO
 
-from .importar_excel import leer_lista_precios, resolver_obra
+from .importar_excel import SinCrear, leer_lista_precios, resolver_obra
 
 
 def _libro_de_prueba(ruta):
@@ -366,6 +366,24 @@ class ImportarBogotaTests(TestCase):
         self.assertEqual(cand, [self.o08])
         obra, motivo, _ = resolver_obra('Bogotá', '0-8', self.lectura, overrides={'0-8': 'BOG0-8'})
         self.assertEqual(obra, self.o08)
+
+    def test_varios_con_obra_vieja_elige_el_codigo_exacto_y_no_crea(self):
+        # 0-10 con una obra vieja de WordPress (BOG010-600) y la vigente BOG0-10, misma empresa
+        dc = Constructora.objects.create(codigo='BOG0-10', nombre='CONSORCIO DC 2025', ciudad='Bogotá')
+        vieja = Obra.objects.create(constructora=dc, nombre='BOG 0-10', codigo_obra='BOG010-600')
+        obra, motivo, _ = resolver_obra('Bogotá', '0-10', self.lectura)
+        self.assertEqual(obra, self.o010)
+        self.assertIn('código de obra exacto', motivo)
+        # sin obra con el código exacto: no se asigna y --crear-obras no inventa una tercera
+        Obra.objects.filter(pk=self.o010.pk).update(codigo_obra='BOG0-10-7')
+        obra, motivo, cand = resolver_obra('Bogotá', '0-10', self.lectura)
+        self.assertIsNone(obra)
+        self.assertIsInstance(cand, SinCrear)
+        antes = Obra.objects.count()
+        call_command('importar_catalogo_excel', self.ruta, '--ciudad', 'Bogotá', '--crear-obras', stdout=StringIO())
+        self.assertFalse(Obra.objects.filter(codigo_obra__iexact='BOG0-10-1').exists())
+        self.assertFalse(PrecioServicio.objects.filter(obra__in=[vieja, self.o010]).exists())
+        self.assertEqual(Obra.objects.count(), antes)
 
     def test_crear_obras_crea_cliente_varios_con_nombre(self):
         out = StringIO()
@@ -499,12 +517,67 @@ class ImportarCatalogoExcelTests(TestCase):
         self.assertIn('--obra', salida)
         self.assertTrue(PrecioServicio.objects.filter(obra__codigo_obra='IBA10-556', precio=Decimal('5000')).exists())
 
-    def test_conflicto_de_nombre_aborta(self):
-        cat = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='9', nombre='OTRA')
-        TipoServicio.objects.create(categoria=cat, codigo='9-1', nombre='Humedad')
+    def test_mismo_nombre_otro_codigo_conserva_el_del_portal(self):
+        # El catálogo de Bucaramanga se cargó con otra numeración ("13-8" -> 1-3-9): el nombre manda
+        cat = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='2', nombre='SUELOS')
+        humedad = TipoServicio.objects.create(categoria=cat, codigo='2-99', nombre='Humedad')
+        salida = self._run()
+        self.assertIn('se conserva el código del portal', salida)
+        humedad.refresh_from_db()
+        self.assertEqual(humedad.codigo, '2-99')
+        self.assertFalse(TipoServicio.objects.filter(ciudad='Ibagué', codigo='2-1').exists())
+        self.assertTrue(PrecioServicio.objects.filter(obra=self.ambala, tipo_servicio=humedad, precio=Decimal('6000')).exists())
+
+    def test_codigo_ocupado_por_servicio_reclamado_aborta(self):
+        # En el portal 2-1 es "Diseño de mezclas" (que en el Excel es 1-2) y el 2-1 del Excel es otro servicio
+        cat = CategoriaServicio.objects.create(ciudad='Ibagué', codigo='2', nombre='SUELOS')
+        TipoServicio.objects.create(categoria=cat, codigo='2-1', nombre='Diseño de mezclas')
         with self.assertRaises(CommandError):
             self._run()
         self.assertEqual(TipoServicio.objects.filter(ciudad='Ibagué').count(), 1)
+
+    def _activos(self, texto):
+        ruta = Path(self.tmp.name) / 'activos.csv'
+        ruta.write_text(texto, encoding='utf-8')
+        return str(ruta)
+
+    def test_activos_solo_carga_la_lista_y_copia_precios(self):
+        dyco = self.ambala.constructora
+        segunda = Obra.objects.create(constructora=dyco, nombre='AMBALA ETAPA 2', codigo_obra='IBA8-2')
+        ruta = self._activos(
+            '# comentario\n'
+            'codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de\n'
+            '8-1;DYCO;AMBALA;;;\n'
+            '8-2;DYCO;AMBALA ETAPA 2;IBA8;IBA8-2;8-1\n'
+            '9-9;OTRA;SIN COLUMNA;;;\n'
+        )
+        salida = self._run('--activos', ruta)
+        self.assertIn('1 columnas del Excel no están en la lista', salida)    # 10-2 (JORDAN) queda fuera
+        self.assertIn('9-9', salida)
+        self.assertFalse(PrecioServicio.objects.filter(obra=self.jordan).exists())
+        precios = lambda o: dict(PrecioServicio.objects.filter(obra=o).values_list('tipo_servicio__codigo', 'precio'))
+        self.assertEqual(precios(segunda), precios(self.ambala))
+        self.assertEqual(precios(segunda)['1-1'], Decimal('5000'))
+
+    def test_activos_crea_empresa_y_obra_fijadas(self):
+        ruta = self._activos(
+            'codigo;empresa;proyecto;empresa_portal;obra_portal\n'
+            '10-2;JORDAN SAS;JORDAN NUEVO;IBA10B;IBA10B-1\n'
+        )
+        salida = self._run('--activos', ruta)
+        self.assertIn('use --crear-obras', salida)
+        self.assertFalse(Constructora.objects.filter(codigo='IBA10B').exists())
+        self._run('--activos', ruta, '--crear-obras')
+        obra = Obra.objects.get(codigo_obra='IBA10B-1')
+        self.assertEqual((obra.constructora.nombre, obra.constructora.ciudad, obra.nombre), ('JORDAN SAS', 'Ibagué', 'JORDAN NUEVO'))
+        self.assertTrue(PrecioServicio.objects.filter(obra=obra, precio=Decimal('5500')).exists())
+        self.assertFalse(PrecioServicio.objects.filter(obra=self.jordan).exists())
+
+    def test_activos_mal_armado(self):
+        for texto in ('codigo;otra\n8-1;x\n', 'codigo\n8-1\n8-1\n', 'codigo;empresa_portal\n8-1;IBA8\n',
+                      'codigo;precios_de\n8-1;10-2\n'):
+            with self.subTest(texto=texto), self.assertRaises(CommandError):
+                self._run('--activos', self._activos(texto))
 
 
 class CatalogoPorCiudadTests(TestCase):

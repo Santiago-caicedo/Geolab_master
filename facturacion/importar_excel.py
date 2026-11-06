@@ -34,7 +34,7 @@ from django.db.models import Q
 
 from core.models import Obra
 from core.wp_normalizar import _tokens_empresa, misma_empresa
-from users.ciudades import CIUDADES
+from users.ciudades import CIUDADES, normalizar_ciudad
 from users.models import Constructora
 
 HOJA_PRECIOS = 'LISTA DE PRECIO'
@@ -436,15 +436,22 @@ def _resolver_varios(ciudad, codigo_excel, lectura, prefijo):
             return None, (f'el código {cod} es de "{o.constructora.nombre}" en el portal pero el Excel dice "{razon}" '
                           f'(¿número reutilizado?). Si es la misma empresa, use --obra {codigo_excel}={o.codigo_obra}'), obras
         return o, f'cliente varios {cod}', obras
+    afines = obras
     if razon:
         afines = [o for o in obras if misma_empresa(razon, o.constructora.nombre) or misma_empresa(razon, o.nombre)]
         if len(afines) == 1:
             return afines[0], f'cliente varios {cod}, razón social "{razon}"', obras
+    # Varias obras de la misma empresa (una vieja de WordPress "BOG012-602" y la vigente "BOG0-12"):
+    # la que tiene exactamente el código del cliente varios es la buena.
+    exactas = [o for o in afines if o.codigo_obra.upper() == cod.upper()]
+    if razon and len(exactas) == 1:
+        return exactas[0], f'cliente varios {cod}, razón social "{razon}" y código de obra exacto', obras
+    # Con dudas no se crea otra obra (--crear-obras dejaría los precios en una obra vacía): se confirma con --obra
     return None, (
         f'{len(obras)} obras con el código {cod} en {ciudad}'
         + (f' y la razón social "{razon}" no desempata' if razon else excel)
         + f' (use --obra {codigo_excel}=CODIGO_OBRA)'
-    ), obras
+    ), SinCrear(obras)
 
 
 def _es(razon, constructora):
@@ -483,6 +490,124 @@ def constructora_de(ciudad, codigo_excel, lectura):
     codigos_emp = {f'{prefijo}{emp}', emp, f'{prefijo}-{emp}', f'{prefijo}{emp.zfill(2)}'}
     lista = _constructoras_de(ciudad, codigos_emp, lectura.nombres_empresas.get(emp))
     return lista[0] if lista else None
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# Lista de clientes activos (--activos)
+# ═══════════════════════════════════════════════════════════════════════════
+#
+# El laboratorio confirma qué clientes están activos en cada sede; el resto de
+# columnas del Excel son clientes viejos y NO se cargan. El archivo es un CSV
+# con ";" (las líneas que empiezan por "#" son comentarios):
+#
+#   codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
+#   27-1;CONSORCIO CONSULTECNICOS;DOBLE CALZADA;BUC27B;BUC27-1;
+#   11-2;TINGUAS DE CANTOVAL SAS;PLAN PARCIAL 15;BOG11;BOG11-2;11-1
+#
+# - codigo: columna del Excel. Es la única columna obligatoria.
+# - empresa / proyecto: lo que dice el laboratorio. El proyecto se usa como nombre
+#   si la obra se crea; la empresa, como razón social si hay que crear la constructora.
+# - empresa_portal + obra_portal: obra exacta del portal (van juntas, porque hay
+#   códigos de obra repetidos entre empresas hermanas: BUC27-1 en BUC27 y BUC27B).
+#   Si no existe y se pasa --crear-obras, se crea (y la constructora, si falta).
+#   Vacías: la columna se resuelve como siempre (resolver_obra).
+# - precios_de: otra columna del Excel cuyos precios se copian (misma lista de precios
+#   para dos proyectos de la misma empresa). La columna `codigo` no debe existir en el Excel.
+
+COLUMNAS_ACTIVOS = ('codigo', 'empresa', 'proyecto', 'empresa_portal', 'obra_portal', 'precios_de')
+
+
+@dataclass
+class ClienteActivo:
+    codigo: str
+    empresa: str = ''
+    proyecto: str = ''
+    empresa_portal: str = ''
+    obra_portal: str = ''
+    precios_de: str = ''
+
+
+def leer_activos(ruta):
+    """Lee el CSV de clientes activos -> {codigo_excel: ClienteActivo}. ValueError si está mal armado."""
+    import csv
+    with open(ruta, encoding='utf-8-sig', newline='') as f:
+        lineas = [l for l in f if l.strip() and not l.lstrip().startswith('#')]
+    lector = csv.DictReader(lineas, delimiter=';')
+    encabezado = [(c or '').strip().lower() for c in (lector.fieldnames or [])]
+    if 'codigo' not in encabezado or set(encabezado) - set(COLUMNAS_ACTIVOS):
+        raise ValueError(f'{ruta}: el encabezado debe ser {";".join(COLUMNAS_ACTIVOS)} (recibí {";".join(encabezado)})')
+    lector.fieldnames = encabezado
+    activos = {}
+    for n, fila in enumerate(lector, 2):
+        datos = {k: _norm(v or '') for k, v in fila.items() if k in COLUMNAS_ACTIVOS}
+        a = ClienteActivo(**datos)
+        a.codigo, a.precios_de = _codigo(a.codigo), _codigo(a.precios_de)
+        a.empresa_portal, a.obra_portal = a.empresa_portal.upper(), a.obra_portal.upper()
+        if not _CODIGO_OBRA.match(a.codigo):
+            raise ValueError(f'{ruta}, fila {n}: "{a.codigo}" no es un código de obra del Excel (empresa-obra)')
+        if a.codigo in activos:
+            raise ValueError(f'{ruta}, fila {n}: el código {a.codigo} está repetido')
+        if bool(a.empresa_portal) != bool(a.obra_portal):
+            raise ValueError(f'{ruta}, fila {n}: empresa_portal y obra_portal van juntas')
+        if a.precios_de and not _CODIGO_OBRA.match(a.precios_de):
+            raise ValueError(f'{ruta}, fila {n}: precios_de "{a.precios_de}" no es un código de obra del Excel')
+        activos[a.codigo] = a
+    return activos
+
+
+def aplicar_activos(lectura, activos):
+    """
+    Deja en `lectura` solo las columnas de los clientes activos, copia los precios de
+    `precios_de` y usa el proyecto del laboratorio como nombre de la obra.
+    Devuelve (omitidas, faltantes): columnas del Excel que no están en la lista, y
+    clientes de la lista que no tienen columna en el Excel (quedan sin precios).
+    """
+    for a in activos.values():
+        if not a.precios_de:
+            continue
+        if a.codigo in lectura.obras:
+            raise ValueError(f'{a.codigo} ya tiene columna en el Excel: no puede copiar los precios de {a.precios_de}')
+        if a.precios_de not in lectura.obras:
+            raise ValueError(f'{a.codigo} copia los precios de {a.precios_de}, que no es una columna del Excel')
+        for s in lectura.servicios:
+            if a.precios_de in s.precios:
+                s.precios[a.codigo] = s.precios[a.precios_de]
+        lectura.obras.insert(lectura.obras.index(a.precios_de) + 1, a.codigo)
+    for a in activos.values():
+        if a.proyecto:
+            lectura.nombres_obras[a.codigo] = a.proyecto
+    omitidas = [c for c in lectura.obras if c not in activos]
+    faltantes = [c for c in activos if c not in lectura.obras]
+    lectura.obras = [c for c in lectura.obras if c in activos]
+    return omitidas, faltantes
+
+
+def obra_de_activo(ciudad, activo, crear):
+    """
+    Obra fijada en la lista de activos (empresa_portal + obra_portal) -> (obra, motivo).
+    Con `crear`, la crea si no existe; la constructora también, con la razón social del laboratorio.
+    """
+    obra = Obra.objects.filter(
+        constructora__ciudad__iexact=ciudad, constructora__codigo__iexact=activo.empresa_portal,
+        codigo_obra__iexact=activo.obra_portal,
+    ).select_related('constructora').first()
+    if obra is not None:
+        return obra, f'lista de activos ({activo.empresa_portal} / {activo.obra_portal})'
+    c = Constructora.objects.filter(codigo__iexact=activo.empresa_portal).first()
+    if c is not None and normalizar_ciudad(c.ciudad or '') != normalizar_ciudad(ciudad):
+        return None, f'lista de activos: la constructora {c.codigo} es de {c.ciudad or "ninguna ciudad"}, no de {ciudad}'
+    if not crear:
+        falta = 'la obra' if c else 'la constructora y la obra'
+        return None, f'lista de activos: no existen {falta} {activo.empresa_portal} / {activo.obra_portal} (use --crear-obras)'
+    nueva_empresa = c is None
+    if nueva_empresa:
+        if not activo.empresa:
+            return None, f'lista de activos: no existe la constructora {activo.empresa_portal} y la lista no trae su razón social'
+        c = Constructora.objects.create(codigo=activo.empresa_portal, nombre=activo.empresa, ciudad=ciudad)
+    prefijo = CIUDADES.get(ciudad, '')
+    nombre = activo.proyecto or f'{prefijo} {activo.codigo}'.strip()
+    obra = Obra.objects.create(constructora=c, nombre=nombre[:255], codigo_obra=activo.obra_portal)
+    return obra, ('empresa y obra CREADAS' if nueva_empresa else 'obra CREADA') + f' (lista de activos) bajo {c.codigo} {c.nombre[:30]}'
 
 
 def crear_obra(ciudad, codigo_excel, lectura):
