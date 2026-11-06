@@ -573,6 +573,23 @@ class ImportarCatalogoExcelTests(TestCase):
         self.assertTrue(PrecioServicio.objects.filter(obra=obra, precio=Decimal('5500')).exists())
         self.assertFalse(PrecioServicio.objects.filter(obra=self.jordan).exists())
 
+    def test_activos_codigo_de_empresa_viejo_no_duplica(self):
+        # La lista dice IBA8B pero la empresa quedó como IBA8 (cambió en WordPress): es la misma obra
+        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal\n8-1;DYCO SAS;AMBALA;IBA8B;IBA8-1\n')
+        salida = self._run('--activos', ruta, '--crear-obras')
+        self.assertIn('la lista decía IBA8B', salida)
+        self.assertFalse(Constructora.objects.filter(codigo='IBA8B').exists())
+        self.assertEqual(Obra.objects.filter(codigo_obra='IBA8-1').count(), 1)
+        self.assertTrue(PrecioServicio.objects.filter(obra=self.ambala, precio=Decimal('5000')).exists())
+
+    def test_activos_obra_de_otra_empresa_no_recibe_precios(self):
+        # El código coincide pero la obra es de otra empresa: ni precios ni duplicado
+        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal\n8-1;CONSTRUCTORA ZETA LTDA;X;IBA8;IBA8-1\n')
+        salida = self._run('--activos', ruta, '--crear-obras')
+        self.assertIn('corrija la lista', salida)
+        self.assertFalse(PrecioServicio.objects.filter(obra=self.ambala).exists())
+        self.assertEqual(Obra.objects.filter(codigo_obra='IBA8-1').count(), 1)
+
     def test_activos_mal_armado(self):
         for texto in ('codigo;otra\n8-1;x\n', 'codigo\n8-1\n8-1\n', 'codigo;empresa_portal\n8-1;IBA8\n',
                       'codigo;precios_de\n8-1;10-2\n'):

@@ -586,13 +586,26 @@ def obra_de_activo(ciudad, activo, crear):
     """
     Obra fijada en la lista de activos (empresa_portal + obra_portal) -> (obra, motivo).
     Con `crear`, la crea si no existe; la constructora también, con la razón social del laboratorio.
+
+    Los códigos de empresa cambian con WordPress (si un proyecto va a la papelera, BUC11B vuelve a
+    ser BUC11), así que la razón social se verifica: la obra debe ser de esa empresa aunque el código
+    de la lista haya quedado viejo, y nunca se crea un duplicado de una obra que ya existe.
     """
-    obra = Obra.objects.filter(
-        constructora__ciudad__iexact=ciudad, constructora__codigo__iexact=activo.empresa_portal,
-        codigo_obra__iexact=activo.obra_portal,
-    ).select_related('constructora').first()
-    if obra is not None:
-        return obra, f'lista de activos ({activo.empresa_portal} / {activo.obra_portal})'
+    mismo_codigo = list(Obra.objects.filter(
+        constructora__ciudad__iexact=ciudad, codigo_obra__iexact=activo.obra_portal,
+    ).select_related('constructora').order_by('pk'))
+    propias = [o for o in mismo_codigo if not activo.empresa or _es(activo.empresa, o.constructora)]
+    for o in propias:
+        if o.constructora.codigo.upper() == activo.empresa_portal:
+            return o, f'lista de activos ({activo.empresa_portal} / {activo.obra_portal})'
+    if len(propias) == 1:
+        o = propias[0]
+        return o, f'lista de activos (la obra {o.codigo_obra} está en {o.constructora.codigo}, la lista decía {activo.empresa_portal})'
+    if propias:
+        return None, f'lista de activos: {len(propias)} obras {activo.obra_portal} de "{activo.empresa[:30]}"; corrija la lista'
+    if mismo_codigo:
+        quienes = ' / '.join(f'{o.constructora.codigo} "{o.constructora.nombre[:26]}"' for o in mismo_codigo)
+        return None, f'lista de activos: la obra {activo.obra_portal} es de {quienes}, no de "{activo.empresa[:30]}"; corrija la lista'
     c = Constructora.objects.filter(codigo__iexact=activo.empresa_portal).first()
     if c is not None and normalizar_ciudad(c.ciudad or '') != normalizar_ciudad(ciudad):
         return None, f'lista de activos: la constructora {c.codigo} es de {c.ciudad or "ninguna ciudad"}, no de {ciudad}'

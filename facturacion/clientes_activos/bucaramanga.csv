@@ -13,8 +13,8 @@ codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
 1-1;SIKA COLOMBIA;BARRANCABERMEJA;;;
 1-2;SIKA COLOMBIA;BUCARAMANGA;;;
 1-3;SIKA COLOMBIA;MADE;;;
-# 11-1: hay otra BUC11-1 (GRUPO MIC); la de CAG es CASA PROVENZA
-11-1;CAG S.A.S;CASA PROVENZA;BUC11B;BUC11-1;
+# 11-1: CASA PROVENZA de CAG. Era BUC11B hasta que el proyecto de GRUPO MIC fue a la papelera en WordPress
+11-1;CAG S.A.S;CASA PROVENZA;BUC11;BUC11-1;
 # 27-1: el Excel decía LEONEL GONZALEZ (CENTRAL PARK); el laboratorio corrige: CONSULTECNICOS
 27-1;CONSORCIO CONSULTECNICOS;DOBLE CALZADA BUCARAMANGA - BARRANCABERMEJA - YONDO;BUC27B;BUC27-1;
 # Clientes varios con número reutilizado: en el portal BUC0-6/0-10/0-11 son otras empresas
