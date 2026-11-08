@@ -393,34 +393,88 @@ def precios_obras(request):
     Listado de obras para entrar a su lista de precios.
     Es la puerta de entrada del modulo a gestionar_precios_obra.
     """
+    from django.db.models import OuterRef, Subquery
+    from core.models import Informe
+    from core.views import _orden_natural
+
     ciudad = request.ciudad_facturacion
+    # Subconsultas (no Count/Max sobre joins: precios x informes se multiplicarían)
+    n_precios = (PrecioServicio.objects.filter(obra=OuterRef('pk'), precio__isnull=False)
+                 .values('obra').annotate(n=Count('pk')).values('n'))
+    ultimo = (Informe.objects.filter(obra=OuterRef('pk'), fecha_creacion__isnull=False)
+              .order_by('-fecha_creacion').values('fecha_creacion')[:1])
     obras = sede.obras_de(ciudad).select_related('constructora').annotate(
-        servicios_con_precio=Count(
-            'lista_de_precios', filter=Q(lista_de_precios__precio__isnull=False)
-        )
-    ).order_by('constructora__nombre', 'nombre')
+        n_precios=Subquery(n_precios), ultimo_informe=Subquery(ultimo),
+    )
 
-    constructora_id = request.GET.get('constructora')
-    if constructora_id:
-        obras = obras.filter(constructora_id=constructora_id)
+    ahora = timezone.now()
+    grupos, por_empresa = [], {}
+    resumen = {'con': 0, 'atender': 0, 'sin': 0}
+    for obra in obras:
+        obra.n_precios = obra.n_precios or 0
+        dias = (ahora - obra.ultimo_informe).days if obra.ultimo_informe else None
+        obra.dias_informe = dias
+        obra.hace = _hace(dias)
+        if obra.n_precios:
+            obra.estado = 'con'
+        elif dias is not None and dias <= DIAS_OBRA_ACTIVA:
+            obra.estado = 'atender'          # recibe informes y no tiene lista: no se le puede facturar
+        else:
+            obra.estado = 'sin'
+        resumen[obra.estado] += 1
+        c = obra.constructora
+        if c.pk not in por_empresa:
+            por_empresa[c.pk] = {'constructora': c, 'obras': []}
+            grupos.append(por_empresa[c.pk])
+        por_empresa[c.pk]['obras'].append(obra)
 
-    query = request.GET.get('q', '').strip()
-    if query:
-        obras = obras.filter(
-            Q(nombre__icontains=query) | Q(codigo_obra__icontains=query)
-        )
+    for g in grupos:
+        g['obras'].sort(key=lambda o: _orden_natural(o.codigo_obra))
+        g['con_lista'] = sum(1 for o in g['obras'] if o.estado == 'con')
+        g['por_atender'] = sum(1 for o in g['obras'] if o.estado == 'atender')
+    grupos.sort(key=lambda g: _orden_natural(g['constructora'].codigo))
 
-    paginator = Paginator(obras, 24)
-    page_obj = paginator.get_page(request.GET.get('page'))
+    total = sum(resumen.values())
+    tramos = [
+        {'clave': 'con', 'nombre': 'Con lista de precios', 'n': resumen['con']},
+        {'clave': 'atender', 'nombre': 'Activas sin lista', 'n': resumen['atender']},
+        {'clave': 'sin', 'nombre': 'Sin lista, sin actividad reciente', 'n': resumen['sin']},
+    ]
+    for t in tramos:
+        t['pct'] = round(100 * t['n'] / total, 2) if total else 0
 
     context = {
-        'page_obj': page_obj,
-        'constructoras': sede.constructoras_de(ciudad).order_by('nombre'),
-        'constructora_id': constructora_id,
-        'query': query,
+        'grupos': grupos,
+        'tramos': tramos,
+        'resumen': resumen,
+        'total_obras': total,
         'total_servicios': sede.servicios_de(ciudad).count(),
+        'dias_activa': DIAS_OBRA_ACTIVA,
+        'query': request.GET.get('q', '').strip(),
+        'estado_inicial': request.GET.get('estado', '') if request.GET.get('estado') in resumen else '',
     }
     return render(request, 'facturacion/precios_obras.html', context)
+
+
+def _hace(dias):
+    """Antigüedad del último informe en palabras: 'hoy', 'hace 3 días', 'hace 4 meses'."""
+    if dias is None:
+        return 'Sin informes'
+    if dias < 1:
+        return 'Hoy'
+    if dias < 2:
+        return 'Ayer'
+    if dias < 45:
+        return f'Hace {dias} días'
+    if dias < 365:
+        return f'Hace {round(dias / 30)} meses'
+    anios = round(dias / 365)
+    return 'Hace 1 año' if anios == 1 else f'Hace {anios} años'
+
+
+# Una obra sin lista de precios que recibió informes en este plazo está trabajando:
+# es la que hay que configurar primero (mismo umbral que el punto "media" del directorio).
+DIAS_OBRA_ACTIVA = 180
 
 
 @staff_required
