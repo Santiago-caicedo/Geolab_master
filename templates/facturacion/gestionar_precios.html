@@ -278,7 +278,13 @@
         tr._guardado = tr.dataset.guardado;        // canónico o ''
         tr._guardando = false;
         tr._texto = normal(tr.dataset.texto);
-        tr._input.addEventListener('input', () => { limpiarAviso(tr); evaluar(tr, false); });
+        // Solo dígitos, punto y coma: las letras ni siquiera se escriben
+        tr._input.addEventListener('beforeinput', (ev) => {
+            if (ev.data && /[^\d.,]/.test(ev.data) && (ev.inputType === 'insertText' || ev.inputType === 'insertCompositionText')) {
+                ev.preventDefault();
+            }
+        });
+        tr._input.addEventListener('input', () => { soloNumeros(tr._input); limpiarAviso(tr); evaluar(tr, false); });
         tr._input.addEventListener('keydown', (ev) => {
             if (ev.key === 'Enter') { ev.preventDefault(); guardar(tr); }
             else if (ev.key === 'Escape') { ev.preventDefault(); deshacer(tr); }
@@ -292,6 +298,17 @@
         tr._ok.addEventListener('mousedown', (ev) => ev.preventDefault());
         tr._ok.addEventListener('click', () => guardar(tr));
     });
+
+    // Lo que entre por otra vía (pegar "$ 18.500 COP", autocompletar, arrastrar) se limpia
+    // dejando solo dígitos, punto y coma, sin mover el cursor de donde estaba.
+    function soloNumeros(input) {
+        const v = input.value;
+        const limpio = v.replace(/[^\d.,]/g, '');
+        if (limpio === v) return;
+        const antes = v.slice(0, input.selectionStart ?? v.length).replace(/[^\d.,]/g, '').length;
+        input.value = limpio;
+        try { input.setSelectionRange(antes, antes); } catch (e) { /* campo sin foco */ }
+    }
 
     // Recalcula el estado de la fila. Con mostrarError=false (mientras escribe) un valor a
     // medias como "18." no se marca en rojo: solo deja de estar listo para guardar.
