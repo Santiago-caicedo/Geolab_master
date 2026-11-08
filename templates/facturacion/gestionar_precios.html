@@ -1,68 +1,471 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Precios - {{ obra.nombre }}{% endblock %}
+{% block title %}Precios · {{ obra.nombre }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3><i class="bi bi-currency-dollar me-2"></i>Lista de Precios</h3>
-        <p class="text-muted mb-0">
-            {{ obra.constructora.nombre }} &rarr; <strong>{{ obra.nombre }}</strong> ({{ obra.codigo_obra }})
-        </p>
-    </div>
-    <div class="d-flex gap-2">
-        <a href="{% url 'precios_obras' %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-arrow-left"></i> Todas las obras
-        </a>
-        <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-outline-secondary btn-sm">
-            <i class="bi bi-box-arrow-up-right"></i> Ver obra
-        </a>
-    </div>
-</div>
+<div class="lp" id="lista-precios"
+     data-url-base="{% url 'gestionar_precios_obra' obra.pk %}"
+     data-csrf="{{ csrf_token }}">
 
-<form method="post">
-    {% csrf_token %}
-    {{ formset.management_form }}
+    <nav class="lp-migas" aria-label="Ruta">
+        <a href="{% url 'precios_obras' %}">Precios por obra</a>
+        <span aria-hidden="true">/</span>
+        <span>{{ obra.constructora.nombre }}</span>
+    </nav>
+
+    <header class="lp-head">
+        <div class="lp-head-texto">
+            <h1 class="lp-titulo">{{ obra.nombre }} <span class="lp-codigo">{{ obra.codigo_obra }}</span></h1>
+            <p class="lp-resumen">
+                <strong id="lp-con-precio">{{ con_precio }}</strong> de {{ total_servicios }} servicios del catálogo
+                tienen precio en esta obra.
+            </p>
+        </div>
+        <div class="lp-head-acciones">
+            <a href="{% url 'precios_obras' %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i> Todas las obras</a>
+            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-building" aria-hidden="true"></i> Ver obra</a>
+        </div>
+    </header>
+
+    <div class="lp-barra" role="search">
+        <label class="lp-buscar">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span class="visually-hidden">Buscar servicio</span>
+            <input type="search" id="lp-q" class="form-control" placeholder="Buscar por código, servicio o norma" autocomplete="off">
+        </label>
+        <div class="form-check form-switch lp-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="lp-solo">
+            <label class="form-check-label" for="lp-solo">Solo servicios con precio</label>
+        </div>
+        <span class="lp-ayuda">Escriba el precio y pulse <i class="bi bi-check-lg" aria-hidden="true"></i> o Enter para guardarlo. Esc deshace.</span>
+    </div>
 
     {% for grupo in precios_por_categoria %}
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">
-                <span class="badge bg-primary me-2">{{ grupo.categoria.codigo }}</span>
-                {{ grupo.categoria.nombre }}
-            </h5>
-        </div>
+    <section class="card lp-cat" data-cat>
+        <header class="lp-cat-head">
+            <span class="lp-cat-num">{{ grupo.categoria.codigo }}</span>
+            <h2>{{ grupo.categoria.nombre }}</h2>
+            <span class="lp-cat-conteo" data-cat-conteo>{{ grupo.con_precio }} con precio</span>
+        </header>
         <div class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-                <thead class="table-light">
+            <table class="table lp-tabla mb-0">
+                <thead>
                     <tr>
-                        <th style="width:100px">Código</th>
-                        <th>Servicio</th>
-                        <th>Norma</th>
-                        <th style="width:150px" class="text-end">Precio ($)</th>
+                        <th scope="col" class="c-cod">Código</th>
+                        <th scope="col">Servicio</th>
+                        <th scope="col" class="c-norma">Norma</th>
+                        <th scope="col" class="c-precio">Precio</th>
                     </tr>
                 </thead>
                 <tbody>
-                    {% for item in grupo.items %}
-                    <tr>
-                        <td><code>{{ item.precio.tipo_servicio.codigo }}</code></td>
-                        <td>{{ item.precio.tipo_servicio.nombre }}</td>
-                        <td><small class="text-muted">{{ item.precio.tipo_servicio.norma|default:"-" }}</small></td>
-                        <td class="text-end">
-                            {{ item.form.id }}
-                            {{ item.form.precio }}
+                    {% for p in grupo.items %}
+                    <tr class="lp-fila{% if p.precio is not None %} con-precio{% endif %}"
+                        data-pk="{{ p.pk }}" data-guardado="{{ p.valor }}"
+                        data-texto="{{ p.tipo_servicio.codigo }} {{ p.tipo_servicio.nombre }} {{ p.tipo_servicio.norma }}">
+                        <td class="c-cod"><span class="lp-cod">{{ p.tipo_servicio.codigo }}</span></td>
+                        <td class="c-serv"><span class="lp-cod lp-cod-m" aria-hidden="true">{{ p.tipo_servicio.codigo }}</span>{{ p.tipo_servicio.nombre }}</td>
+                        <td class="c-norma">{{ p.tipo_servicio.norma|default:"—" }}</td>
+                        <td class="c-precio">
+                            <div class="lp-precio">
+                                <span class="lp-pesos" aria-hidden="true">$</span>
+                                <input type="text" inputmode="decimal" class="form-control lp-input" value="{{ p.texto }}"
+                                       autocomplete="off" spellcheck="false" placeholder="—"
+                                       aria-label="Precio de {{ p.tipo_servicio.codigo }} {{ p.tipo_servicio.nombre }}">
+                                <button type="button" class="lp-ok" tabindex="-1" aria-label="Guardar precio de {{ p.tipo_servicio.codigo }}" title="Guardar (Enter)">
+                                    <i class="bi bi-check-lg" aria-hidden="true"></i>
+                                </button>
+                            </div>
+                            <div class="lp-msj" role="status" aria-live="polite"></div>
                         </td>
                     </tr>
                     {% endfor %}
                 </tbody>
             </table>
         </div>
+    </section>
+    {% empty %}
+    <div class="card lp-vacio">
+        <i class="bi bi-journal-x" aria-hidden="true"></i>
+        <p>El catálogo de {{ request.ciudad_facturacion }} no tiene servicios. Créelos en <a href="{% url 'catalogo_servicios' %}">Catálogo de servicios</a>.</p>
     </div>
     {% endfor %}
 
-    <div class="d-flex justify-content-end mb-4">
-        <button type="submit" class="btn btn-primary btn-lg">
-            <i class="bi bi-check-circle"></i> Guardar Precios
-        </button>
+    <div class="lp-sin-resultados card" id="lp-sin-resultados" hidden>
+        <p>Ningún servicio coincide con la búsqueda.</p>
     </div>
-</form>
+
+    {# Aparece solo cuando hay precios escritos sin guardar #}
+    <div class="lp-pendientes" id="lp-pendientes" hidden>
+        <span><strong id="lp-n-pendientes">0</strong> <span id="lp-txt-pendientes">precios sin guardar</span></span>
+        <button type="button" class="btn btn-sm btn-link lp-descartar" id="lp-descartar">Descartar</button>
+        <button type="button" class="btn btn-sm btn-success" id="lp-guardar-todos"><i class="bi bi-check-lg" aria-hidden="true"></i> Guardar todos</button>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+.lp {
+    --ink: #1c2e4a; --text: #334155; --muted: #5b6b80; --line: #e6eaf0; --soft: #f6f8fb;
+    --link: #0b6ea8; --verde: #12805c; --verde-bg: #f1f9f5; --verde-borde: #b9e2cd;
+    --ambar: #b45309; --ambar-bg: #fff8ec; --rojo: #b42318; --rojo-bg: #fdf3f2;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text); padding-bottom: 4rem;
+}
+
+/* Encabezado */
+.lp-migas { font-size: .8125rem; color: var(--muted); margin-bottom: .4rem; display: flex; gap: .45rem; flex-wrap: wrap; }
+.lp-migas a { color: var(--link); text-decoration: none; }
+.lp-migas a:hover { text-decoration: underline; }
+.lp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.lp-titulo { font-size: 1.45rem; font-weight: 650; color: var(--ink); letter-spacing: -.01em; margin: 0 0 .25rem; }
+.lp-codigo { font-family: var(--mono); font-size: .8rem; font-weight: 500; color: var(--ink); background: #e8edf6;
+             border-radius: 4px; padding: .12rem .45rem; vertical-align: 3px; margin-left: .3rem; white-space: nowrap; }
+.lp-resumen { margin: 0; font-size: .9375rem; }
+.lp-resumen strong { color: var(--verde); font-variant-numeric: tabular-nums; }
+.lp-head-acciones { display: flex; gap: .5rem; }
+.lp-btn { border: 1px solid var(--line); background: #fff; color: var(--text); font-size: .8125rem; }
+.lp-btn:hover { background: var(--soft); border-color: #cfd7e2; }
+
+/* Barra de búsqueda (fija al hacer scroll) */
+.lp-barra {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    background: rgba(248, 250, 252, .94); backdrop-filter: blur(6px);
+    padding: .6rem 0; margin-bottom: .75rem; border-bottom: 1px solid var(--line);
+}
+.lp-buscar { position: relative; flex: 1 1 260px; max-width: 380px; margin: 0; }
+.lp-buscar i { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
+.lp-buscar input { padding-left: 2rem; height: 36px; font-size: .875rem; }
+.lp-switch { margin: 0; font-size: .875rem; }
+.lp-ayuda { margin-left: auto; font-size: .8rem; color: var(--muted); }
+
+/* Categoría */
+.lp-cat { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 1rem;
+          box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.lp-cat-head { display: flex; align-items: center; gap: .65rem; padding: .7rem 1rem; background: #fff; border-bottom: 1px solid var(--line); }
+.lp-cat-head h2 { font-size: .975rem; font-weight: 650; color: var(--ink); margin: 0; letter-spacing: .01em; }
+.lp-cat-num { min-width: 26px; height: 26px; padding: 0 .35rem; border-radius: 7px; background: #e1f0fb; color: #0b5c8f;
+              font-weight: 650; font-size: .8125rem; display: inline-flex; align-items: center; justify-content: center; }
+.lp-cat-conteo { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* Tabla */
+.lp-tabla { font-size: .875rem; }
+.lp-tabla thead th { background: #fafbfd; color: var(--muted); font-size: .75rem; font-weight: 600; border-bottom: 1px solid var(--line);
+                     padding: .45rem 1rem; white-space: nowrap; }
+.lp-tabla td { padding: .4rem 1rem; vertical-align: middle; border-color: var(--line); color: var(--text); }
+.lp-tabla tbody tr:last-child td { border-bottom: 0; }
+.lp-tabla .c-cod { width: 110px; }
+.lp-tabla .c-norma { width: 190px; color: var(--muted); font-size: .8125rem; }
+.lp-tabla .c-precio { width: 215px; text-align: right; }
+.lp-cod { font-family: var(--mono); font-size: .78rem; color: var(--ink); white-space: nowrap; }
+.lp-cod-m { display: none; }
+.lp-fila { transition: background-color .25s ease; }
+.lp-fila:hover td { background: var(--soft); }
+
+/* Con precio guardado: verde suave */
+.lp-fila.con-precio td { background: var(--verde-bg); }
+.lp-fila.con-precio:hover td { background: #e8f5ee; }
+.lp-fila.con-precio td:first-child { box-shadow: inset 3px 0 0 var(--verde); }
+.lp-fila.con-precio .c-serv { color: var(--ink); }
+
+/* Celda de precio */
+.lp-precio { display: inline-flex; align-items: center; gap: .35rem; }
+.lp-pesos { color: var(--muted); font-size: .8125rem; }
+.lp-input { width: 132px; height: 32px; text-align: right; font-size: .875rem; font-variant-numeric: tabular-nums; padding: .2rem .55rem; }
+.lp-input::placeholder { color: #b6c1cf; }
+.lp-fila.con-precio .lp-input { border-color: var(--verde-borde); color: var(--ink); font-weight: 600; background: #fff; }
+.lp-ok {
+    width: 30px; height: 30px; border-radius: 8px; border: 0; display: inline-flex; align-items: center; justify-content: center;
+    background: var(--verde); color: #fff; font-size: 1rem; visibility: hidden; opacity: 0; transform: scale(.85);
+    transition: opacity .12s ease, transform .12s ease; cursor: pointer;
+}
+.lp-ok:hover { background: #0e6a4c; }
+.lp-fila.pendiente .lp-ok, .lp-fila.guardando .lp-ok, .lp-fila.error .lp-ok { visibility: visible; opacity: 1; transform: none; }
+.lp-fila.pendiente .lp-input { border-color: #e8a33d; background: var(--ambar-bg); }
+.lp-fila.guardando .lp-ok { pointer-events: none; background: #8aa79a; }
+.lp-fila.guardando .lp-ok i { display: none; }
+.lp-fila.guardando .lp-ok::after { content: ''; width: 14px; height: 14px; border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, .45); border-top-color: #fff; animation: lp-giro .7s linear infinite; }
+.lp-fila.invalido .lp-input, .lp-fila.error .lp-input { border-color: var(--rojo); background: var(--rojo-bg); }
+.lp-fila.invalido .lp-ok { visibility: hidden; }
+.lp-fila.listo .lp-input { box-shadow: 0 0 0 3px rgba(18, 128, 92, .18); }
+.lp-msj { font-size: .75rem; line-height: 1.3; min-height: 0; margin-top: .2rem; text-align: right; }
+.lp-msj:empty { display: none; }
+.lp-fila.invalido .lp-msj, .lp-fila.error .lp-msj { color: var(--rojo); }
+.lp-fila.listo .lp-msj { color: var(--verde); }
+@keyframes lp-giro { to { transform: rotate(360deg); } }
+
+/* Pendientes */
+.lp-pendientes {
+    position: fixed; left: 50%; bottom: 1.25rem; transform: translateX(-50%); z-index: 1040;
+    display: flex; align-items: center; gap: .75rem; padding: .55rem .6rem .55rem 1rem; border-radius: 12px;
+    background: var(--ink); color: #fff; font-size: .875rem; box-shadow: 0 10px 30px -12px rgba(15, 23, 42, .55);
+}
+.lp-pendientes[hidden] { display: none; }
+.lp-descartar { color: #c9d6e6; text-decoration: none; }
+.lp-descartar:hover { color: #fff; }
+
+.lp-vacio, .lp-sin-resultados { text-align: center; padding: 2.5rem 1rem; color: var(--muted); border: 1px dashed var(--line); }
+.lp-vacio i { font-size: 1.6rem; color: #cbd5e1; }
+
+.lp a:focus-visible, .lp button:focus-visible, .lp input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; box-shadow: none; }
+.lp .lp-input:focus { border-color: var(--link); box-shadow: 0 0 0 3px rgba(11, 110, 168, .15); }
+
+@media (max-width: 767.98px) {
+    .lp-tabla .c-norma, .lp-tabla .c-cod { display: none; }
+    .lp-cod-m { display: block; font-size: .72rem; color: var(--muted); margin-bottom: .1rem; }
+    .lp-fila.con-precio td:nth-child(2) { box-shadow: inset 3px 0 0 var(--verde); }
+    .lp-tabla td, .lp-tabla thead th { padding-left: .65rem; padding-right: .65rem; }
+    .lp-tabla .c-precio { width: 1%; white-space: nowrap; }
+    .lp-input { width: 96px; }
+    .lp-precio { gap: .25rem; }
+    .lp-msj { white-space: normal; max-width: 140px; margin-left: auto; }
+    .lp-ayuda { display: none; }
+    .lp-head-acciones { width: 100%; }
+    .lp-pendientes { left: .75rem; right: .75rem; transform: none; justify-content: space-between; }
+    .lp-pendientes > span { white-space: nowrap; }
+}
+@media (prefers-reduced-motion: reduce) {
+    .lp-fila, .lp-ok { transition: none; }
+    .lp-fila.guardando .lp-ok::after { animation: none; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    const raiz = document.getElementById('lista-precios');
+    if (!raiz) return;
+    const urlBase = raiz.dataset.urlBase;            // /facturacion/obras/<obra>/precios/
+    const csrf = raiz.dataset.csrf;                 // la cookie es HttpOnly en producción
+    const filas = Array.from(raiz.querySelectorAll('.lp-fila'));
+    const MAX_ENTERO = 10;                          // max_digits 12, 2 decimales
+
+    // ── Números a la colombiana: punto = miles, coma = decimales ──────────────
+    // Texto del usuario -> {ok, valor} con valor canónico '18500.00' o '' (sin precio).
+    function leer(texto) {
+        let t = (texto || '').replace(/[\s$ ]/g, '');
+        if (t === '') return { ok: true, valor: '' };
+        let entero, dec = '';
+        // El punto SOLO es separador de miles: "18.50" se rechaza en vez de guardar $18,50
+        // cuando se quiso escribir 18.500.
+        if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(t) || /^\d+(,\d{1,2})?$/.test(t)) {
+            [entero, dec = ''] = t.replace(/\./g, '').split(',');
+        } else {
+            return { ok: false, error: 'Use punto para los miles y coma para los decimales (18.500 o 6.750,50).' };
+        }
+        entero = entero.replace(/^0+(?=\d)/, '');
+        if (entero.length > MAX_ENTERO) return { ok: false, error: 'El precio es demasiado alto.' };
+        return { ok: true, valor: entero + '.' + (dec + '00').slice(0, 2) };
+    }
+    // Valor canónico -> texto para mostrar: '18500.00' -> '18.500', '6750.50' -> '6.750,50'
+    function mostrar(valor) {
+        if (!valor) return '';
+        const [entero, dec] = valor.split('.');
+        const miles = entero.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return dec && dec !== '00' ? miles + ',' + dec : miles;
+    }
+    // Lo que se manda al servidor: '18500.00' -> '18500' (el servidor exige este formato)
+    const paraServidor = (valor) => valor ? valor.replace(/\.00$/, '') : null;
+
+    // ── Estado de cada fila ───────────────────────────────────────────────────
+    filas.forEach((tr) => {
+        tr._input = tr.querySelector('.lp-input');
+        tr._ok = tr.querySelector('.lp-ok');
+        tr._msj = tr.querySelector('.lp-msj');
+        tr._guardado = tr.dataset.guardado;        // canónico o ''
+        tr._guardando = false;
+        tr._texto = normal(tr.dataset.texto);
+        tr._input.addEventListener('input', () => { limpiarAviso(tr); evaluar(tr, false); });
+        tr._input.addEventListener('keydown', (ev) => {
+            if (ev.key === 'Enter') { ev.preventDefault(); guardar(tr); }
+            else if (ev.key === 'Escape') { ev.preventDefault(); deshacer(tr); }
+        });
+        tr._input.addEventListener('blur', () => {
+            // Al salir, se muestra con miles si es válido (no guarda: eso es el chulito)
+            const l = evaluar(tr, true);
+            if (l.ok && tr._input.value !== mostrar(l.valor)) tr._input.value = mostrar(l.valor);
+        });
+        // mousedown en vez de click: el blur del input no alcanza a moverlo antes
+        tr._ok.addEventListener('mousedown', (ev) => ev.preventDefault());
+        tr._ok.addEventListener('click', () => guardar(tr));
+    });
+
+    // Recalcula el estado de la fila. Con mostrarError=false (mientras escribe) un valor a
+    // medias como "18." no se marca en rojo: solo deja de estar listo para guardar.
+    function evaluar(tr, mostrarError = true) {
+        const l = leer(tr._input.value);
+        if (!l.ok) {
+            tr.classList.remove('pendiente');
+            tr.classList.toggle('invalido', mostrarError || tr.classList.contains('invalido'));
+            if (tr.classList.contains('invalido')) aviso(tr, l.error);
+            tr._incompleto = true;
+        } else {
+            tr._incompleto = false;
+            tr.classList.remove('invalido');
+            tr.classList.toggle('pendiente', l.valor !== tr._guardado);
+            if (!tr.classList.contains('error')) aviso(tr, '');
+        }
+        actualizarPendientes();
+        return l;
+    }
+
+    function aviso(tr, texto) { tr._msj.textContent = texto; }
+    function limpiarAviso(tr) {
+        tr.classList.remove('error', 'listo');
+        if (tr._timerListo) clearTimeout(tr._timerListo);
+    }
+
+    function deshacer(tr) {
+        if (tr._guardando) return;
+        tr._input.value = mostrar(tr._guardado);
+        tr.classList.remove('pendiente', 'invalido', 'error', 'listo');
+        aviso(tr, '');
+        actualizarPendientes();
+    }
+
+    // Guarda UNA fila. Devuelve una promesa que resuelve true si quedó guardada.
+    async function guardar(tr) {
+        if (tr._guardando) return false;          // un envío por fila a la vez
+        const l = evaluar(tr);
+        if (!l.ok) { tr._input.focus(); return false; }
+        if (l.valor === tr._guardado) {           // nada que guardar
+            tr._input.value = mostrar(tr._guardado);
+            tr.classList.remove('pendiente', 'error');
+            return true;
+        }
+        const enviado = l.valor;
+        tr._guardando = true;
+        tr.classList.add('guardando');
+        tr.classList.remove('error');
+        tr._input.setAttribute('aria-busy', 'true');
+        aviso(tr, '');
+        let respuesta, datos = {};
+        try {
+            respuesta = await fetch(urlBase + tr.dataset.pk + '/', {
+                method: 'POST',
+                credentials: 'same-origin',
+                headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf, 'X-Requested-With': 'XMLHttpRequest' },
+                body: JSON.stringify({ precio: paraServidor(enviado), anterior: paraServidor(tr._guardado) }),
+            });
+            datos = await respuesta.json().catch(() => ({}));
+        } catch (e) {
+            respuesta = null;
+        } finally {
+            tr._guardando = false;
+            tr.classList.remove('guardando');
+            tr._input.removeAttribute('aria-busy');
+        }
+
+        if (respuesta && respuesta.ok && datos.status === 'ok') {
+            tr._guardado = datos.valor;
+            tr.dataset.guardado = datos.valor;
+            // Si el usuario siguió escribiendo durante el envío, se respeta lo nuevo
+            if (leer(tr._input.value).valor === enviado) tr._input.value = datos.texto;
+            tr.classList.toggle('con-precio', datos.valor !== '');
+            evaluar(tr);
+            if (!tr.classList.contains('pendiente')) {
+                tr.classList.add('listo');
+                aviso(tr, datos.valor ? 'Guardado' : 'Precio quitado');
+                tr._timerListo = setTimeout(() => { tr.classList.remove('listo'); if (!tr.classList.contains('pendiente')) aviso(tr, ''); }, 1800);
+            }
+            if (typeof datos.con_precio === 'number') document.getElementById('lp-con-precio').textContent = datos.con_precio;
+            contarCategoria(tr);
+            return true;
+        }
+
+        tr.classList.add('error');
+        if (respuesta && respuesta.status === 409) {
+            // Otra persona lo cambió: se adopta el valor de la base como "guardado" y se deja
+            // el del usuario escrito; pulsar ✓ otra vez lo reemplaza a sabiendas.
+            tr._guardado = datos.valor || '';
+            tr.dataset.guardado = tr._guardado;
+            tr.classList.toggle('con-precio', tr._guardado !== '');
+            evaluar(tr);
+            if (tr.classList.contains('pendiente')) {
+                aviso(tr, `Otra persona lo cambió a ${tr._guardado ? '$ ' + datos.texto : 'sin precio'}. Pulse ✓ para reemplazarlo.`);
+            } else {
+                tr.classList.remove('error');       // ya vale lo mismo que escribió: nada que hacer
+                aviso(tr, '');
+            }
+            contarCategoria(tr);
+        } else if (!respuesta) {
+            aviso(tr, 'Sin conexión con el servidor. No se guardó; intente de nuevo.');
+        } else if (datos.sesion) {
+            aviso(tr, 'La sesión venció. Recargue la página e inicie sesión (lo escrito sin guardar se pierde).');
+        } else if (respuesta.status === 404) {
+            aviso(tr, 'Este servicio ya no está en la lista de la obra. Recargue la página.');
+        } else {
+            aviso(tr, datos.message || `No se pudo guardar (error ${respuesta.status}).`);
+        }
+        actualizarPendientes();
+        return false;
+    }
+
+    function contarCategoria(tr) {
+        const cat = tr.closest('[data-cat]');
+        if (!cat) return;
+        const n = cat.querySelectorAll('.lp-fila.con-precio').length;
+        cat.querySelector('[data-cat-conteo]').textContent = `${n} con precio`;
+    }
+
+    // ── Pendientes: barra flotante y aviso al salir ──────────────────────────
+    const barra = document.getElementById('lp-pendientes');
+    const nPend = document.getElementById('lp-n-pendientes');
+    const txtPend = document.getElementById('lp-txt-pendientes');
+    const btnTodos = document.getElementById('lp-guardar-todos');
+    // Pendiente = lo escrito no es lo guardado (incluye valores inválidos o a medio escribir)
+    const pendientes = () => filas.filter((tr) => {
+        const l = leer(tr._input.value);
+        return !l.ok || l.valor !== tr._guardado;
+    });
+    function actualizarPendientes() {
+        const n = pendientes().length;
+        barra.hidden = n === 0;
+        nPend.textContent = n;
+        txtPend.textContent = n === 1 ? 'precio sin guardar' : 'precios sin guardar';
+    }
+    btnTodos.addEventListener('click', async () => {
+        btnTodos.disabled = true;
+        for (const tr of pendientes()) {            // de a uno: si algo falla, cada fila lo dice
+            await guardar(tr);                      // una inválida solo muestra su error
+        }
+        btnTodos.disabled = false;
+        const quedan = pendientes();
+        if (quedan.length) { quedan[0].scrollIntoView({ block: 'center' }); quedan[0]._input.focus(); }
+    });
+    document.getElementById('lp-descartar').addEventListener('click', () => pendientes().forEach(deshacer));
+    window.addEventListener('beforeunload', (ev) => {
+        if (pendientes().length || filas.some((tr) => tr._guardando)) { ev.preventDefault(); ev.returnValue = ''; }
+    });
+
+    // ── Búsqueda y filtro ─────────────────────────────────────────────────────
+    function normal(s) { return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+    const q = document.getElementById('lp-q');
+    const solo = document.getElementById('lp-solo');
+    const cats = Array.from(raiz.querySelectorAll('[data-cat]'));
+    const sinRes = document.getElementById('lp-sin-resultados');
+    function filtrar() {
+        const palabras = normal(q.value).split(/\s+/).filter(Boolean);
+        let total = 0;
+        cats.forEach((cat) => {
+            let n = 0;
+            cat.querySelectorAll('.lp-fila').forEach((tr) => {
+                // Una fila con cambios sin guardar nunca se esconde
+                const ver = tr.classList.contains('pendiente') || tr.classList.contains('error') ||
+                    ((!solo.checked || tr.classList.contains('con-precio')) && palabras.every((p) => tr._texto.includes(p)));
+                tr.hidden = !ver;
+                n += ver;
+            });
+            cat.hidden = n === 0;
+            total += n;
+        });
+        sinRes.hidden = total !== 0 || !cats.length;
+    }
+    q.addEventListener('input', filtrar);
+    solo.addEventListener('change', filtrar);
+})();
+</script>
 {% endblock %}

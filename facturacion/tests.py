@@ -934,3 +934,146 @@ class IntegridadFacturacionTests(TestCase):
         self.assertFalse(form.is_valid())
         self.assertIn('transporte', form.errors['codigo'][0])
 
+
+class GuardarPrecioObraTests(TestCase):
+    """El chulito de cada fila de la lista de precios: un precio por solicitud, sin pisar a otros."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = UsuarioBase.objects.create_user('precios_staff', password='clave-de-prueba', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.staff, area='admin')
+        cls.c_buc = Constructora.objects.create(nombre='CAG S.A.S', codigo='BUC11', ciudad='Bucaramanga')
+        cls.c_bog = Constructora.objects.create(nombre='Bog SAS', codigo='BOG1', ciudad='Bogotá')
+        cls.obra = Obra.objects.create(nombre='CASA PROVENZA', codigo_obra='BUC11-1', constructora=cls.c_buc)
+        cls.otra = Obra.objects.create(nombre='Otra', codigo_obra='BUC11-2', constructora=cls.c_buc)
+        cls.o_bog = Obra.objects.create(nombre='Obra Bog', codigo_obra='BOG1-1', constructora=cls.c_bog)
+        cat = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='2', nombre='SUELOS')
+        cls.srv = TipoServicio.objects.create(categoria=cat, codigo='2-1', nombre='Contenido de humedad')
+        cls.srv2 = TipoServicio.objects.create(categoria=cat, codigo='2-4', nombre='Proctor')
+
+    def setUp(self):
+        self.client.login(username='precios_staff', password='clave-de-prueba')
+        s = self.client.session
+        s[SESSION_KEY] = 'Bucaramanga'
+        s.save()
+        self.p = PrecioServicio.objects.create(obra=self.obra, tipo_servicio=self.srv)
+        self.p_otra = PrecioServicio.objects.create(obra=self.otra, tipo_servicio=self.srv)
+
+    def _post(self, precio_pk=None, obra_pk=None, cliente=None, **datos):
+        url = reverse('guardar_precio_obra', args=[obra_pk or self.obra.pk, precio_pk or self.p.pk])
+        cuerpo = datos.pop('_crudo', None) or json.dumps(datos)
+        return (cliente or self.client).post(url, cuerpo, content_type='application/json')
+
+    def _valor(self, p=None):
+        (p or self.p).refresh_from_db()
+        return (p or self.p).precio
+
+    def test_guarda_y_responde_con_miles(self):
+        r = self._post(precio='18500', anterior=None)
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json(), {'status': 'ok', 'valor': '18500.00', 'texto': '18.500', 'con_precio': 1})
+        self.assertEqual(self._valor(), Decimal('18500'))
+        r = self._post(precio='6750.5', anterior='18500.00')          # decimales
+        self.assertEqual((r.json()['valor'], r.json()['texto']), ('6750.50', '6.750,50'))
+        r = self._post(precio='1234567', anterior='6750.50')
+        self.assertEqual(r.json()['texto'], '1.234.567')
+
+    def test_entero_json_y_mismo_valor_dos_veces(self):
+        self.assertEqual(self._post(precio=18500, anterior=None).status_code, 200)
+        r = self._post(precio='18500', anterior='18500')               # doble clic / reintento: idempotente
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(self._valor(), Decimal('18500'))
+
+    def test_quitar_precio(self):
+        self.p.precio = Decimal('100')
+        self.p.save()
+        for vacio in (None, '', '   '):
+            with self.subTest(vacio=vacio):
+                self.p.precio = Decimal('100')
+                self.p.save()
+                r = self._post(precio=vacio, anterior='100')
+                self.assertEqual(r.json()['valor'], '')
+                self.assertIsNone(self._valor())
+
+    def test_conflicto_no_sobrescribe(self):
+        # La pantalla cree que no hay precio, pero otra persona ya guardó 20.000
+        self.p.precio = Decimal('20000')
+        self.p.save()
+        r = self._post(precio='18500', anterior=None)
+        self.assertEqual(r.status_code, 409)
+        self.assertEqual((r.json()['valor'], r.json()['texto']), ('20000.00', '20.000'))
+        self.assertEqual(self._valor(), Decimal('20000'))
+        # con el valor actual como `anterior`, el reemplazo es deliberado y pasa
+        self.assertEqual(self._post(precio='18500', anterior='20000.00').status_code, 200)
+        self.assertEqual(self._valor(), Decimal('18500'))
+
+    def test_valores_invalidos_no_tocan_la_base(self):
+        self.p.precio = Decimal('100')
+        self.p.save()
+        for malo in ('18.500', '18,500', '-5', '1e5', 'abc', '12.345', '99999999999', 'NaN', 'Infinity',
+                     12.5, True, [1], {'x': 1}, '0x10', ' 1 2 '):
+            with self.subTest(malo=malo):
+                r = self._post(precio=malo, anterior='100')
+                self.assertEqual(r.status_code, 400)
+                self.assertEqual(r.json()['status'], 'error')
+                self.assertEqual(self._valor(), Decimal('100'))
+
+    def test_solicitudes_mal_formadas(self):
+        for crudo in ('no es json', '[]', '"18500"', json.dumps({'precio': '1'}), json.dumps({'anterior': None}),
+                      json.dumps({'precio': '1', 'anterior': 'abc'})):
+            with self.subTest(crudo=crudo):
+                self.assertEqual(self._post(_crudo=crudo).status_code, 400)
+        self.assertIsNone(self._valor())
+
+    def test_no_toca_precios_de_otra_obra_ni_de_otra_sede(self):
+        # precio de OTRA obra con la url de esta obra -> 404, sin cambios
+        self.assertEqual(self._post(precio_pk=self.p_otra.pk, precio='1', anterior=None).status_code, 404)
+        self.assertIsNone(self._valor(self.p_otra))
+        # obra de Bogotá con la sede Bucaramanga activa -> 404
+        p_bog = PrecioServicio.objects.create(obra=self.o_bog, tipo_servicio=self.srv)
+        self.assertEqual(self._post(obra_pk=self.o_bog.pk, precio_pk=p_bog.pk, precio='1', anterior=None).status_code, 404)
+        self.assertIsNone(self._valor(p_bog))
+        self.assertEqual(self._post(precio_pk=999999, precio='1', anterior=None).status_code, 404)
+
+    def test_metodo_sesion_permisos_y_csrf(self):
+        url = reverse('guardar_precio_obra', args=[self.obra.pk, self.p.pk])
+        self.assertEqual(self.client.get(url).status_code, 405)
+        from django.test import Client
+        anonimo = Client()
+        r = self._post(cliente=anonimo, precio='1', anterior=None)
+        self.assertEqual((r.status_code, r.json()['sesion']), (401, True))
+        cliente = UsuarioBase.objects.create_user('cliente_x', password='clave-de-prueba', es_cliente=True)
+        otro = Client()
+        otro.force_login(cliente)
+        self.assertEqual(self._post(cliente=otro, precio='1', anterior=None).status_code, 403)
+        # sin sede elegida: JSON, no redirección
+        sin_sede = Client()
+        sin_sede.force_login(self.staff)
+        r = self._post(cliente=sin_sede, precio='1', anterior=None)
+        self.assertEqual(r.status_code, 403)
+        self.assertIsNone(self._valor())
+        # CSRF: sin token se rechaza; con el token de la página, pasa
+        estricto = Client(enforce_csrf_checks=True)
+        estricto.force_login(self.staff)
+        s = estricto.session
+        s[SESSION_KEY] = 'Bucaramanga'
+        s.save()
+        self.assertEqual(self._post(cliente=estricto, precio='1', anterior=None).status_code, 403)
+        pagina = estricto.get(reverse('gestionar_precios_obra', args=[self.obra.pk]))
+        token = pagina.content.decode().split('data-csrf="')[1].split('"')[0]
+        r = estricto.post(url, json.dumps({'precio': '1', 'anterior': None}), content_type='application/json',
+                          HTTP_X_CSRFTOKEN=token)
+        self.assertEqual(r.status_code, 200)
+
+    def test_pantalla_muestra_miles_y_resalta_los_que_tienen_precio(self):
+        self.p.precio = Decimal('18500')
+        self.p.save()
+        r = self.client.get(reverse('gestionar_precios_obra', args=[self.obra.pk]))
+        self.assertEqual(r.status_code, 200)
+        html = r.content.decode()
+        self.assertIn('value="18.500"', html)
+        self.assertIn('data-guardado="18500.00"', html)
+        self.assertEqual(html.count('lp-fila con-precio'), 1)            # 2-1 sí, 2-4 (creado al abrir) no
+        self.assertIn('<strong id="lp-con-precio">1</strong> de 2', html)
+        self.assertNotIn('Guardar Precios', html)                         # ya no hay formulario al final
+

@@ -27,7 +27,7 @@ from .models import (
 )
 from .forms import (
     CategoriaServicioForm, TipoServicioForm, PrecioServicioForm,
-    PrecioServicioFormSet, ImpuestoForm, RegistroServicioForm,
+    ImpuestoForm, RegistroServicioForm,
     FiltroHistoricoForm, GenerarFacturaForm,
 )
 from users.models import Constructora
@@ -507,35 +507,114 @@ def gestionar_precios_obra(request, obra_pk):
         'tipo_servicio', 'tipo_servicio__categoria'
     ).order_by('tipo_servicio__categoria__clave_orden', 'tipo_servicio__clave_orden')
 
-    if request.method == 'POST':
-        formset = PrecioServicioFormSet(request.POST, queryset=precios)
-        if formset.is_valid():
-            formset.save()
-            messages.success(request, 'Precios actualizados correctamente.')
-            return redirect('gestionar_precios_obra', obra_pk=obra.pk)
-    else:
-        formset = PrecioServicioFormSet(queryset=precios)
-
-    # Agrupar por categoría para mejor visualización
+    # Cada precio se guarda solo, desde su fila (guardar_precio_obra); esta vista solo muestra.
     precios_por_categoria = {}
-    for precio, form in zip(precios, formset):
+    con_precio = 0
+    for precio in precios:
+        precio.texto = _texto_precio(precio.precio)
+        precio.valor = _valor_precio(precio.precio)
+        con_precio += precio.precio is not None
         cat = precio.tipo_servicio.categoria
-        if cat.pk not in precios_por_categoria:
-            precios_por_categoria[cat.pk] = {
-                'categoria': cat,
-                'items': [],
-            }
-        precios_por_categoria[cat.pk]['items'].append({
-            'precio': precio,
-            'form': form,
-        })
+        grupo = precios_por_categoria.setdefault(cat.pk, {'categoria': cat, 'items': [], 'con_precio': 0})
+        grupo['items'].append(precio)
+        grupo['con_precio'] += precio.precio is not None
 
     context = {
         'obra': obra,
-        'formset': formset,
         'precios_por_categoria': precios_por_categoria.values(),
+        'con_precio': con_precio,
+        'total_servicios': len(precios),
     }
     return render(request, 'facturacion/gestionar_precios.html', context)
+
+
+# Límites de PrecioServicio.precio (max_digits=12, decimal_places=2)
+_PRECIO_MAXIMO = Decimal('9999999999.99')
+
+
+def _valor_precio(valor):
+    """Decimal -> texto canónico para el navegador ('18500.00'); None -> ''."""
+    return '' if valor is None else f'{valor:.2f}'
+
+
+def _texto_precio(valor):
+    """Decimal -> texto con miles a la colombiana: 18500 -> '18.500', 6750.5 -> '6.750,50'."""
+    if valor is None:
+        return ''
+    entero, _, dec = f'{valor:.2f}'.partition('.')
+    miles = f'{int(entero):,}'.replace(',', '.')
+    return miles if dec == '00' else f'{miles},{dec}'
+
+
+def _leer_precio(dato):
+    """
+    Valor que manda el navegador -> (Decimal | None, error | None).
+    Llega canónico ('18500', '6750.5') o null/'' para quitar el precio. Se rechaza todo lo
+    demás en vez de adivinar: '18.500' con punto de miles NO se interpreta (el navegador
+    ya lo convierte), así un error del lado del cliente no guarda 18,5 en lugar de 18.500.
+    """
+    from decimal import InvalidOperation
+    if dato is None or (isinstance(dato, str) and not dato.strip()):
+        return None, None
+    if isinstance(dato, bool) or not isinstance(dato, (str, int)):
+        return None, 'El precio debe enviarse como texto.'
+    texto = str(dato).strip()
+    if not re.fullmatch(r'\d{1,10}(\.\d{1,2})?', texto):
+        return None, 'Precio no válido: use solo números, con hasta 2 decimales.'
+    try:
+        valor = Decimal(texto)
+    except InvalidOperation:
+        return None, 'Precio no válido.'
+    if valor > _PRECIO_MAXIMO:
+        return None, 'El precio es demasiado alto.'
+    return valor.quantize(Decimal('0.01')), None
+
+
+@require_POST
+@staff_required
+def guardar_precio_obra(request, obra_pk, precio_pk):
+    """
+    Guarda UN precio de la lista de una obra (el chulito de la fila). JSON:
+        {"precio": "18500" | null, "anterior": "18500.00" | ""}
+    `anterior` es lo que la pantalla creía guardado: si en la base hay otra cosa (otra
+    persona lo cambió mientras tanto) no se sobrescribe y se responde 409 con el valor actual.
+    """
+    obra = get_object_or_404(sede.obras_de(request.ciudad_facturacion), pk=obra_pk)
+    try:
+        datos = json.loads(request.body or b'{}')
+    except (ValueError, UnicodeDecodeError):
+        return JsonResponse({'status': 'error', 'message': 'Solicitud mal formada.'}, status=400)
+    if not isinstance(datos, dict) or 'precio' not in datos or 'anterior' not in datos:
+        return JsonResponse({'status': 'error', 'message': 'Solicitud mal formada.'}, status=400)
+
+    nuevo, error = _leer_precio(datos['precio'])
+    if error:
+        return JsonResponse({'status': 'error', 'message': error}, status=400)
+    anterior, error = _leer_precio(datos['anterior'])
+    if error:
+        return JsonResponse({'status': 'error', 'message': 'Solicitud mal formada.'}, status=400)
+
+    with transaction.atomic():
+        try:
+            precio = PrecioServicio.objects.select_for_update().get(pk=precio_pk, obra=obra)
+        except PrecioServicio.DoesNotExist:
+            raise Http404('Ese servicio no está en la lista de esta obra.')
+        if precio.precio != anterior:
+            return JsonResponse({
+                'status': 'conflicto',
+                'message': 'Otra persona cambió este precio mientras tanto. Revise el valor actual y vuelva a guardar.',
+                'valor': _valor_precio(precio.precio), 'texto': _texto_precio(precio.precio),
+            }, status=409)
+        if precio.precio != nuevo:
+            precio.precio = nuevo
+            precio.save(update_fields=['precio'])
+
+    con_precio = PrecioServicio.objects.filter(obra=obra, precio__isnull=False).count()
+    return JsonResponse({
+        'status': 'ok',
+        'valor': _valor_precio(precio.precio), 'texto': _texto_precio(precio.precio),
+        'con_precio': con_precio,
+    })
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

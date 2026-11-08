@@ -18,6 +18,7 @@ urlpatterns = [
     # Precios por obra
     path('facturacion/precios/', views.precios_obras, name='precios_obras'),
     path('facturacion/obras/<int:obra_pk>/precios/', views.gestionar_precios_obra, name='gestionar_precios_obra'),
+    path('facturacion/obras/<int:obra_pk>/precios/<int:precio_pk>/', views.guardar_precio_obra, name='guardar_precio_obra'),
 
     # Impuestos
     path('facturacion/impuestos/', views.lista_impuestos, name='lista_impuestos'),
