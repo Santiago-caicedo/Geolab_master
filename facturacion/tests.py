@@ -1077,3 +1077,71 @@ class GuardarPrecioObraTests(TestCase):
         self.assertIn('<strong id="lp-con-precio">1</strong> de 2', html)
         self.assertNotIn('Guardar Precios', html)                         # ya no hay formulario al final
 
+
+class PantallasFacturacionTests(TestCase):
+    """Histórico robusto, avisos visibles en todo el módulo y formato de pesos."""
+
+    @classmethod
+    def setUpTestData(cls):
+        cls.staff = UsuarioBase.objects.create_user('pantallas_staff', password='clave-de-prueba', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.staff, area='admin')
+        c = Constructora.objects.create(nombre='Buc SAS', codigo='BUC1', ciudad='Bucaramanga')
+        cls.obra = Obra.objects.create(nombre='Torre 1', codigo_obra='BUC1-1', constructora=c)
+        cat = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='1', nombre='CONCRETOS')
+        cls.srv = TipoServicio.objects.create(categoria=cat, codigo='1-1', nombre='Compresión de cilindros 4"')
+        for i in range(30):
+            RegistroServicio.objects.create(obra=cls.obra, tipo_servicio=cls.srv, fecha_realizacion='2026-09-01',
+                                            numero_informe=f'INF {i}', cantidad=2, precio_unitario_congelado=6750,
+                                            creado_por=cls.staff)
+
+    def setUp(self):
+        self.client.login(username='pantallas_staff', password='clave-de-prueba')
+        s = self.client.session
+        s[SESSION_KEY] = 'Bucaramanga'
+        s.save()
+
+    def test_historico_ignora_filtros_malos_y_suma(self):
+        url = reverse('historico_facturacion')
+        for malo in ({'fecha_inicio': 'abc'}, {'fecha_fin': '2026-13-45'}, {'constructora': 'x'}, {'obra': '1;drop'}):
+            with self.subTest(malo=malo):
+                self.assertEqual(self.client.get(url, malo).status_code, 200)
+        r = self.client.get(url, {'obra': self.obra.pk})
+        self.assertEqual(r.context['totales']['total'], Decimal('405000'))          # 30 x 2 x 6.750
+        self.assertEqual(r.context['totales']['n_pendientes'], 30)
+        self.assertContains(r, '$ 405.000')
+
+    def test_paginacion_conserva_filtros(self):
+        r = self.client.get(reverse('historico_facturacion'), {'obra': self.obra.pk, 'page': 1})
+        self.assertContains(r, f'?obra={self.obra.pk}&page=2')
+        self.assertNotContains(r, 'page=1&page')
+
+    def test_avisos_se_ven_en_la_pantalla_de_destino(self):
+        registro = RegistroServicio.objects.first()
+        factura = Factura.objects.create(constructora=self.obra.constructora, obra=self.obra, fecha_inicio_periodo='2026-09-01',
+                                         fecha_fin_periodo='2026-09-30', subtotal=100, monto_iva=19, total=119)
+        registro.factura = factura
+        registro.save()
+        # eliminar un registro facturado redirige al histórico con un error: antes no se mostraba
+        r = self.client.post(reverse('eliminar_registro_facturacion', args=[registro.pk]), follow=True)
+        self.assertContains(r, 'class="fx-toast error"')
+        self.assertContains(r, 'No se puede eliminar un registro facturado.')
+        with mock.patch('facturacion.views._regenerar_pdf', create=True):
+            r = self.client.post(reverse('marcar_factura_pagada', args=[factura.pk]), follow=True)
+        self.assertContains(r, f'Factura #{factura.pk} marcada como pagada.')
+        self.assertContains(r, 'class="fx-toast success"')
+        # ya mostrados: no reaparecen en la siguiente pantalla
+        self.assertNotContains(self.client.get(reverse('dashboard_facturacion')), 'class="fx-toast')
+
+    def test_registrar_servicio_entrega_servicios_como_json_seguro(self):
+        r = self.client.get(reverse('crear_registro_facturacion'))
+        self.assertContains(r, '<script id="rs-servicios" type="application/json">')
+        self.assertContains(r, 'cilindros 4\\"')                                   # comillas escapadas en JSON
+
+    def test_formato_pesos(self):
+        from .templatetags.fx import pesos
+        casos = {Decimal('18500'): '$ 18.500', Decimal('6750.5'): '$ 6.750,50', 0: '$ 0', None: '—',
+                 Decimal('1234567.89'): '$ 1.234.567,89', Decimal('-500'): '$ -500'}
+        for valor, esperado in casos.items():
+            with self.subTest(valor=valor):
+                self.assertEqual(pesos(valor), esperado)
+

@@ -1,250 +1,246 @@
 {% extends 'base_facturacion.html' %}
-{% load l10n %}
-{% block title %}Generar Factura{% endblock %}
+{% load l10n fx %}
+{% block title %}Generar factura{% endblock %}
 
 {% block extra_css %}
 <link href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+.gf-obra { display: flex; flex-wrap: wrap; gap: .25rem 2rem; padding: .85rem 1rem; }
+.gf-obra .dato small { display: block; font-size: .75rem; color: var(--muted); }
+.gf-obra .dato strong { color: var(--ink); font-weight: 600; }
+.gf-transporte th:first-child, .gf-transporte td:first-child { width: 64px; }
+.gf-transporte .form-switch { margin: 0; padding-left: 2.5em; min-height: 0; }
+.gf-transporte .form-check-input { cursor: pointer; }
+.gf-transporte tr.con-iva td { background: #fffaf0; }
+.gf-cierre { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: flex-start; }
+.gf-cierre .fx-nota { flex: 1 1 260px; margin: 0; }
+</style>
 {% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3><i class="bi bi-file-earmark-text me-2"></i>Generar Factura</h3>
-    <a href="{% url 'dashboard_facturacion' %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Dashboard
-    </a>
-</div>
-
-<!-- Selector -->
-<div class="card border-0 shadow-sm mb-4">
-    <div class="card-body">
-        <form method="get" class="row g-3 align-items-end">
-            <div class="col-md-3">
-                <label class="form-label fw-bold">Constructora</label>
-                {{ form.constructora }}
-            </div>
-            <div class="col-md-3">
-                <label class="form-label fw-bold">Obra</label>
-                {{ form.obra }}
-            </div>
-            <div class="col-md-2">
-                <label class="form-label fw-bold">Fecha inicio</label>
-                {{ form.fecha_inicio }}
-            </div>
-            <div class="col-md-2">
-                <label class="form-label fw-bold">Fecha fin</label>
-                {{ form.fecha_fin }}
-            </div>
-            <div class="col-md-2">
-                <button type="submit" class="btn btn-primary w-100">
-                    <i class="bi bi-search me-1"></i> Buscar registros
-                </button>
-            </div>
-        </form>
-    </div>
-</div>
-
-{% if tiene_registros %}
-<form method="post" action="{% url 'finalizar_factura' %}">
-    {% csrf_token %}
-    <input type="hidden" name="obra_id" value="{{ obra.pk }}">
-    <input type="hidden" name="fecha_inicio" value="{{ form.fecha_inicio.value }}">
-    <input type="hidden" name="fecha_fin" value="{{ form.fecha_fin.value }}">
-    {# Lo que se ve es lo que se factura: si cambia algo en la obra, el servidor avisa y no crea la factura #}
-    {% for r in registros_normales %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
-    {% for r in registros_transporte %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
-    {% if not hay_iva %}
-    <div class="alert alert-warning">
-        <i class="bi bi-exclamation-triangle me-1"></i>
-        No hay un impuesto activo llamado <strong>IVA</strong>: esta factura saldría <strong>sin IVA</strong>.
-        Revísalo en <a href="{% url 'lista_impuestos' %}">Impuestos</a> antes de generarla.
-    </div>
-    {% endif %}
-
-    <!-- Info obra -->
-    <div class="alert alert-info">
-        <strong>{{ obra.constructora.nombre }}</strong> &rarr; {{ obra.nombre }} ({{ obra.codigo_obra }})
-        <br>Periodo: {{ form.fecha_inicio.value }} al {{ form.fecha_fin.value }}
-    </div>
-
-    <!-- Registros normales -->
-    {% if registros_normales %}
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header bg-white">
-            <h5 class="mb-0">Servicios ({{ registros_normales|length }} registros)</h5>
+<div class="fx">
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Generar factura</h1>
+            <p class="fx-sub">Elija la obra y el periodo: se listan los servicios registrados que aún no se han facturado.</p>
         </div>
-        <div class="table-responsive">
-            <table class="table table-sm mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th>Fecha</th>
-                        <th>Código</th>
-                        <th>Servicio</th>
-                        <th>Nº Informe</th>
-                        <th class="text-center">Cant.</th>
-                        <th class="text-end">P. Unit.</th>
-                        <th class="text-end">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in registros_normales %}
-                    <tr>
-                        <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
-                        <td>{{ r.tipo_servicio.codigo }}</td>
-                        <td>{{ r.tipo_servicio.nombre }}</td>
-                        <td>{{ r.numero_informe }}</td>
-                        <td class="text-center">{{ r.cantidad }}</td>
-                        <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <td colspan="6" class="text-end fw-bold">Subtotal servicios:</td>
-                        <td class="text-end fw-bold">${{ subtotal_normales|floatformat:2 }}</td>
-                    </tr>
-                </tfoot>
-            </table>
+        <div class="fx-acciones">
+            <a href="{% url 'repositorio_clientes' %}" class="btn btn-sm btn-fx"><i class="bi bi-archive" aria-hidden="true"></i> Facturas emitidas</a>
         </div>
-    </div>
-    {% endif %}
+    </header>
 
-    <!-- Registros de transporte -->
-    {% if registros_transporte %}
-    <div class="card border-0 shadow-sm border-warning mb-3">
-        <div class="card-header bg-warning bg-opacity-10">
-            <h5 class="mb-0">
-                <i class="bi bi-truck me-1"></i>Transporte ({{ registros_transporte|length }} registros)
-                <small class="text-muted">- Seleccione cuáles llevan IVA</small>
-            </h5>
-        </div>
-        <div class="table-responsive">
-            <table class="table table-sm mb-0">
-                <thead class="table-light">
-                    <tr>
-                        <th style="width:50px">IVA</th>
-                        <th>Fecha</th>
-                        <th>Servicio</th>
-                        <th>Nº Informe</th>
-                        <th class="text-center">Cant.</th>
-                        <th class="text-end">P. Unit.</th>
-                        <th class="text-end">Subtotal</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for r in registros_transporte %}
-                    <tr>
-                        <td>
-                            <input type="checkbox" name="transporte_con_iva" value="{{ r.pk }}"
-                                   class="form-check-input chk-transporte" data-subtotal="{{ r.subtotal|unlocalize }}">
-                        </td>
-                        <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
-                        <td>{{ r.tipo_servicio.nombre }}</td>
-                        <td>{{ r.numero_informe }}</td>
-                        <td class="text-center">{{ r.cantidad }}</td>
-                        <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
-                        <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-                <tfoot class="table-light">
-                    <tr>
-                        <td colspan="6" class="text-end fw-bold">Subtotal transporte:</td>
-                        <td class="text-end fw-bold">${{ subtotal_transporte|floatformat:2 }}</td>
-                    </tr>
-                </tfoot>
-            </table>
-        </div>
-    </div>
-    {% endif %}
-
-    <!-- Resumen -->
-    <div class="card border-0 shadow-sm">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-6 offset-md-6">
-                    <table class="table table-sm mb-3">
-                        <tr>
-                            <td>Subtotal:</td>
-                            <td class="text-end">${{ subtotal_total|floatformat:2 }}</td>
-                        </tr>
-                        <tr>
-                            <td>IVA ({{ iva_porcentaje }}%):</td>
-                            <td class="text-end" id="monto-iva">Calculando...</td>
-                        </tr>
-                        <tr class="fw-bold fs-5">
-                            <td>TOTAL:</td>
-                            <td class="text-end" id="total-factura">Calculando...</td>
-                        </tr>
-                    </table>
-
-                    <button type="submit" class="btn btn-success btn-lg w-100"
-                            onclick="return confirm('¿Confirma generar esta factura?')">
-                        <i class="bi bi-check-circle me-1"></i> Generar Factura
-                    </button>
+    <form method="get" class="fx-panel" id="gf-buscar">
+        <div class="fx-panel-body">
+            <div class="fx-campos">
+                <div class="fx-campo"><label for="id_constructora"><span class="paso">1</span>Empresa</label>{{ form.constructora }}</div>
+                <div class="fx-campo"><label for="id_obra"><span class="paso">2</span>Obra</label>{{ form.obra }}</div>
+                <div class="fx-campo"><label for="id_fecha_inicio"><span class="paso">3</span>Desde</label>{{ form.fecha_inicio }}</div>
+                <div class="fx-campo"><label for="id_fecha_fin">Hasta</label>{{ form.fecha_fin }}</div>
+                <div class="fx-campo fx-boton">
+                    <button type="submit" class="btn btn-primary flex-fill"><i class="bi bi-search" aria-hidden="true"></i> Buscar servicios</button>
                 </div>
             </div>
         </div>
-    </div>
-</form>
+    </form>
 
-{% elif obra %}
-<div class="alert alert-warning">
-    <i class="bi bi-exclamation-triangle me-1"></i>
-    No se encontraron registros pendientes de facturar para el periodo seleccionado.
+    {% if tiene_registros %}
+    <form method="post" action="{% url 'finalizar_factura' %}">
+        {% csrf_token %}
+        <input type="hidden" name="obra_id" value="{{ obra.pk }}">
+        <input type="hidden" name="fecha_inicio" value="{{ form.fecha_inicio.value }}">
+        <input type="hidden" name="fecha_fin" value="{{ form.fecha_fin.value }}">
+        {# Lo que se ve es lo que se factura: si cambia algo en la obra, el servidor avisa y no crea la factura #}
+        {% for r in registros_normales %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
+        {% for r in registros_transporte %}<input type="hidden" name="registro_ids" value="{{ r.pk }}">{% endfor %}
+
+        {% if not hay_iva %}
+        <div class="fx-aviso ambar" role="alert">
+            <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+            <div>No hay un impuesto activo llamado <strong>IVA</strong>: esta factura saldría <strong>sin IVA</strong>.
+            Revíselo en <a href="{% url 'lista_impuestos' %}">Impuestos</a> antes de generarla.</div>
+        </div>
+        {% endif %}
+
+        <section class="fx-panel">
+            <div class="gf-obra">
+                <div class="dato"><small>Empresa</small><strong>{{ obra.constructora.nombre }}</strong></div>
+                <div class="dato"><small>Obra</small><strong>{{ obra.nombre }}</strong> <span class="fx-cod">{{ obra.codigo_obra }}</span></div>
+                <div class="dato"><small>Periodo</small><strong class="fx-dinero">{{ periodo.0|date:"d/m/Y" }} → {{ periodo.1|date:"d/m/Y" }}</strong></div>
+            </div>
+        </section>
+
+        {% if registros_normales %}
+        <section class="fx-panel">
+            <header class="fx-panel-head">
+                <span class="fx-ico" aria-hidden="true"><i class="bi bi-clipboard2-check"></i></span>
+                <h2>Servicios</h2>
+                <span class="fx-nota">{{ registros_normales|length }} registro{{ registros_normales|length|pluralize }} · llevan IVA</span>
+            </header>
+            <div class="table-responsive">
+                <table class="fx-tabla">
+                    <thead>
+                        <tr>
+                            <th scope="col">Fecha</th>
+                            <th scope="col">Servicio</th>
+                            <th scope="col">Informe</th>
+                            <th scope="col" class="cen">Cant.</th>
+                            <th scope="col" class="der">Precio unit.</th>
+                            <th scope="col" class="der">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in registros_normales %}
+                        <tr>
+                            <td class="fx-fecha">{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
+                            <td><span class="fx-cod suave">{{ r.tipo_servicio.codigo }}</span> {{ r.tipo_servicio.nombre }}</td>
+                            <td><span class="fx-informe">{{ r.numero_informe }}</span></td>
+                            <td class="cen">{{ r.cantidad }}</td>
+                            <td class="der fx-dinero">{{ r.precio_unitario_congelado|pesos }}</td>
+                            <td class="der fx-dinero fuerte">{{ r.subtotal|pesos }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr><td colspan="5" class="der">Subtotal servicios</td><td class="der fx-dinero">{{ subtotal_normales|pesos }}</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        {% if registros_transporte %}
+        <section class="fx-panel gf-transporte">
+            <header class="fx-panel-head">
+                <span class="fx-ico ambar" aria-hidden="true"><i class="bi bi-truck"></i></span>
+                <h2>Transporte</h2>
+                <span class="fx-nota">Active el IVA solo en los viajes que lo llevan</span>
+            </header>
+            <div class="table-responsive">
+                <table class="fx-tabla">
+                    <thead>
+                        <tr>
+                            <th scope="col">IVA</th>
+                            <th scope="col">Fecha</th>
+                            <th scope="col">Servicio</th>
+                            <th scope="col">Informe</th>
+                            <th scope="col" class="cen">Cant.</th>
+                            <th scope="col" class="der">Precio unit.</th>
+                            <th scope="col" class="der">Subtotal</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for r in registros_transporte %}
+                        <tr>
+                            <td>
+                                <div class="form-check form-switch">
+                                    <input type="checkbox" role="switch" name="transporte_con_iva" value="{{ r.pk }}"
+                                           class="form-check-input chk-transporte" data-subtotal="{{ r.subtotal|unlocalize }}"
+                                           aria-label="Cobrar IVA en el transporte del {{ r.fecha_realizacion|date:'d/m/Y' }}">
+                                </div>
+                            </td>
+                            <td class="fx-fecha">{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
+                            <td>{{ r.tipo_servicio.nombre }}</td>
+                            <td><span class="fx-informe">{{ r.numero_informe }}</span></td>
+                            <td class="cen">{{ r.cantidad }}</td>
+                            <td class="der fx-dinero">{{ r.precio_unitario_congelado|pesos }}</td>
+                            <td class="der fx-dinero fuerte">{{ r.subtotal|pesos }}</td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                    <tfoot>
+                        <tr><td colspan="6" class="der">Subtotal transporte</td><td class="der fx-dinero">{{ subtotal_transporte|pesos }}</td></tr>
+                    </tfoot>
+                </table>
+            </div>
+        </section>
+        {% endif %}
+
+        <section class="fx-panel">
+            <div class="fx-panel-body gf-cierre">
+                <p class="fx-nota">Al generarla se congela este listado: si mientras tanto se registra o edita un servicio de la obra,
+                    el sistema avisa y no crea la factura, para que la revise de nuevo.</p>
+                <div class="fx-totales">
+                    <dl>
+                        <dt>Subtotal</dt><dd class="fx-dinero">{{ subtotal_total|pesos }}</dd>
+                        <dt>IVA ({{ iva_porcentaje|floatformat:"-2" }} %)</dt><dd class="fx-dinero" id="monto-iva">Calculando…</dd>
+                        <dt class="total">Total</dt><dd class="total fx-dinero" id="total-factura">Calculando…</dd>
+                    </dl>
+                    <button type="submit" class="btn btn-success w-100 py-2"
+                            onclick="return confirm('¿Generar la factura de {{ obra.nombre|escapejs }} por el periodo {{ periodo.0|date:'d/m/Y' }} a {{ periodo.1|date:'d/m/Y' }}?')">
+                        <i class="bi bi-receipt" aria-hidden="true"></i> Generar factura
+                    </button>
+                </div>
+            </div>
+        </section>
+    </form>
+
+    {% elif obra %}
+    <section class="fx-panel">
+        <div class="fx-vacio">
+            <i class="bi bi-check2-all" aria-hidden="true"></i>
+            <p><strong>{{ obra.nombre }}</strong> no tiene servicios pendientes de facturar entre el {{ periodo.0|date:"d/m/Y" }} y el {{ periodo.1|date:"d/m/Y" }}.</p>
+            <a href="{% url 'historico_facturacion' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx">Ver su histórico</a>
+        </div>
+    </section>
+    {% endif %}
 </div>
-{% endif %}
 {% endblock %}
 
 {% block extra_js %}
 <script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
 <script>
-const tsConstructora = new TomSelect('#id_constructora', {
-    placeholder: 'Buscar constructora...',
-    onChange: function(value) {
-        const obraTs = tsObra;
-        obraTs.clear();
-        obraTs.clearOptions();
-        obraTs.addOption({value: '', text: '-- Seleccionar obra --'});
+const tsObra = new TomSelect('#id_obra', { placeholder: 'Primero elija la empresa' });
+new TomSelect('#id_constructora', {
+    placeholder: 'Buscar empresa',
+    onChange: function (value) {
+        tsObra.clear();
+        tsObra.clearOptions();
         if (!value) return;
-        fetch(`{% url 'api_get_obras_facturacion' %}?constructora_id=${value}`)
-            .then(r => r.json())
-            .then(data => {
-                data.obras.forEach(o => {
-                    obraTs.addOption({value: o.id, text: `${o.codigo_obra} - ${o.nombre}`});
-                });
-            });
-    }
+        fetch(`{% url 'api_get_obras_facturacion' %}?constructora_id=${encodeURIComponent(value)}`)
+            .then((r) => r.json())
+            .then((data) => {
+                (data.obras || []).forEach((o) => tsObra.addOption({ value: o.id, text: `${o.codigo_obra} · ${o.nombre}` }));
+                tsObra.settings.placeholder = data.obras && data.obras.length ? 'Buscar obra' : 'Esta empresa no tiene obras';
+                tsObra.inputState();
+                tsObra.refreshOptions(false);
+            })
+            .catch(() => {});
+    },
 });
 
-const tsObra = new TomSelect('#id_obra', {
-    placeholder: 'Buscar obra...',
-});
+// Periodo por defecto: del primer día del mes a hoy (solo si está vacío)
+(function () {
+    const ini = document.getElementById('id_fecha_inicio'), fin = document.getElementById('id_fecha_fin');
+    if (!ini || !fin || ini.value || fin.value) return;
+    const hoy = new Date(), dos = (n) => String(n).padStart(2, '0');
+    const iso = (d) => `${d.getFullYear()}-${dos(d.getMonth() + 1)}-${dos(d.getDate())}`;
+    ini.value = iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+    fin.value = iso(hoy);
+})();
 
-// Calcular IVA dinámicamente. Los números van sin formato local (|unlocalize): con es-co Django
-// escribe "2815000,00" y eso en JavaScript es un error de sintaxis que detenía todo este script.
+// IVA en vivo. Los números van sin formato local (|unlocalize): con es-co Django escribe "2815000,00",
+// que en JavaScript es un error de sintaxis.
 function recalcularTotal() {
     const subtotalNormales = Number("{{ subtotal_normales|default:0|unlocalize }}");
     const ivaPct = Number("{{ iva_porcentaje|default:0|unlocalize }}");
     const subtotalCompleto = Number("{{ subtotal_total|default:0|unlocalize }}");
     let baseTransporteIVA = 0;
-
-    document.querySelectorAll('.chk-transporte:checked').forEach(chk => {
-        baseTransporteIVA += Number(chk.dataset.subtotal) || 0;
+    document.querySelectorAll('.chk-transporte').forEach((chk) => {
+        chk.closest('tr').classList.toggle('con-iva', chk.checked);
+        if (chk.checked) baseTransporteIVA += Number(chk.dataset.subtotal) || 0;
     });
-
     // Mismo cálculo que finalizar_factura: IVA sobre normales + transporte marcado, redondeado a centavos
     const montoIVA = Math.round((subtotalNormales + baseTransporteIVA) * ivaPct) / 100;
     const total = subtotalCompleto + montoIVA;
-    const pesos = n => '$' + n.toLocaleString('es-CO', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-
+    const pesos = (n) => {
+        const [e, d] = n.toFixed(2).split('.');
+        const miles = e.replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+        return '$ ' + (d === '00' ? miles : `${miles},${d}`);
+    };
     document.getElementById('monto-iva').textContent = pesos(montoIVA);
     document.getElementById('total-factura').textContent = pesos(total);
 }
-
-document.querySelectorAll('.chk-transporte').forEach(chk => {
-    chk.addEventListener('change', recalcularTotal);
-});
+document.querySelectorAll('.chk-transporte').forEach((chk) => chk.addEventListener('change', recalcularTotal));
 if (document.getElementById('total-factura')) recalcularTotal();
 </script>
 {% endblock %}

@@ -1,0 +1,12 @@
+from django import template
+
+from facturacion.formato import texto_precio
+
+register = template.Library()
+
+
+@register.filter
+def pesos(valor):
+    """{{ factura.total|pesos }} -> '$ 2.815.000' (o '$ 6.750,50'); vacío -> '—'."""
+    texto = texto_precio(valor)
+    return f'$ {texto}' if texto else '—'

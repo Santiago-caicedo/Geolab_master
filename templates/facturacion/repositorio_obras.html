@@ -1,49 +1,45 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Facturas - {{ constructora.nombre }}{% endblock %}
+{% load fx %}
+{% block title %}Facturas · {{ constructora.nombre }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3><i class="bi bi-building me-2"></i>{{ constructora.nombre }}</h3>
-        <p class="text-muted mb-0">Obras con facturas</p>
-    </div>
-    <a href="{% url 'repositorio_clientes' %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
-</div>
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'repositorio_clientes' %}">Repositorio de facturas</a>
+        <span aria-hidden="true">/</span>
+        <span>{{ constructora.nombre }}</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">{{ constructora.nombre }} <span class="fx-cod">{{ constructora.codigo }}</span></h1>
+            <p class="fx-sub">Obras con facturas emitidas{% if constructora.nit %} · NIT {{ constructora.nit }}{% endif %}.</p>
+        </div>
+    </header>
 
-<div class="row g-3">
-    {% for o in obras %}
-    <div class="col-md-6 col-lg-4">
-        <a href="{% url 'repositorio_facturas_obra' o.pk %}" class="text-decoration-none">
-            <div class="card border-0 shadow-sm h-100 card-hover">
-                <div class="card-body">
-                    <h5 class="card-title text-dark">{{ o.nombre }}</h5>
-                    <p class="text-muted small mb-2">{{ o.codigo_obra }}</p>
-                    <div class="d-flex justify-content-between">
-                        <span class="badge bg-primary">{{ o.total_facturas }} factura{{ o.total_facturas|pluralize:"s" }}</span>
-                        {% if o.total_facturado %}
-                        <span class="badge bg-success">${{ o.total_facturado|floatformat:0 }}</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </a>
-    </div>
-    {% empty %}
-    <div class="col-12">
-        <div class="alert alert-info">No hay obras con facturas para esta constructora.</div>
-    </div>
-    {% endfor %}
+    <section class="fx-panel">
+        {% if obras %}
+        <ul class="fx-lista">
+            {% for o in obras %}
+            <li>
+                <a href="{% url 'repositorio_facturas_obra' o.pk %}" class="fx-fila">
+                    <span class="fx-fila-nombre">
+                        <strong>{{ o.nombre }}</strong>
+                        <span class="fx-sec"><span class="fx-cod suave">{{ o.codigo_obra }}</span></span>
+                    </span>
+                    <span class="fx-cifra opc"><b>{{ o.total_facturas }}</b><small>factura{{ o.total_facturas|pluralize }}</small></span>
+                    <span class="fx-cifra"><b>{{ o.total_facturado|pesos }}</b><small>facturado</small></span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="fx-vacio">
+            <i class="bi bi-building" aria-hidden="true"></i>
+            <p>Esta empresa no tiene obras con facturas.</p>
+            <a href="{% url 'repositorio_clientes' %}" class="btn btn-sm btn-fx">Volver al repositorio</a>
+        </div>
+        {% endif %}
+    </section>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-.card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
-    transition: all 0.2s;
-}
-</style>
 {% endblock %}

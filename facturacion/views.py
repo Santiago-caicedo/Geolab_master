@@ -539,11 +539,8 @@ def _valor_precio(valor):
 
 def _texto_precio(valor):
     """Decimal -> texto con miles a la colombiana: 18500 -> '18.500', 6750.5 -> '6.750,50'."""
-    if valor is None:
-        return ''
-    entero, _, dec = f'{valor:.2f}'.partition('.')
-    miles = f'{int(entero):,}'.replace(',', '.')
-    return miles if dec == '00' else f'{miles},{dec}'
+    from .formato import texto_precio
+    return texto_precio(valor)
 
 
 def _leer_precio(dato):
@@ -772,6 +769,11 @@ def crear_registro(request):
     context = {
         'constructoras': constructoras,
         'servicios': servicios,
+        # Para el JavaScript vía json_script: nombres con comillas o pulgadas (4") no rompen el script
+        'servicios_json': [
+            {'id': s.pk, 'codigo': s.codigo, 'nombre': s.nombre, 'categoria': s.categoria.nombre}
+            for s in servicios
+        ],
         'fecha_hoy': timezone.localdate().isoformat(),
     }
     return render(request, 'facturacion/crear_registro.html', context)
@@ -855,35 +857,42 @@ def historico_facturacion(request):
 
     form = FiltroHistoricoForm(request.GET or None, ciudad=ciudad)
 
-    # Aplicar filtros
-    constructora = request.GET.get('constructora')
-    if constructora:
-        registros = registros.filter(obra__constructora_id=constructora)
+    # Aplicar filtros (un id o una fecha mal escritos en la URL se ignoran, no dan error 500)
+    for param, campo in (('constructora', 'obra__constructora_id'), ('obra', 'obra_id'),
+                         ('tipo_servicio', 'tipo_servicio_id')):
+        valor = request.GET.get(param, '')
+        if valor.isdigit():
+            registros = registros.filter(**{campo: int(valor)})
+    for param, campo in (('fecha_inicio', 'fecha_realizacion__gte'), ('fecha_fin', 'fecha_realizacion__lte')):
+        try:
+            fecha = parse_date(request.GET.get(param) or '')
+        except ValueError:
+            fecha = None
+        if fecha:
+            registros = registros.filter(**{campo: fecha})
 
-    obra = request.GET.get('obra')
-    if obra:
-        registros = registros.filter(obra_id=obra)
+    from django.db.models import DecimalField, ExpressionWrapper
+    importe = ExpressionWrapper(F('cantidad') * F('precio_unitario_congelado'),
+                                output_field=DecimalField(max_digits=16, decimal_places=2))
+    totales = registros.aggregate(
+        total=Sum(importe),
+        pendiente=Sum(importe, filter=Q(factura__isnull=True)),
+        n_pendientes=Count('pk', filter=Q(factura__isnull=True)),
+    )
 
-    tipo_servicio = request.GET.get('tipo_servicio')
-    if tipo_servicio:
-        registros = registros.filter(tipo_servicio_id=tipo_servicio)
-
-    fecha_inicio = request.GET.get('fecha_inicio')
-    if fecha_inicio:
-        registros = registros.filter(fecha_realizacion__gte=fecha_inicio)
-
-    fecha_fin = request.GET.get('fecha_fin')
-    if fecha_fin:
-        registros = registros.filter(fecha_realizacion__lte=fecha_fin)
-
-    # Paginación
+    # Paginación: los enlaces conservan los filtros
     paginator = Paginator(registros, 25)
     page_obj = paginator.get_page(request.GET.get('page'))
+    filtros = request.GET.copy()
+    filtros.pop('page', None)
 
     context = {
         'page_obj': page_obj,
         'form': form,
-        'total_registros': registros.count(),
+        'total_registros': paginator.count,
+        'totales': totales,
+        'filtros_qs': filtros.urlencode(),
+        'hay_filtros': any(v for k, v in request.GET.items() if k != 'page'),
     }
     return render(request, 'facturacion/historico.html', context)
 
@@ -943,10 +952,14 @@ def generar_factura(request):
 
         tiene_registros = len(registros_normales) > 0 or len(registros_transporte) > 0
         iva_porcentaje, hay_iva = _porcentaje_iva()
+        periodo = (fecha_inicio, fecha_fin)
+    else:
+        periodo = None
 
     context = {
         'form': form,
         'obra': obra,
+        'periodo': periodo,
         'registros_normales': registros_normales,
         'registros_transporte': registros_transporte,
         'subtotal_normales': subtotal_normales,

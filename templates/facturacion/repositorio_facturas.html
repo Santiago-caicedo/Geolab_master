@@ -1,90 +1,86 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Facturas - {{ obra.nombre }}{% endblock %}
+{% load fx %}
+{% block title %}Facturas · {{ obra.nombre }}{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <div>
-        <h3><i class="bi bi-file-earmark-text me-2"></i>Facturas</h3>
-        <p class="text-muted mb-0">
-            {{ obra.constructora.nombre }} &rarr; <strong>{{ obra.nombre }}</strong> ({{ obra.codigo_obra }})
-        </p>
-    </div>
-    <a href="{% url 'repositorio_obras_cliente' obra.constructora.pk %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Volver
-    </a>
-</div>
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'repositorio_clientes' %}">Repositorio de facturas</a>
+        <span aria-hidden="true">/</span>
+        <a href="{% url 'repositorio_obras_cliente' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a>
+        <span aria-hidden="true">/</span>
+        <span>{{ obra.nombre }}</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">{{ obra.nombre }} <span class="fx-cod">{{ obra.codigo_obra }}</span></h1>
+            <p class="fx-sub">Facturas de la obra, de la más reciente a la más antigua.</p>
+        </div>
+        <div class="fx-acciones">
+            <a href="{% url 'generar_factura' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx"><i class="bi bi-receipt" aria-hidden="true"></i> Nueva factura</a>
+        </div>
+    </header>
 
-<div class="card border-0 shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>#</th>
-                    <th>Fecha emisión</th>
-                    <th>Periodo</th>
-                    <th class="text-end">Subtotal</th>
-                    <th class="text-end">IVA</th>
-                    <th class="text-end">Total</th>
-                    <th class="text-center">Estado</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for f in facturas %}
-                <tr {% if f.estado == 'ANULADA' %}class="table-danger text-decoration-line-through"{% endif %}>
-                    <td class="fw-bold">{{ f.pk }}</td>
-                    <td>{{ f.fecha_emision|date:"d/m/Y" }}</td>
-                    <td>{{ f.fecha_inicio_periodo|date:"d/m" }} - {{ f.fecha_fin_periodo|date:"d/m/Y" }}</td>
-                    <td class="text-end">${{ f.subtotal|floatformat:2 }}</td>
-                    <td class="text-end">${{ f.monto_iva|floatformat:2 }}</td>
-                    <td class="text-end fw-bold">${{ f.total|floatformat:2 }}</td>
-                    <td class="text-center">
-                        {% if f.estado == 'PENDIENTE' %}
-                        <span class="badge bg-warning text-dark">Pendiente</span>
-                        {% elif f.estado == 'PAGADA' %}
-                        <span class="badge bg-success">Pagada</span>
-                        {% elif f.estado == 'ANULADA' %}
-                        <span class="badge bg-danger">Anulada</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            {% if f.pdf_archivo %}
-                            <a href="{% url 'descargar_factura_pdf' f.pk %}" class="btn btn-outline-primary" title="Ver PDF" target="_blank">
-                                <i class="bi bi-file-earmark-pdf"></i>
-                            </a>
-                            {% endif %}
-                            {% if f.estado == 'PENDIENTE' %}
-                            <form method="post" action="{% url 'marcar_factura_pagada' f.pk %}" style="display:inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-success" title="Marcar pagada" onclick="return confirm('¿Marcar como pagada?')">
-                                    <i class="bi bi-check-lg"></i>
-                                </button>
-                            </form>
-                            <form method="post" action="{% url 'anular_factura' f.pk %}" style="display:inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-danger" title="Anular" onclick="return confirm('¿Anular esta factura? Los registros quedarán disponibles para re-facturación.')">
-                                    <i class="bi bi-x-circle"></i>
-                                </button>
-                            </form>
-                            {% elif f.estado == 'PAGADA' %}
-                            <form method="post" action="{% url 'marcar_factura_pendiente' f.pk %}" style="display:inline">
-                                {% csrf_token %}
-                                <button type="submit" class="btn btn-outline-secondary" title="Volver a pendiente (si se marcó pagada por error)" onclick="return confirm('¿Devolver esta factura a pendiente?')">
-                                    <i class="bi bi-arrow-counterclockwise"></i>
-                                </button>
-                            </form>
-                            {% endif %}
-                        </div>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="8" class="text-center text-muted py-4">No hay facturas para esta obra.</td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
+    <section class="fx-panel">
+        <div class="table-responsive">
+            <table class="fx-tabla">
+                <thead>
+                    <tr>
+                        <th scope="col">Factura</th>
+                        <th scope="col">Emitida</th>
+                        <th scope="col">Periodo</th>
+                        <th scope="col" class="der">Subtotal</th>
+                        <th scope="col" class="der">IVA</th>
+                        <th scope="col" class="der">Total</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="acc"><span class="visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for f in facturas %}
+                    <tr{% if f.estado == 'ANULADA' %} class="fx-anulada"{% endif %}>
+                        <td><span class="fx-cod">#{{ f.pk }}</span></td>
+                        <td class="fx-fecha">{{ f.fecha_emision|date:"d/m/Y" }}</td>
+                        <td class="fx-fecha">{{ f.fecha_inicio_periodo|date:"d/m/Y" }} – {{ f.fecha_fin_periodo|date:"d/m/Y" }}</td>
+                        <td class="der fx-dinero">{{ f.subtotal|pesos }}</td>
+                        <td class="der fx-dinero">{{ f.monto_iva|pesos }}</td>
+                        <td class="der fx-dinero fuerte">{{ f.total|pesos }}</td>
+                        <td>
+                            {% if f.estado == 'PENDIENTE' %}<span class="fx-estado pendiente">Pendiente de pago</span>
+                            {% elif f.estado == 'PAGADA' %}<span class="fx-estado ok">Pagada</span>
+                            {% elif f.estado == 'ANULADA' %}<span class="fx-estado anulada">Anulada</span>{% endif %}
+                        </td>
+                        <td class="acc">
+                            <div class="fx-iconos">
+                                {% if f.pdf_archivo %}
+                                <a href="{% url 'descargar_factura_pdf' f.pk %}" class="fx-icono" target="_blank" rel="noopener" title="Ver PDF" aria-label="Ver PDF de la factura {{ f.pk }}"><i class="bi bi-file-earmark-pdf" aria-hidden="true"></i></a>
+                                {% endif %}
+                                {% if f.estado == 'PENDIENTE' %}
+                                <form method="post" action="{% url 'marcar_factura_pagada' f.pk %}" onsubmit="return confirm('¿Marcar la factura #{{ f.pk }} como pagada?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="fx-icono verde" title="Marcar pagada" aria-label="Marcar pagada la factura {{ f.pk }}"><i class="bi bi-check2-circle" aria-hidden="true"></i></button>
+                                </form>
+                                <form method="post" action="{% url 'anular_factura' f.pk %}" onsubmit="return confirm('¿Anular la factura #{{ f.pk }}? Sus servicios quedarán otra vez disponibles para facturar.')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="fx-icono rojo" title="Anular" aria-label="Anular la factura {{ f.pk }}"><i class="bi bi-x-circle" aria-hidden="true"></i></button>
+                                </form>
+                                {% elif f.estado == 'PAGADA' %}
+                                <form method="post" action="{% url 'marcar_factura_pendiente' f.pk %}" onsubmit="return confirm('¿Devolver la factura #{{ f.pk }} a pendiente de pago?')">
+                                    {% csrf_token %}
+                                    <button type="submit" class="fx-icono" title="Volver a pendiente (si se marcó pagada por error)" aria-label="Devolver a pendiente la factura {{ f.pk }}"><i class="bi bi-arrow-counterclockwise" aria-hidden="true"></i></button>
+                                </form>
+                                {% endif %}
+                            </div>
+                        </td>
+                    </tr>
+                    {% empty %}
+                    <tr><td colspan="8">
+                        <div class="fx-vacio"><i class="bi bi-receipt" aria-hidden="true"></i><p>Esta obra no tiene facturas.</p></div>
+                    </td></tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    </section>
 </div>
 {% endblock %}

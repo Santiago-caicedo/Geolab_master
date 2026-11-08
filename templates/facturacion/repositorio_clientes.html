@@ -1,46 +1,43 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Repositorio de Facturas{% endblock %}
+{% load fx %}
+{% block title %}Repositorio de facturas{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3><i class="bi bi-archive me-2"></i>Repositorio de Facturas</h3>
-    <a href="{% url 'dashboard_facturacion' %}" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left"></i> Dashboard
-    </a>
-</div>
+<div class="fx">
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Repositorio de facturas</h1>
+            <p class="fx-sub">Empresas de {{ request.ciudad_facturacion }} con facturas emitidas. Entre a una para ver sus obras y facturas.</p>
+        </div>
+        <div class="fx-acciones">
+            <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary"><i class="bi bi-receipt" aria-hidden="true"></i> Generar factura</a>
+        </div>
+    </header>
 
-<div class="row g-3">
-    {% for c in constructoras %}
-    <div class="col-md-6 col-lg-4">
-        <a href="{% url 'repositorio_obras_cliente' c.pk %}" class="text-decoration-none">
-            <div class="card border-0 shadow-sm h-100 card-hover">
-                <div class="card-body">
-                    <h5 class="card-title text-dark">{{ c.nombre }}</h5>
-                    <p class="text-muted small mb-2">{{ c.codigo }}{% if c.nit %} &middot; NIT: {{ c.nit }}{% endif %}</p>
-                    <div class="d-flex justify-content-between">
-                        <span class="badge bg-primary">{{ c.total_facturas }} factura{{ c.total_facturas|pluralize:"s" }}</span>
-                        {% if c.total_facturado %}
-                        <span class="badge bg-success">${{ c.total_facturado|floatformat:0 }}</span>
-                        {% endif %}
-                    </div>
-                </div>
-            </div>
-        </a>
-    </div>
-    {% empty %}
-    <div class="col-12">
-        <div class="alert alert-info">No hay facturas generadas aún.</div>
-    </div>
-    {% endfor %}
+    <section class="fx-panel">
+        {% if constructoras %}
+        <ul class="fx-lista">
+            {% for c in constructoras %}
+            <li>
+                <a href="{% url 'repositorio_obras_cliente' c.pk %}" class="fx-fila">
+                    <span class="fx-fila-nombre">
+                        <strong>{{ c.nombre }}</strong>
+                        <span class="fx-sec"><span class="fx-cod">{{ c.codigo }}</span>{% if c.nit %} &nbsp;NIT {{ c.nit }}{% endif %}</span>
+                    </span>
+                    <span class="fx-cifra opc"><b>{{ c.total_facturas }}</b><small>factura{{ c.total_facturas|pluralize }}</small></span>
+                    <span class="fx-cifra"><b>{{ c.total_facturado|pesos }}</b><small>facturado</small></span>
+                    <i class="bi bi-chevron-right" aria-hidden="true"></i>
+                </a>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <div class="fx-vacio">
+            <i class="bi bi-archive" aria-hidden="true"></i>
+            <p>Todavía no hay facturas en {{ request.ciudad_facturacion }}. Las facturas se crean desde los servicios registrados de cada obra.</p>
+            <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary">Generar factura</a>
+        </div>
+        {% endif %}
+    </section>
 </div>
-{% endblock %}
-
-{% block extra_css %}
-<style>
-.card-hover:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 .5rem 1rem rgba(0,0,0,.15) !important;
-    transition: all 0.2s;
-}
-</style>
 {% endblock %}
