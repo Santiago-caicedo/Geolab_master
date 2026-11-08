@@ -150,6 +150,8 @@ class Command(BaseCommand):
         reubicadas = self._reubicar_codigos_reutilizados(grupos)
         st['renombradas'] += len(reubicadas)
         usados.update(c.pk for c in reubicadas.values())
+        devueltos = self._devolver_codigos(grupos)
+        st['renombradas'] += 2 * len(devueltos)
         for codigo, lista in sorted(grupos.items()):
             nombre = razon_social_canonica([p.m('razon-social') for p in lista])
             ciudad = razon_social_canonica([ciudad_obra(p) for p in lista])
@@ -219,6 +221,44 @@ class Command(BaseCommand):
             actual.save()
             reubicadas[cod_sufijo] = actual
         return reubicadas
+
+    def _devolver_codigos(self, grupos):
+        """
+        Código cuyo dueño en el portal ya no está en WordPress (BUC11 = GRUPO MIC: su único
+        proyecto fue a la papelera) mientras la empresa que lo usa en WordPress está en el
+        portal con sufijo (BUC11B = CAG, con sus obras y usuarios). Se intercambian los
+        códigos: la ficha de la empresa activa toma el código y la otra queda con el sufijo.
+        Sin esto, las obras de CAG pasarían a la ficha de GRUPO MIC (renombrada a CAG) y
+        sus usuarios se quedarían sin ellas.
+        """
+        claves = {c.upper() for c in grupos}
+        nombres = {c: razon_social_canonica([p.m('razon-social') for p in lista]) for c, lista in grupos.items()}
+        devueltos = {}
+        for codigo, lista in sorted(grupos.items()):
+            actual = Constructora.objects.filter(codigo__iexact=codigo).first()
+            if actual is None or misma_empresa(actual.nombre, nombres[codigo]):
+                continue
+            if any(misma_empresa(actual.nombre, n) for n in nombres.values()):
+                continue   # su empresa sigue en WordPress con otro código: no es este caso
+            duenas = [
+                c for c in Constructora.objects.filter(obras__id_wp_original__in=[p.id for p in lista])
+                .exclude(pk=actual.pk).distinct()
+                if misma_empresa(c.nombre, nombres[codigo]) and c.codigo.upper() not in claves
+            ]
+            if len(duenas) != 1:
+                continue
+            duena = duenas[0]
+            sufijo = duena.codigo
+            duena.codigo = f'~{duena.pk}'      # el código es único: se libera el sufijo primero
+            duena.save()
+            actual.codigo = sufijo
+            actual.save()
+            duena.codigo = codigo
+            duena.save()
+            self.stdout.write(f'  ~ {codigo} renombrada a {sufijo}  ({actual.nombre}): ya no está en WordPress')
+            self.stdout.write(f'  ~ {sufijo} renombrada a {codigo}  ({duena.nombre}): en WordPress el código {codigo} es suyo')
+            devueltos[codigo] = duena
+        return devueltos
 
     def _obras_del_portal(self):
         """Obras sin id de WP o con un id que no existe en WordPress (puesto a mano: 0, 1...)."""

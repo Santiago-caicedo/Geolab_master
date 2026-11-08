@@ -321,7 +321,9 @@ python manage.py importar_catalogo_excel "BASE DATOS IBAGUE.xlsm" --ciudad Ibagu
 # codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de. empresa_portal+obra_portal fijan la obra
 # exacta (hay códigos de obra repetidos entre hermanas: BUC27-1 en BUC27 y BUC27B, donde --obra no
 # desempata) y con --crear-obras la crean (y la empresa: BUC0-6B, número reutilizado). precios_de copia
-# otra columna (BOG 11-2 = precios de 11-1). Lo que no está en la lista (21-3, 50-4, 1-4, 15-1 de BUC)
+# otra columna (BOG 11-2 = precios de 11-1). Columna de obra REPETIDA en el Excel (BUC 11-1 en U y BG, BUC 0-11,
+# BOG 0-10): sin --activos se toma el primer precio no vacío; con --activos precios_de debe traer la LETRA de la
+# vigente (11-1;...;BG) o la importación aborta (mezclar dos listas da precios equivocados). Lo que no está en la lista (21-3, 50-4, 1-4, 15-1 de BUC)
 # va comentado en el CSV con el motivo. Scripts: -Activos / --activos (el CSV viaja con git: push antes).
 # Catálogo: el NOMBRE manda sobre el código; si el servicio ya existe con otro código (BUC 1-3-9/1-3-10/
 # 828-B, cargados en sept-2026 con otra limpieza) se conserva el del portal. Cliente varios con varias
@@ -354,6 +356,9 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
   Si el registro que YA existe en el portal con ese código es de la otra empresa (su nombre actual
   coincide con la del sufijo), se renombra al código con sufijo y conserva usuarios/facturas
   (`_reubicar_codigos_reutilizados`); la empresa dueña del código recibe un registro nuevo.
+  Al revés (`_devolver_codigos`): si la dueña del código en el portal ya NO está en WordPress (BUC11 =
+  GRUPO MIC, su único proyecto fue a la papelera) y la empresa que lo usa en WP está con sufijo (BUC11B =
+  CAG, con usuario), se intercambian los códigos: CAG pasa a BUC11 con sus obras y usuarios, GRUPO MIC a BUC11B.
 - Obras creadas a mano en el portal (sin `id_wp_original`): si WP trae luego un proyecto con el
   mismo código (comparado sin prefijo: `56-9` = `BUC56-9`), misma ciudad y candidata única, se
   ADOPTA esa obra (le pone el id de WP) en vez de crear una copia. Al final se avisan los códigos

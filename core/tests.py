@@ -319,6 +319,27 @@ class SincronizarWordpressTests(TestCase):
         self.assertEqual(Obra.objects.get(id_wp_original=503).constructora, cde)
         self.assertIn('renombrada a BUC0-12B', salida)
 
+    def test_codigo_vuelve_a_la_empresa_activa_si_la_otra_salio_de_wordpress(self):
+        # BUC11 = GRUPO MIC (su proyecto fue a la papelera) y BUC11B = CAG (activa, con usuario).
+        # WordPress ya solo trae a CAG con BUC11: se intercambian los códigos y nadie pierde nada.
+        vieja = Constructora.objects.create(codigo='IBA13', nombre='GRUPO MIC SAS', ciudad='Ibagué')
+        finca = Obra.objects.create(id_wp_original=556, nombre='FINCA VEGAS', codigo_obra='IBA13-1', constructora=vieja)
+        self.rovira_vieja.codigo = 'IBA13B'
+        self.rovira_vieja.save()
+        salida = self._run()
+        vieja.refresh_from_db()
+        self.rovira_vieja.refresh_from_db()
+        self.cliente.refresh_from_db()
+        finca.refresh_from_db()
+        self.assertEqual((self.rovira_vieja.codigo, self.rovira_vieja.nombre), ('IBA13', 'UNION TEMPORAL ROVIRA 2018'))
+        self.assertEqual((vieja.codigo, vieja.nombre), ('IBA13B', 'GRUPO MIC SAS'))
+        self.assertEqual(self.cliente.empresa_id, self.rovira_vieja.pk)
+        self.assertEqual(Obra.objects.get(id_wp_original=500).constructora, self.rovira_vieja)
+        self.assertEqual(finca.constructora, vieja)
+        self.assertIn('IBA13 renombrada a IBA13B', salida)
+        self.assertNotIn('quedó sin obras', salida)
+        self.assertIn('Constructoras: 0 creadas, 0 renombradas', self._run())   # idempotente
+
     def test_adopta_obra_con_id_wp_inventado(self):
         # id de WP puesto a mano en el admin (1 no es un proyecto de WordPress): también es obra del portal
         dyco = Constructora.objects.create(codigo='IBA8', nombre='DYCO', ciudad='Ibagué')

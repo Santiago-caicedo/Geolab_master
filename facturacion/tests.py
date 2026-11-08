@@ -547,7 +547,7 @@ class ImportarCatalogoExcelTests(TestCase):
         ruta = self._activos(
             '# comentario\n'
             'codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de\n'
-            '8-1;DYCO;AMBALA;;;\n'
+            '8-1;DYCO;AMBALA;;;F\n'
             '8-2;DYCO;AMBALA ETAPA 2;IBA8;IBA8-2;8-1\n'
             '9-9;OTRA;SIN COLUMNA;;;\n'
         )
@@ -575,7 +575,7 @@ class ImportarCatalogoExcelTests(TestCase):
 
     def test_activos_codigo_de_empresa_viejo_no_duplica(self):
         # La lista dice IBA8B pero la empresa quedó como IBA8 (cambió en WordPress): es la misma obra
-        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal\n8-1;DYCO SAS;AMBALA;IBA8B;IBA8-1\n')
+        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de\n8-1;DYCO SAS;AMBALA;IBA8B;IBA8-1;F\n')
         salida = self._run('--activos', ruta, '--crear-obras')
         self.assertIn('la lista decía IBA8B', salida)
         self.assertFalse(Constructora.objects.filter(codigo='IBA8B').exists())
@@ -584,11 +584,28 @@ class ImportarCatalogoExcelTests(TestCase):
 
     def test_activos_obra_de_otra_empresa_no_recibe_precios(self):
         # El código coincide pero la obra es de otra empresa: ni precios ni duplicado
-        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal\n8-1;CONSTRUCTORA ZETA LTDA;X;IBA8;IBA8-1\n')
+        ruta = self._activos('codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de\n8-1;CONSTRUCTORA ZETA LTDA;X;IBA8;IBA8-1;F\n')
         salida = self._run('--activos', ruta, '--crear-obras')
         self.assertIn('corrija la lista', salida)
         self.assertFalse(PrecioServicio.objects.filter(obra=self.ambala).exists())
         self.assertEqual(Obra.objects.filter(codigo_obra='IBA8-1').count(), 1)
+
+    def test_activos_columna_repetida_usa_la_letra_y_no_mezcla(self):
+        # El libro tiene "8-1" en F y en I con listas distintas (como BUC 11-1 en U y BG)
+        precios = lambda: dict(PrecioServicio.objects.filter(obra=self.ambala).values_list('tipo_servicio__codigo', 'precio'))
+        with self.assertRaisesMessage(CommandError, 'indique en precios_de la letra'):
+            self._run('--activos', self._activos('codigo\n8-1\n'))
+        self.assertFalse(PrecioServicio.objects.filter(obra=self.ambala).exists())
+        self._run('--activos', self._activos('codigo;precios_de\n8-1;I\n'))
+        self.assertEqual(precios(), {'1-2': Decimal('350000')})              # solo la columna I
+        self._run('--activos', self._activos('codigo;precios_de\n8-1;F\n'))
+        self.assertEqual(precios()['1-1'], Decimal('5000'))
+        self.assertEqual(precios()['1-2'], Decimal('111'))                   # el de F, no el 350000 de I
+        # copiar la lista ya elegida vale; letra inexistente o en columna no repetida, no
+        self._run('--activos', self._activos('codigo;precios_de\n8-1;F\n8-2;8-1\n'))
+        for texto in ('codigo;precios_de\n8-1;H\n', 'codigo;precios_de\n10-2;H\n', 'codigo;precios_de\n8-2;8-1\n'):
+            with self.subTest(texto=texto), self.assertRaises(CommandError):
+                self._run('--activos', self._activos(texto))
 
     def test_activos_mal_armado(self):
         for texto in ('codigo;otra\n8-1;x\n', 'codigo\n8-1\n8-1\n', 'codigo;empresa_portal\n8-1;IBA8\n',

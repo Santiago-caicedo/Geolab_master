@@ -46,6 +46,7 @@ PRIMERA_COL_OBRA = 4          # columna E (DESCUENTO, si existe, no parece códi
 FILA_ENCABEZADO = 3           # índice 0 -> fila 4 de Excel (la fila 3 es igual pero con celdas "0")
 SUFIJO_CATEGORIA = {'11L': 'Laboratorista', '11A': 'Auxiliar', '11B': 'Laboratorista mes'}
 _CODIGO_OBRA = re.compile(r'^\d+-\d+$')
+_LETRA_COLUMNA = re.compile(r'^[A-Z]{1,3}$')
 
 
 @dataclass
@@ -57,6 +58,8 @@ class ServicioExcel:
     norma: str
     precio_lista: Decimal | None
     precios: dict = field(default_factory=dict)   # codigo_obra_excel -> Decimal
+    # Columnas de obra repetidas (dos "11-1"): precio de cada una, (codigo, letra) -> Decimal.
+    por_columna: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -67,6 +70,7 @@ class LecturaExcel:
     nombres_obras: dict         # codigo_obra -> nombre proyecto (si la hoja existe)
     nombres_empresas: dict      # codigo_empresa -> razón social
     log: list                   # decisiones de limpieza, en texto
+    repetidas: dict = field(default_factory=dict)   # codigo_obra -> [letras de columna] (2 o más)
 
 
 def _norm(texto):
@@ -140,9 +144,12 @@ def _leer_libro(wb, hoja):
             columnas.append((j, cod))
         elif cod.upper().strip() not in ('DESCUENTO', 'PRECIO LISTA'):
             log.append(f'columna {j + 1}: el encabezado "{cod}" no es un código de obra (empresa-obra): se omite')
-    repetidas = [c for c, n in Counter(c for _, c in columnas).items() if n > 1]
-    for c in repetidas:
-        log.append(f'columna de obra "{c}" aparece más de una vez: se toma el primer precio no vacío')
+    from openpyxl.utils import get_column_letter
+    repetidas = {c: [get_column_letter(j + 1) for j, c2 in columnas if c2 == c]
+                 for c, n in Counter(c for _, c in columnas).items() if n > 1}
+    for c, letras in repetidas.items():
+        log.append(f'columna de obra "{c}" aparece más de una vez ({", ".join(letras)}): se toma el primer '
+                   'precio no vacío (con --activos hay que elegir la columna en precios_de)')
 
     # ── categorías y servicios ──────────────────────────────────────────
     categorias, servicios, cat = [], [], None
@@ -173,6 +180,8 @@ def _leer_libro(wb, hoja):
         )
         for j, cod_obra in columnas:
             valor = _decimal(fila[j]) if j < len(fila) else None
+            if valor is not None and cod_obra in repetidas:
+                s.por_columna[(cod_obra, get_column_letter(j + 1))] = valor
             if valor is not None and cod_obra not in s.precios:
                 s.precios[cod_obra] = valor
         servicios.append(s)
@@ -187,6 +196,8 @@ def _leer_libro(wb, hoja):
                 previo.norma = _unir_normas(previo.norma, s.norma)
                 for cod_obra, valor in s.precios.items():
                     previo.precios.setdefault(cod_obra, valor)
+                for clave, valor in s.por_columna.items():
+                    previo.por_columna.setdefault(clave, valor)
                 log.append(f'fila {s.fila}: "{s.codigo}" omitido, mismo nombre que "{previo.codigo}" (normas y precios fusionados)')
                 continue
             sufijo = SUFIJO_CATEGORIA.get(s.categoria) or f'cód. {s.codigo}'
@@ -213,7 +224,7 @@ def _leer_libro(wb, hoja):
     for _, cod in columnas:
         if cod not in obras:
             obras.append(cod)
-    return LecturaExcel(categorias, finales, obras, nombres_obras, nombres_empresas, log)
+    return LecturaExcel(categorias, finales, obras, nombres_obras, nombres_empresas, log, repetidas)
 
 
 def _leer_nombres(wb):
@@ -513,6 +524,9 @@ def constructora_de(ciudad, codigo_excel, lectura):
 #   Vacías: la columna se resuelve como siempre (resolver_obra).
 # - precios_de: otra columna del Excel cuyos precios se copian (misma lista de precios
 #   para dos proyectos de la misma empresa). La columna `codigo` no debe existir en el Excel.
+#   Si el Excel tiene `codigo` en DOS columnas (BUC: "11-1" en U y en BG, con precios
+#   distintos), precios_de es la LETRA de la columna vigente ("BG"). Sin ella no se carga:
+#   mezclar las dos listas daría precios equivocados.
 
 COLUMNAS_ACTIVOS = ('codigo', 'empresa', 'proyecto', 'empresa_portal', 'obra_portal', 'precios_de')
 
@@ -549,8 +563,10 @@ def leer_activos(ruta):
             raise ValueError(f'{ruta}, fila {n}: el código {a.codigo} está repetido')
         if bool(a.empresa_portal) != bool(a.obra_portal):
             raise ValueError(f'{ruta}, fila {n}: empresa_portal y obra_portal van juntas')
-        if a.precios_de and not _CODIGO_OBRA.match(a.precios_de):
-            raise ValueError(f'{ruta}, fila {n}: precios_de "{a.precios_de}" no es un código de obra del Excel')
+        if a.precios_de and not (_CODIGO_OBRA.match(a.precios_de) or _LETRA_COLUMNA.match(a.precios_de.upper())):
+            raise ValueError(f'{ruta}, fila {n}: precios_de "{a.precios_de}" no es un código de obra ni una letra de columna')
+        if _LETRA_COLUMNA.match(a.precios_de.upper()):
+            a.precios_de = a.precios_de.upper()
         activos[a.codigo] = a
     return activos
 
@@ -562,13 +578,36 @@ def aplicar_activos(lectura, activos):
     Devuelve (omitidas, faltantes): columnas del Excel que no están en la lista, y
     clientes de la lista que no tienen columna en el Excel (quedan sin precios).
     """
+    # 1) columnas repetidas: la lista dice cuál es la vigente (sin mezclar las dos)
     for a in activos.values():
-        if not a.precios_de:
+        letras = lectura.repetidas.get(a.codigo)
+        if _LETRA_COLUMNA.match(a.precios_de):
+            if not letras:
+                raise ValueError(f'{a.codigo}: precios_de "{a.precios_de}" es una letra de columna, pero el Excel '
+                                 f'tiene una sola columna {a.codigo} (la letra solo elige entre columnas repetidas)')
+            if a.precios_de not in letras:
+                raise ValueError(f'{a.codigo}: el Excel tiene la columna {a.codigo} en {", ".join(letras)}, no en {a.precios_de}')
+            for s in lectura.servicios:
+                valor = s.por_columna.get((a.codigo, a.precios_de))
+                if valor is None:
+                    s.precios.pop(a.codigo, None)
+                else:
+                    s.precios[a.codigo] = valor
+            lectura.repetidas.pop(a.codigo)
+        elif letras:
+            raise ValueError(f'{a.codigo}: el Excel tiene {len(letras)} columnas {a.codigo} ({", ".join(letras)}) con '
+                             f'listas distintas; indique en precios_de la letra de la vigente')
+    # 2) proyectos que copian la lista de otra columna
+    for a in activos.values():
+        if not a.precios_de or _LETRA_COLUMNA.match(a.precios_de):
             continue
         if a.codigo in lectura.obras:
             raise ValueError(f'{a.codigo} ya tiene columna en el Excel: no puede copiar los precios de {a.precios_de}')
         if a.precios_de not in lectura.obras:
             raise ValueError(f'{a.codigo} copia los precios de {a.precios_de}, que no es una columna del Excel')
+        if a.precios_de in lectura.repetidas:
+            raise ValueError(f'{a.codigo} copia los precios de {a.precios_de}, que está repetida en el Excel '
+                             f'({", ".join(lectura.repetidas[a.precios_de])}): ponga {a.precios_de} en la lista con su letra')
         for s in lectura.servicios:
             if a.precios_de in s.precios:
                 s.precios[a.codigo] = s.precios[a.precios_de]

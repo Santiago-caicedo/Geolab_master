@@ -7,7 +7,9 @@ codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
 11-1;TINGUAS DE CANTOVAL SAS;PLAN PARCIAL N 15 MAZDA MAVAIA;BOG11;BOG11-1;
 11-2;TINGUAS DE CANTOVAL SAS;PLAN PARCIAL N 15 MAZDA MAVAIA;BOG11;BOG11-2;11-1
 0-12;CONSORCIO REDESTIM ZONA 5;;;;
-0-10;CONSORCIO DC 2025;;;;
+# PENDIENTE: el Excel tiene dos columnas 0-10 (G y T) con listas distintas (humedad 6.000 vs 10.000);
+# falta que el laboratorio diga cuál es la vigente. Quitar el # y poner la letra en precios_de.
+#0-10;CONSORCIO DC 2025;;;;
 0-13;DIAZAR CONSTRUCCIONES;;;;
 0-14;CONSORCIO OBRAS AZUL-CIA;;;;
 0-22;HOUSING INGENIEROS;HOUSING INGENIEROS;BOG0-22;BOG0-22;
