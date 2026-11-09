@@ -1145,3 +1145,25 @@ class PantallasFacturacionTests(TestCase):
             with self.subTest(valor=valor):
                 self.assertEqual(pesos(valor), esperado)
 
+    def test_catalogo_muestra_uso_y_bloquea_eliminar_con_registros(self):
+        # srv: 30 registros en una obra con precio; otro servicio sin uso; un tercero con precio en 2 obras
+        otra_obra = Obra.objects.create(nombre='Torre 2', codigo_obra='BUC1-2', constructora=self.obra.constructora)
+        libre = TipoServicio.objects.create(categoria=self.srv.categoria, codigo='1-2', nombre='Diseño de mezclas')
+        usado = TipoServicio.objects.create(categoria=self.srv.categoria, codigo='1-3', nombre='Núcleos')
+        PrecioServicio.objects.create(obra=self.obra, tipo_servicio=self.srv, precio=6750)
+        for o in (self.obra, otra_obra):
+            PrecioServicio.objects.create(obra=o, tipo_servicio=usado, precio=1000)
+        PrecioServicio.objects.create(obra=otra_obra, tipo_servicio=libre, precio=None)   # fila sin precio: no cuenta
+        r = self.client.get(reverse('catalogo_servicios'), {'q': 'cilindros'})
+        self.assertEqual(r.status_code, 200)
+        servicios = {s.codigo: s for c in r.context['categorias'] for s in c.servicios.all()}
+        self.assertEqual((servicios['1-1'].n_obras, servicios['1-1'].n_registros), (1, 30))   # sin multiplicar
+        self.assertEqual((servicios['1-3'].n_obras, servicios['1-3'].n_registros), (2, 0))
+        self.assertEqual((servicios['1-2'].n_obras, servicios['1-2'].n_registros), (0, 0))
+        self.assertEqual(r.context['total_servicios'], 3)
+        html = r.content.decode()
+        self.assertIn('value="cilindros"', html)                                         # la búsqueda de antes sigue
+        self.assertNotIn(reverse('eliminar_servicio_facturacion', args=[self.srv.pk]), html)   # tiene registros
+        self.assertIn(reverse('eliminar_servicio_facturacion', args=[libre.pk]), html)
+        self.assertEqual(html.count('lp-fila con-precio'), 2)
+

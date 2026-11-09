@@ -1,115 +1,235 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}Catálogo de Servicios{% endblock %}
+{% block title %}Catálogo de servicios{% endblock %}
 
 {% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3><i class="bi bi-list-check me-2"></i>Catálogo de Servicios</h3>
-    <div>
-        <a href="{% url 'crear_categoria_facturacion' %}" class="btn btn-outline-primary btn-sm">
-            <i class="bi bi-folder-plus"></i> Nueva Categoría
-        </a>
-        <a href="{% url 'crear_servicio_facturacion' %}" class="btn btn-primary btn-sm">
-            <i class="bi bi-plus-circle"></i> Nuevo Servicio
-        </a>
-    </div>
-</div>
+<div class="lp" id="catalogo">
+    <header class="lp-head">
+        <div class="lp-head-texto">
+            <h1 class="lp-titulo">Catálogo de servicios</h1>
+            <p class="lp-resumen">
+                <strong>{{ total_servicios }}</strong> servicio{{ total_servicios|pluralize }} en {{ categorias|length }} categoría{{ categorias|length|pluralize }}
+                de {{ request.ciudad_facturacion }}. El precio de cada uno se pone en la lista de cada obra.
+            </p>
+        </div>
+        <div class="lp-head-acciones">
+            <a href="{% url 'crear_categoria_facturacion' %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-folder-plus" aria-hidden="true"></i> Nueva categoría</a>
+            <a href="{% url 'crear_servicio_facturacion' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nuevo servicio</a>
+        </div>
+    </header>
 
-<!-- Buscador -->
-<form method="get" class="mb-4">
-    <div class="input-group">
-        <input type="text" name="q" class="form-control" placeholder="Buscar por código, nombre o norma..." value="{{ q }}">
-        <button class="btn btn-outline-primary"><i class="bi bi-search"></i></button>
-        {% if q %}<a href="{% url 'catalogo_servicios' %}" class="btn btn-outline-secondary">Limpiar</a>{% endif %}
+    {% if categorias %}
+    <div class="lp-barra" role="search">
+        <label class="lp-buscar">
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <span class="visually-hidden">Buscar servicio</span>
+            <input type="search" id="cat-q" class="form-control" value="{{ q }}" placeholder="Buscar por código, servicio o norma" autocomplete="off">
+        </label>
+        <div class="form-check form-switch lp-switch">
+            <input class="form-check-input" type="checkbox" role="switch" id="cat-sin-uso">
+            <label class="form-check-label" for="cat-sin-uso">Solo los que ninguna obra tiene con precio</label>
+        </div>
+        <span class="lp-ayuda" id="cat-conteo" aria-live="polite"></span>
     </div>
-</form>
-
-{% if servicios_filtrados %}
-<!-- Resultados de búsqueda -->
-<div class="card border-0 shadow-sm">
-    <div class="card-header bg-white">
-        <h5 class="mb-0">Resultados para "{{ q }}" ({{ servicios_filtrados|length }})</h5>
-    </div>
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Código</th>
-                    <th>Servicio</th>
-                    <th>Categoría</th>
-                    <th>Norma</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in servicios_filtrados %}
-                <tr>
-                    <td><span class="badge bg-secondary">{{ s.codigo }}</span></td>
-                    <td>{{ s.nombre }}</td>
-                    <td>{{ s.categoria.nombre }}</td>
-                    <td><small class="text-muted">{{ s.norma|default:"-" }}</small></td>
-                    <td>
-                        <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-pencil"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-</div>
-{% else %}
-<!-- Vista por categoría -->
-{% for cat in categorias %}
-<div class="card border-0 shadow-sm mb-3">
-    <div class="card-header bg-white d-flex justify-content-between align-items-center">
-        <h5 class="mb-0">
-            <span class="badge bg-primary me-2">{{ cat.codigo }}</span>
-            {{ cat.nombre }}
-            {% if cat.es_transporte %}<small class="text-warning">(Transporte - IVA especial)</small>{% endif %}
-        </h5>
-        <a href="{% url 'editar_categoria_facturacion' cat.pk %}" class="btn btn-sm btn-outline-secondary">
-            <i class="bi bi-pencil"></i> Editar
-        </a>
-    </div>
-    {% if cat.servicios.all %}
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th style="width:100px">Código</th>
-                    <th>Servicio</th>
-                    <th>Norma</th>
-                    <th style="width:100px"></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for s in cat.servicios.all %}
-                <tr>
-                    <td><code>{{ s.codigo }}</code></td>
-                    <td>{{ s.nombre }}</td>
-                    <td><small class="text-muted">{{ s.norma|default:"-" }}</small></td>
-                    <td>
-                        <div class="btn-group btn-group-sm">
-                            <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="btn btn-outline-primary" title="Editar">
-                                <i class="bi bi-pencil"></i>
-                            </a>
-                            <a href="{% url 'eliminar_servicio_facturacion' s.pk %}" class="btn btn-outline-danger" title="Eliminar">
-                                <i class="bi bi-trash"></i>
-                            </a>
-                        </div>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
-    </div>
-    {% else %}
-    <div class="card-body text-muted">Sin servicios en esta categoría.</div>
     {% endif %}
+
+    {% for cat in categorias %}
+    <section class="card lp-cat" data-cat>
+        <header class="lp-cat-head">
+            <span class="lp-cat-num">{{ cat.codigo }}</span>
+            <h2>{{ cat.nombre }}</h2>
+            {% if cat.es_transporte %}<span class="cat-etiqueta" title="En la factura se elige viaje por viaje si lleva IVA">Transporte · IVA por viaje</span>{% endif %}
+            <span class="lp-cat-conteo" data-cat-conteo>{{ cat.servicios.all|length }} servicio{{ cat.servicios.all|length|pluralize }}</span>
+            <a href="{% url 'editar_categoria_facturacion' cat.pk %}" class="cat-icono" title="Editar categoría" aria-label="Editar la categoría {{ cat.nombre }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+        </header>
+        {% if cat.servicios.all %}
+        <div class="table-responsive">
+            <table class="table lp-tabla mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col" class="c-cod">Código</th>
+                        <th scope="col">Servicio</th>
+                        <th scope="col" class="c-norma">Norma</th>
+                        <th scope="col" class="c-uso">En uso</th>
+                        <th scope="col" class="c-acc"><span class="visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for s in cat.servicios.all %}
+                    <tr class="lp-fila{% if s.n_obras %} con-precio{% endif %}" data-uso="{{ s.n_obras }}"
+                        data-texto="{{ s.codigo }} {{ s.nombre }} {{ s.norma }}">
+                        <td class="c-cod"><span class="lp-cod">{{ s.codigo }}</span></td>
+                        <td class="c-serv"><span class="lp-cod lp-cod-m" aria-hidden="true">{{ s.codigo }}</span>{{ s.nombre }}</td>
+                        <td class="c-norma">{{ s.norma|default:"—" }}</td>
+                        <td class="c-uso">
+                            {% if s.n_obras %}<span class="cat-uso si">{{ s.n_obras }} obra{{ s.n_obras|pluralize }}</span>{% else %}<span class="cat-uso">Sin precio</span>{% endif %}
+                            {% if s.n_registros %}<span class="cat-reg">{{ s.n_registros }} registro{{ s.n_registros|pluralize }}</span>{% endif %}
+                        </td>
+                        <td class="c-acc">
+                            <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="cat-icono" title="Editar" aria-label="Editar {{ s.codigo }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                            {% if s.n_registros %}
+                            <span class="cat-icono bloqueado" title="No se puede eliminar: ya tiene {{ s.n_registros }} registro{{ s.n_registros|pluralize }} de servicio" aria-label="No se puede eliminar {{ s.codigo }}: tiene registros"><i class="bi bi-trash3" aria-hidden="true"></i></span>
+                            {% else %}
+                            <a href="{% url 'eliminar_servicio_facturacion' s.pk %}" class="cat-icono rojo" title="Eliminar" aria-label="Eliminar {{ s.codigo }}"><i class="bi bi-trash3" aria-hidden="true"></i></a>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <p class="cat-vacia">Sin servicios en esta categoría. <a href="{% url 'crear_servicio_facturacion' %}">Agregar uno</a></p>
+        {% endif %}
+    </section>
+    {% empty %}
+    <div class="card lp-vacio">
+        <i class="bi bi-journal-plus" aria-hidden="true"></i>
+        <p>{{ request.ciudad_facturacion }} todavía no tiene catálogo. Empiece por crear una categoría (por ejemplo, CONCRETOS) y luego sus servicios.</p>
+        <a href="{% url 'crear_categoria_facturacion' %}" class="btn btn-sm btn-primary">Nueva categoría</a>
+    </div>
+    {% endfor %}
+
+    <div class="lp-sin-resultados card" id="cat-sin-resultados" hidden>
+        <p>Ningún servicio coincide con la búsqueda.</p>
+    </div>
 </div>
-{% empty %}
-<div class="alert alert-info">No hay categorías de servicio. Cree la primera.</div>
-{% endfor %}
-{% endif %}
+{% endblock %}
+
+{% block extra_css %}
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+/* Mismo sistema que la lista de precios de la obra (gestionar_precios.html) */
+.lp {
+    --ink: #1c2e4a; --text: #334155; --muted: #5b6b80; --line: #e6eaf0; --soft: #f6f8fb;
+    --link: #0b6ea8; --verde: #12805c; --verde-bg: #f1f9f5; --rojo: #b42318; --rojo-bg: #fdf3f2;
+    --ambar: #b45309; --ambar-bg: #fdf1e1;
+    --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+    color: var(--text); padding-bottom: 2rem;
+}
+.lp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.lp-titulo { font-size: 1.45rem; font-weight: 650; color: var(--ink); letter-spacing: -.01em; margin: 0 0 .25rem; }
+.lp-resumen { margin: 0; font-size: .9375rem; max-width: 80ch; }
+.lp-resumen strong { color: var(--ink); font-variant-numeric: tabular-nums; }
+.lp-head-acciones { display: flex; gap: .5rem; flex-wrap: wrap; }
+.lp-btn { border: 1px solid var(--line); background: #fff; color: var(--text); font-size: .8125rem; }
+.lp-btn:hover { background: var(--soft); border-color: #cfd7e2; }
+.lp .btn-primary { background: #0077b6; border-color: #0077b6; font-size: .8125rem; }
+.lp .btn-primary:hover { background: #00669c; border-color: #00669c; }
+
+.lp-barra {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    background: rgba(248, 250, 252, .94); backdrop-filter: blur(6px);
+    padding: .6rem 0; margin-bottom: .75rem; border-bottom: 1px solid var(--line);
+}
+.lp-buscar { position: relative; flex: 1 1 260px; max-width: 380px; margin: 0; }
+.lp-buscar i { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
+.lp-buscar input { padding-left: 2rem; height: 36px; font-size: .875rem; }
+.lp-switch { margin: 0; font-size: .875rem; }
+.lp-ayuda { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.lp-cat { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
+.lp-cat-head { display: flex; align-items: center; gap: .65rem; padding: .7rem 1rem; background: #fff; border-bottom: 1px solid var(--line); }
+.lp-cat-head h2 { font-size: .975rem; font-weight: 650; color: var(--ink); margin: 0; letter-spacing: .01em; }
+.lp-cat-num { min-width: 26px; height: 26px; padding: 0 .35rem; border-radius: 7px; background: #e1f0fb; color: #0b5c8f;
+              font-weight: 650; font-size: .8125rem; display: inline-flex; align-items: center; justify-content: center; }
+.lp-cat-conteo { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cat-etiqueta { font-size: .75rem; font-weight: 600; color: var(--ambar); background: var(--ambar-bg); border-radius: 999px; padding: .12rem .55rem; }
+
+.lp-tabla { font-size: .875rem; }
+.lp-tabla thead th { background: #fafbfd; color: var(--muted); font-size: .75rem; font-weight: 600; border-bottom: 1px solid var(--line); padding: .45rem 1rem; white-space: nowrap; }
+.lp-tabla td { padding: .5rem 1rem; vertical-align: middle; border-color: var(--line); color: var(--text); }
+.lp-tabla tbody tr:last-child td { border-bottom: 0; }
+.lp-tabla .c-cod { width: 110px; }
+.lp-tabla .c-norma { width: 200px; color: var(--muted); font-size: .8125rem; }
+.lp-tabla .c-uso { width: 150px; white-space: nowrap; }
+.lp-tabla .c-acc { width: 1%; white-space: nowrap; text-align: right; }
+.lp-cod { font-family: var(--mono); font-size: .78rem; color: var(--ink); white-space: nowrap; }
+.lp-cod-m { display: none; }
+.lp-fila:hover td { background: var(--soft); }
+/* Servicio que alguna obra ya tiene con precio: verde suave, como en la lista de precios */
+.lp-fila.con-precio td { background: var(--verde-bg); }
+.lp-fila.con-precio:hover td { background: #e8f5ee; }
+.lp-fila.con-precio td:first-child { box-shadow: inset 3px 0 0 var(--verde); }
+.lp-fila.con-precio .c-serv { color: var(--ink); }
+
+.cat-uso { display: inline-block; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cat-uso.si { color: var(--verde); font-weight: 600; }
+.cat-reg { display: block; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.cat-icono { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+             color: var(--muted); text-decoration: none; font-size: .95rem; vertical-align: middle; }
+.cat-icono:hover { background: #e1f0fb; color: #0b5c8f; }
+.cat-icono.rojo:hover { background: var(--rojo-bg); color: var(--rojo); }
+.cat-icono.bloqueado { color: #cbd5e1; cursor: not-allowed; }
+.cat-icono.bloqueado:hover { background: transparent; color: #cbd5e1; }
+.lp-cat-head .cat-icono { margin-left: .1rem; }
+.cat-vacia { margin: 0; padding: 1rem; font-size: .875rem; color: var(--muted); }
+.cat-vacia a { color: var(--link); }
+
+.lp-vacio, .lp-sin-resultados { text-align: center; padding: 2.5rem 1rem; color: var(--muted); border: 1px dashed var(--line); }
+.lp-vacio i { font-size: 1.6rem; color: #cbd5e1; }
+.lp-vacio p { margin: .5rem auto 1rem; max-width: 56ch; }
+.lp-sin-resultados p { margin: 0; }
+.lp a:focus-visible, .lp input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; box-shadow: none; }
+
+@media (max-width: 767.98px) {
+    .lp-tabla .c-norma, .lp-tabla .c-cod { display: none; }
+    .lp-cod-m { display: block; font-size: .72rem; color: var(--muted); margin-bottom: .1rem; }
+    .lp-fila.con-precio td:nth-child(2) { box-shadow: inset 3px 0 0 var(--verde); }
+    .lp-tabla td, .lp-tabla thead th { padding-left: .65rem; padding-right: .65rem; }
+    .lp-tabla .c-uso { width: auto; }
+    .lp-ayuda { display: none; }
+}
+</style>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    'use strict';
+    const raiz = document.getElementById('catalogo');
+    const q = document.getElementById('cat-q');
+    if (!raiz || !q) return;
+    const sinUso = document.getElementById('cat-sin-uso');
+    const conteo = document.getElementById('cat-conteo');
+    const sinRes = document.getElementById('cat-sin-resultados');
+    const normal = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const cats = Array.from(raiz.querySelectorAll('[data-cat]'));
+    const filas = Array.from(raiz.querySelectorAll('.lp-fila'));
+    filas.forEach((tr) => { tr._texto = normal(tr.dataset.texto); });
+    const total = filas.length;
+
+    function filtrar() {
+        const palabras = normal(q.value).split(/\s+/).filter(Boolean);
+        const filtrando = palabras.length > 0 || sinUso.checked;
+        let visibles = 0;
+        cats.forEach((cat) => {
+            const filasCat = cat.querySelectorAll('.lp-fila');
+            let n = 0;
+            filasCat.forEach((tr) => {
+                const ver = (!sinUso.checked || tr.dataset.uso === '0') && palabras.every((p) => tr._texto.includes(p));
+                tr.hidden = !ver;
+                n += ver;
+            });
+            // Una categoría vacía (sin servicios) solo se ve cuando no se está filtrando
+            cat.hidden = filtrando ? n === 0 : false;
+            const c = cat.querySelector('[data-cat-conteo]');
+            if (c && filasCat.length) {
+                const t = filasCat.length, s = t === 1 ? '' : 's';
+                c.textContent = filtrando ? `${n} de ${t} servicio${s}` : `${t} servicio${s}`;
+            }
+            visibles += n;
+        });
+        conteo.textContent = filtrando ? `${visibles} de ${total} servicios` : `${total} servicios`;
+        sinRes.hidden = !(filtrando && visibles === 0);
+        // La dirección recuerda la búsqueda (volver de editar deja la lista igual)
+        const url = new URL(window.location);
+        q.value.trim() ? url.searchParams.set('q', q.value.trim()) : url.searchParams.delete('q');
+        history.replaceState(null, '', url);
+    }
+    q.addEventListener('input', filtrar);
+    q.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { q.value = ''; filtrar(); } });
+    sinUso.addEventListener('change', filtrar);
+    filtrar();
+})();
+</script>
 {% endblock %}

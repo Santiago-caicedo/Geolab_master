@@ -272,26 +272,29 @@ def api_facturacion_mensual(request):
 @staff_required
 def catalogo_servicios(request):
     """Lista de servicios agrupados por categoría (catálogo de la ciudad activa)."""
+    from django.db.models import OuterRef, Prefetch, Subquery
+    from django.db.models.functions import Coalesce
+
     ciudad = request.ciudad_facturacion
-    categorias = sede.categorias_de(ciudad).prefetch_related('servicios')
+    # Uso de cada servicio, con subconsultas (Count sobre dos joins se multiplicaría):
+    # en cuántas obras tiene precio y cuántas veces se ha registrado (con registros no se puede eliminar).
+    def _contar(modelo, **filtro):
+        return Coalesce(Subquery(
+            modelo.objects.filter(tipo_servicio=OuterRef('pk'), **filtro)
+            .values('tipo_servicio').annotate(n=Count('pk')).values('n')
+        ), 0)
+    servicios = TipoServicio.objects.annotate(
+        n_obras=_contar(PrecioServicio, precio__isnull=False),
+        n_registros=_contar(RegistroServicio),
+    ).order_by('clave_orden')
+    categorias = list(sede.categorias_de(ciudad).prefetch_related(Prefetch('servicios', queryset=servicios)))
+    total_servicios = sum(len(c.servicios.all()) for c in categorias)
 
-    # Búsqueda
-    q = request.GET.get('q', '')
-    if q:
-        servicios_filtrados = sede.servicios_de(ciudad).filter(
-            Q(codigo__icontains=q) | Q(nombre__icontains=q) | Q(norma__icontains=q)
-        ).select_related('categoria')
-        context = {
-            'servicios_filtrados': servicios_filtrados,
-            'q': q,
-            'categorias': categorias,
-        }
-    else:
-        context = {
-            'categorias': categorias,
-            'q': q,
-        }
-
+    context = {
+        'categorias': categorias,
+        'total_servicios': total_servicios,
+        'q': request.GET.get('q', '').strip(),   # la búsqueda filtra en la página, al instante
+    }
     return render(request, 'facturacion/catalogo_servicios.html', context)
 
 
