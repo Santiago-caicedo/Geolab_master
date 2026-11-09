@@ -1,5 +1,4 @@
 import logging
-from collections import defaultdict
 
 from django.contrib import messages
 from django.contrib.auth.decorators import login_required
@@ -600,55 +599,16 @@ def permisos_usuario_calidad(request, pk):
 
     if request.method == 'POST':
         with transaction.atomic():
-            AccesoCarpetaUsuario.objects.filter(usuario=usuario).delete()
-            nuevos = []
-            for carpeta in Carpeta.objects.all():
-                cargar = f'cargar_{carpeta.pk}' in request.POST
-                eliminar = f'eliminar_{carpeta.pk}' in request.POST
-                ver = f'ver_{carpeta.pk}' in request.POST or cargar or eliminar
-                if ver:
-                    nuevos.append(AccesoCarpetaUsuario(
-                        usuario=usuario,
-                        carpeta=carpeta,
-                        puede_ver=True,
-                        puede_cargar=cargar,
-                        puede_eliminar=eliminar,
-                        asignado_por=request.user,
-                    ))
-            AccesoCarpetaUsuario.objects.bulk_create(nuevos)
+            n = permisos_sgc.guardar_permisos(usuario, request.POST, request.user)
 
         messages.success(
             request,
             f'Permisos de "{usuario.username}" guardados: '
-            f'{len(nuevos)} carpeta(s) con acceso.'
+            f'{n} carpeta(s) con acceso.'
         )
         return redirect('usuarios_calidad')
 
-    # Arbol de carpetas por area, aplanado con nivel de indentacion
-    grants = {
-        g.carpeta_id: g
-        for g in AccesoCarpetaUsuario.objects.filter(usuario=usuario)
-    }
-    secciones = []
-    for area in AreaCalidad.objects.all():
-        filas = []
-        hijos = defaultdict(list)
-        for carpeta in Carpeta.objects.filter(area=area):
-            hijos[carpeta.padre_id].append(carpeta)
-
-        def aplanar(padre_id, nivel):
-            for carpeta in hijos.get(padre_id, []):
-                filas.append({
-                    'carpeta': carpeta,
-                    'nivel': nivel,
-                    'grant': grants.get(carpeta.pk),
-                })
-                aplanar(carpeta.pk, nivel + 1)
-
-        aplanar(None, 0)
-        if filas:
-            secciones.append({'area': area, 'filas': filas})
-
+    secciones = permisos_sgc.arbol_permisos(usuario)
     return render(request, 'calidad/usuario_calidad_permisos.html', {
         'usuario': usuario,
         'secciones': secciones,

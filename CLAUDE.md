@@ -148,6 +148,22 @@ Obra 1:N RegistroServicio N:1 Factura
 
 **Properties en UsuarioBase:** `es_tecnico_laboratorio`, `es_admin_geolab`, `es_remitente`, `es_coordinador_calidad`, `es_usuario_calidad`, `es_confinado_a_calidad`, `es_admin_sgc`
 
+### Panel de usuarios (`/usuarios/panel/`, solo superusuarios)
+
+Un solo lugar para TODAS las cuentas (Geolab y clientes): lista con riel por rol, búsqueda y "Necesitan
+atención"; un formulario para todos los roles (`users/forms_panel.py`) que en una transacción crea/actualiza
+usuario + perfil + lo que pide el rol: área y código (Geolab), ciudades y secciones (Facturación,
+`AccesoFacturacion`), áreas de Calidad lectura/edición (técnico, `AccesoAreaUsuario`), empresa/cargo/teléfono y
+obras de esa empresa (cliente). Las carpetas del Usuario de Calidad van en `/usuarios/panel/<pk>/carpetas/`
+(misma lógica que la pantalla del coordinador: `calidad.permisos.arbol_permisos`/`guardar_permisos` y el include
+`calidad/_matriz_carpetas.html`). Catálogo de roles y diagnóstico de cuentas en `users/roles.py`
+(`ROLES`, `rol_de`, `problemas_de`: Geolab sin área = admin total por la nota 22, cliente sin empresa, sin rol,
+sin permisos/obras/carpetas). Reglas: una cuenta no cambia de familia Geolab ↔ cliente (solo una sin familia
+recibe cualquier rol); nadie se quita su propio superusuario ni se desactiva; superusuario = `is_superuser` +
+`is_staff` juntos. Al editar, el nombre y la contraseña son opcionales. `/usuarios/` (clientes) sigue para el
+staff administrativo, ahora con `es_admin_geolab` o superusuario (antes bastaba `es_geolab` y un técnico podía
+crear o desactivar clientes). Pruebas: `python manage.py test users.tests_panel`.
+
 ### Roles confinados al SGC (coordinador y usuarios de calidad)
 
 Ambos necesitan `es_geolab=True` porque el módulo de calidad lo exige, pero ese
@@ -183,7 +199,7 @@ automáticamente su fila de permisos sobre ella. La matriz de accesos por área
 | App | Rutas clave |
 |-----|-------------|
 | core | `/`, `/empresas/`, `/obras/<pk>/`, `/cargar-informe/` |
-| users | `/usuarios/`, `/usuarios/nuevo/`, `/usuarios/<pk>/editar/` |
+| users | `/usuarios/panel/` (superusuario: todas las cuentas), `/usuarios/` (clientes), `/usuarios/nuevo/`, `/usuarios/<pk>/editar/` |
 | solicitudes | `/remisiones/`, `/obras/<pk>/nueva-remision/`, `/remitente/`, `/notificaciones/` |
 | ensayos | `/ensayos/hojas-trabajo/`, `/ensayos/dashboard-tecnico/`, `/ensayos/hojas-trabajo/obra/<pk>/` |
 | calidad | `/calidad/`, `/calidad/area/<pk>/`, `/calidad/carpeta/<pk>/` |

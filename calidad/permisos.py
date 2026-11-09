@@ -76,3 +76,49 @@ def _ancestros_de_paso(area, grants):
             de_paso.add(padre)
             padre = padres.get(padre)
     return de_paso - set(grants)
+
+
+# ── Matriz de permisos por carpeta (pantalla del coordinador y Panel de usuarios) ──
+
+def arbol_permisos(usuario):
+    """
+    Árbol de carpetas por área, aplanado con su nivel y la fila de permisos del
+    usuario: [{'area', 'filas': [{'carpeta', 'nivel', 'grant'}]}].
+    """
+    grants = {g.carpeta_id: g for g in AccesoCarpetaUsuario.objects.filter(usuario=usuario)}
+    secciones = []
+    for area in AreaCalidad.objects.all():
+        hijos = defaultdict(list)
+        for carpeta in Carpeta.objects.filter(area=area):
+            hijos[carpeta.padre_id].append(carpeta)
+        filas = []
+
+        def aplanar(padre_id, nivel):
+            for carpeta in hijos.get(padre_id, []):
+                filas.append({'carpeta': carpeta, 'nivel': nivel, 'grant': grants.get(carpeta.pk)})
+                aplanar(carpeta.pk, nivel + 1)
+
+        aplanar(None, 0)
+        if filas:
+            secciones.append({'area': area, 'filas': filas})
+    return secciones
+
+
+def guardar_permisos(usuario, datos, asignado_por):
+    """
+    Reemplaza los permisos del usuario por los marcados en `datos` (request.POST
+    con ver_<pk>, cargar_<pk>, eliminar_<pk>). Cargar o eliminar implican ver.
+    Devuelve cuántas carpetas quedaron con acceso. Llamar dentro de una transacción.
+    """
+    AccesoCarpetaUsuario.objects.filter(usuario=usuario).delete()
+    nuevos = []
+    for pk in Carpeta.objects.values_list('pk', flat=True):
+        cargar = f'cargar_{pk}' in datos
+        eliminar = f'eliminar_{pk}' in datos
+        if f'ver_{pk}' in datos or cargar or eliminar:
+            nuevos.append(AccesoCarpetaUsuario(
+                usuario=usuario, carpeta_id=pk, puede_ver=True,
+                puede_cargar=cargar, puede_eliminar=eliminar, asignado_por=asignado_por,
+            ))
+    AccesoCarpetaUsuario.objects.bulk_create(nuevos)
+    return len(nuevos)

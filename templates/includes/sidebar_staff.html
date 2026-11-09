@@ -47,9 +47,15 @@
 
         <div class="nav-section">ADMINISTRACIÓN</div>
 
+        {% if request.user.is_superuser %}
+        <a href="{% url 'panel_usuarios' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
+            <i class="bi bi-people"></i> Panel de Usuarios
+        </a>
+        {% else %}
         <a href="{% url 'lista_usuarios_cliente' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
             <i class="bi bi-people"></i> Usuarios y Accesos
         </a>
+        {% endif %}
 
         <a href="/admin/" class="nav-link" target="_blank">
             <i class="bi bi-gear-wide-connected"></i> Configuración Avanzada

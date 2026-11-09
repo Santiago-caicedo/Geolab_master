@@ -10,13 +10,18 @@ from .forms import ClienteExternoForm
 from core.models import Obra
 
 
+def _gestiona_clientes(user):
+    """Staff administrativo de Geolab o superusuario. Técnicos y roles confinados, no."""
+    return user.is_superuser or (user.es_geolab and user.es_admin_geolab)
+
+
 @login_required
 def lista_usuarios_cliente(request):
     """
     Lista todos los usuarios cliente (Directores y Residentes).
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         messages.error(request, 'No tiene permisos para ver esta página.')
         return redirect('home')
 
@@ -76,7 +81,7 @@ def crear_usuario_cliente(request):
     Crea un nuevo usuario cliente (Director o Residente).
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         messages.error(request, 'No tiene permisos para realizar esta acción.')
         return redirect('home')
 
@@ -106,7 +111,7 @@ def editar_usuario_cliente(request, pk):
     Edita un usuario cliente existente.
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         messages.error(request, 'No tiene permisos para realizar esta acción.')
         return redirect('home')
 
@@ -139,7 +144,7 @@ def detalle_usuario_cliente(request, pk):
     Muestra el detalle de un usuario cliente.
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         messages.error(request, 'No tiene permisos para ver esta página.')
         return redirect('home')
 
@@ -167,7 +172,7 @@ def toggle_estado_usuario(request, pk):
     Activa o desactiva un usuario cliente (AJAX).
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
 
     cliente = get_object_or_404(ClienteExterno, pk=pk)
@@ -188,7 +193,7 @@ def obtener_obras_empresa(request, empresa_pk):
     API para obtener las obras de una empresa (para el formulario dinámico).
     Solo accesible para Staff Geolab.
     """
-    if not request.user.es_geolab:
+    if not _gestiona_clientes(request.user):
         return JsonResponse({'error': 'Sin permisos'}, status=403)
 
     obras = Obra.objects.filter(constructora_id=empresa_pk).values('id', 'nombre', 'codigo_obra')

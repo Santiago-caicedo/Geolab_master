@@ -1,0 +1,67 @@
+{% comment %}
+Matriz Ver / Cargar / Eliminar por carpeta de un Usuario de Calidad. La usan la pantalla del
+coordinador (calidad/usuario_calidad_permisos.html) y el Panel de usuarios. Va DENTRO de un <form>;
+el POST lo procesa calidad.permisos.guardar_permisos. Contexto: secciones = permisos.arbol_permisos(usuario).
+{% endcomment %}
+<style>
+.mc-tabla { width: 100%; margin: 0; font-size: .875rem; border-collapse: separate; border-spacing: 0; }
+.mc-tabla th, .mc-tabla td { padding: .5rem 1rem; border-bottom: 1px solid #e6eaf0; vertical-align: middle; }
+.mc-tabla thead th { background: #fafbfd; color: #5b6b80; font-size: .75rem; font-weight: 600; white-space: nowrap; }
+.mc-tabla .mc-perm { text-align: center; width: 88px; }
+.mc-tabla tbody tr:not(.mc-area):hover td { background: #f6f8fb; }
+.mc-area td { background: #f6f8fb; font-weight: 650; font-size: .8125rem; color: #1c2e4a; }
+.mc-carpeta { display: flex; align-items: center; gap: .5rem; color: #334155; }
+.mc-carpeta i { color: #d99a16; }
+.mc-check { width: 1.1rem; height: 1.1rem; cursor: pointer; accent-color: #12805c; }
+</style>
+<div class="table-responsive">
+    <table class="mc-tabla">
+        <thead>
+            <tr><th>Carpeta</th><th class="mc-perm">Ver</th><th class="mc-perm">Cargar</th><th class="mc-perm">Eliminar</th></tr>
+        </thead>
+        <tbody>
+            {% for seccion in secciones %}
+            <tr class="mc-area"><td colspan="4"><i class="bi {{ seccion.area.icono }} me-2" aria-hidden="true"></i>{{ seccion.area.numero }}. {{ seccion.area.nombre }}</td></tr>
+            {% for fila in seccion.filas %}
+            <tr data-carpeta="{{ fila.carpeta.pk }}" data-padre="{{ fila.carpeta.padre_id|default:'' }}">
+                <td><div class="mc-carpeta" style="padding-left: {{ fila.nivel }}.5rem;"><i class="bi bi-folder-fill" aria-hidden="true"></i><span>{{ fila.carpeta.nombre }}</span></div></td>
+                <td class="mc-perm"><input type="checkbox" class="mc-check" name="ver_{{ fila.carpeta.pk }}" data-flag="ver" aria-label="Ver {{ fila.carpeta.nombre }}" {% if fila.grant.puede_ver %}checked{% endif %}></td>
+                <td class="mc-perm"><input type="checkbox" class="mc-check" name="cargar_{{ fila.carpeta.pk }}" data-flag="cargar" aria-label="Cargar en {{ fila.carpeta.nombre }}" {% if fila.grant.puede_cargar %}checked{% endif %}></td>
+                <td class="mc-perm"><input type="checkbox" class="mc-check" name="eliminar_{{ fila.carpeta.pk }}" data-flag="eliminar" aria-label="Eliminar en {{ fila.carpeta.nombre }}" {% if fila.grant.puede_eliminar %}checked{% endif %}></td>
+            </tr>
+            {% endfor %}
+            {% empty %}
+            <tr><td colspan="4" class="text-center text-muted py-4">No hay carpetas en el sistema.</td></tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+<script>
+(function () {
+    // Marcado en cascada hacia las subcarpetas (se pueden desmarcar una a una).
+    // Cargar o eliminar implican ver; quitar ver quita cargar y eliminar.
+    const hijos = {};
+    document.querySelectorAll('tr[data-carpeta]').forEach(tr => {
+        const padre = tr.dataset.padre;
+        if (padre) (hijos[padre] = hijos[padre] || []).push(tr.dataset.carpeta);
+    });
+    const caja = (id, flag) => document.querySelector(`tr[data-carpeta="${id}"] input[data-flag="${flag}"]`);
+    function normalizar(id) {
+        if (caja(id, 'cargar').checked || caja(id, 'eliminar').checked) caja(id, 'ver').checked = true;
+    }
+    function cascada(id, flag, valor) {
+        (hijos[id] || []).forEach(h => {
+            caja(h, flag).checked = valor;
+            if (!valor && flag === 'ver') { caja(h, 'cargar').checked = false; caja(h, 'eliminar').checked = false; }
+            normalizar(h);
+            cascada(h, flag, valor);
+        });
+    }
+    document.querySelectorAll('.mc-check').forEach(input => input.addEventListener('change', function () {
+        const id = this.closest('tr').dataset.carpeta, flag = this.dataset.flag;
+        if (!this.checked && flag === 'ver') { caja(id, 'cargar').checked = false; caja(id, 'eliminar').checked = false; }
+        normalizar(id);
+        cascada(id, flag, this.checked);
+    }));
+})();
+</script>

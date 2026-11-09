@@ -1,0 +1,468 @@
+{% extends 'base.html' %}
+{% block title %}{% if usuario_editado %}{{ usuario_editado.username }} · Usuarios{% else %}Nuevo usuario{% endif %}{% endblock %}
+
+{% block avisos %}{% include 'facturacion/_fx.html' %}{% endblock %}
+
+{% block panel_title %}<i class="bi bi-people text-primary me-1"></i> Panel de usuarios{% endblock %}
+
+{% block extra_css %}
+<link href="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/css/tom-select.bootstrap5.min.css" rel="stylesheet">
+<style>
+.pf-campo { margin-bottom: .9rem; }
+.pf-campo:last-child { margin-bottom: 0; }
+.pf-ayuda { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+.pf-error { font-size: .8rem; color: var(--rojo); margin-top: .3rem; }
+.fx .is-invalid, .fx .is-invalid + .ts-wrapper .ts-control { border-color: var(--rojo); }
+.pf-dos { display: grid; gap: .9rem .75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: .9rem; }
+.pf-dos .pf-campo { margin-bottom: 0; }
+
+/* Estado de una cuenta existente */
+.pf-ficha { display: flex; flex-wrap: wrap; gap: .5rem 1.5rem; align-items: center; padding: .7rem 1rem; font-size: .8125rem; color: var(--muted); }
+.pf-ficha b { color: var(--ink); font-weight: 600; }
+.pf-ficha form { margin-left: auto; }
+
+/* Rol: tarjetas que se eligen */
+.pf-familia + .pf-familia { border-top: 1px solid var(--line); }
+.pf-familia h3 { font-size: .75rem; font-weight: 650; color: var(--muted); margin: 0; padding: .75rem 1rem 0; }
+.pf-roles { display: grid; gap: .5rem; padding: .6rem 1rem 1rem; grid-template-columns: repeat(auto-fill, minmax(205px, 1fr)); }
+.pf-rol { position: relative; margin: 0; }
+.pf-rol input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.pf-rol .caja { display: flex; gap: .6rem; align-items: flex-start; height: 100%; padding: .65rem .75rem; border: 1px solid #d5dde7; border-radius: 10px;
+                background: #fff; cursor: pointer; }
+.pf-rol .caja > i { font-size: 1.05rem; color: #94a3b8; line-height: 1.3; }
+.pf-rol strong { display: block; font-size: .85rem; color: var(--ink); font-weight: 600; }
+.pf-rol small { display: block; font-size: .76rem; color: var(--muted); line-height: 1.35; margin-top: .1rem; }
+.pf-rol:hover .caja { border-color: #9fb3c8; }
+.pf-rol input:checked + .caja { border-color: var(--link); background: #f3f9fd; box-shadow: inset 0 0 0 1px var(--link); }
+.pf-rol input:checked + .caja > i { color: var(--link); }
+.pf-rol input:focus-visible + .caja { outline: 2px solid var(--link); outline-offset: 2px; }
+
+.pf-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 992px) { .pf-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
+.pf-grid .fx-panel { margin-bottom: 0; }
+.pf-acceso { display: flex; flex-direction: column; gap: 1rem; }
+
+/* Interruptor del superusuario */
+.pf-switch { display: flex; gap: .75rem; align-items: flex-start; margin: 0; cursor: pointer; padding: .75rem 1rem; border-top: 1px solid var(--line); background: var(--fondo); }
+.pf-switch .form-check-input { margin: .15rem 0 0; width: 2.2em; height: 1.2em; flex: none; cursor: pointer; }
+.pf-switch .form-check-input:checked { background-color: #6d28d9; border-color: #6d28d9; }
+.pf-switch strong { display: block; font-size: .875rem; color: var(--ink); }
+.pf-switch small { display: block; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+
+/* Ciudades y secciones (igual que la pantalla de Facturación) */
+.pf-ciudades { display: flex; flex-wrap: wrap; gap: .5rem; }
+.pf-ciudad { position: relative; margin: 0; }
+.pf-ciudad input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.pf-ciudad span { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .85rem; border-radius: 999px; min-height: 38px;
+                  border: 1px solid #d5dde7; background: #fff; font-size: .875rem; font-weight: 600; color: var(--text); cursor: pointer; }
+.pf-ciudad span i { color: #b6c2d1; }
+.pf-ciudad input:checked + span { background: var(--azul-bg); border-color: #9ccbea; color: var(--azul-ink); }
+.pf-ciudad input:checked + span i { color: var(--azul-ink); }
+.pf-ciudad input:focus-visible + span { outline: 2px solid var(--link); outline-offset: 2px; }
+.pf-grupo + .pf-grupo { border-top: 1px solid var(--line); }
+.pf-grupo-head { display: flex; align-items: center; justify-content: space-between; padding: .55rem 1rem; background: var(--fondo); }
+.pf-grupo-head h3 { font-size: .8125rem; font-weight: 650; color: var(--ink); margin: 0; }
+.pf-todo { font-size: .78rem; font-weight: 600; color: var(--link); background: none; border: 0; padding: .2rem .3rem; border-radius: 6px; }
+.pf-todo:hover { background: var(--azul-bg); }
+.pf-item { display: flex; gap: .75rem; align-items: flex-start; padding: .55rem 1rem; cursor: pointer; margin: 0; }
+.pf-item + .pf-item { border-top: 1px dashed var(--line); }
+.pf-item .form-check-input { margin: .15rem 0 0; width: 2.2em; height: 1.2em; flex: none; cursor: pointer; }
+.pf-item .form-check-input:checked { background-color: var(--verde); border-color: var(--verde); }
+.pf-item strong { display: block; font-size: .875rem; color: var(--ink); font-weight: 600; }
+.pf-item small { display: block; font-size: .78rem; color: var(--muted); line-height: 1.35; }
+
+/* Áreas de Calidad del técnico: tres posiciones por área */
+.pf-areas { list-style: none; margin: 0; padding: 0; }
+.pf-areas li { display: flex; align-items: center; justify-content: space-between; gap: .75rem; padding: .5rem 1rem; flex-wrap: wrap; }
+.pf-areas li + li { border-top: 1px solid var(--line); }
+.pf-areas .nombre { font-size: .85rem; color: var(--ink); }
+.pf-tres { display: inline-flex; border: 1px solid #d5dde7; border-radius: 8px; overflow: hidden; }
+.pf-tres label { margin: 0; position: relative; }
+.pf-tres input { position: absolute; opacity: 0; }
+.pf-tres span { display: block; padding: .3rem .65rem; font-size: .78rem; font-weight: 600; color: var(--muted); cursor: pointer; }
+.pf-tres label + label span { border-left: 1px solid #d5dde7; }
+.pf-tres input:checked + span { background: var(--azul-bg); color: var(--azul-ink); }
+.pf-tres input[value="edicion"]:checked + span { background: var(--verde-bg); color: var(--verde); }
+.pf-tres input[value=""]:checked + span { background: var(--soft); color: var(--ink); }
+.pf-tres input:focus-visible + span { outline: 2px solid var(--link); outline-offset: -2px; }
+
+/* Obras del residente / remitente */
+.pf-obras-barra { display: flex; gap: .5rem; align-items: center; padding: .6rem 1rem; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.pf-obras-barra input { flex: 1 1 200px; }
+.pf-obras { max-height: 340px; overflow-y: auto; }
+.pf-obra { display: flex; gap: .6rem; align-items: center; padding: .45rem 1rem; margin: 0; cursor: pointer; font-size: .85rem; }
+.pf-obra + .pf-obra { border-top: 1px solid var(--line); }
+.pf-obra:hover { background: var(--soft); }
+.pf-obra input { width: 1.05rem; height: 1.05rem; accent-color: var(--verde); flex: none; }
+.pf-obra .fx-cod { margin-left: auto; }
+.pf-obras .vacio { padding: 1.25rem 1rem; text-align: center; font-size: .85rem; color: var(--muted); }
+
+.pf-botones { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.pf-botones .btn { font-size: .875rem; min-height: 38px; padding: .4rem 1rem; display: inline-flex; align-items: center; gap: .35rem; }
+[hidden] { display: none !important; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'panel_usuarios' %}">Usuarios</a>
+        <span aria-hidden="true">/</span>
+        <span>{% if usuario_editado %}{{ usuario_editado.username }}{% else %}Nuevo{% endif %}</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">{% if usuario_editado %}{{ usuario_editado.get_full_name|default:usuario_editado.username }}{% else %}Nuevo usuario{% endif %}</h1>
+            <p class="fx-sub">{% if usuario_editado %}Cambie el rol, los datos o los permisos. Se aplican desde su próximo clic.{% else %}Elija el rol, llene la cuenta y marque a qué tiene acceso.{% endif %}</p>
+        </div>
+    </header>
+
+    {% for gravedad, texto in problemas %}
+    <div class="fx-aviso {{ gravedad }}" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div>{{ texto }} Al guardar con un rol queda corregido.</div></div>
+    {% endfor %}
+
+    {% if usuario_editado %}
+    <section class="fx-panel">
+        <div class="pf-ficha">
+            <span>Estado: {% if usuario_editado.is_active %}<span class="fx-estado ok">Activo</span>{% else %}<span class="fx-estado anulada">Inactivo</span>{% endif %}</span>
+            <span>Último ingreso: <b>{% if usuario_editado.last_login %}{{ usuario_editado.last_login|date:"j M Y, g:i a" }}{% else %}nunca{% endif %}</b></span>
+            <span>Creado: <b>{{ usuario_editado.date_joined|date:"j M Y" }}</b></span>
+            {% if not es_yo %}
+            <form method="post" action="{% url 'panel_usuario_estado' usuario_editado.pk %}">
+                {% csrf_token %}<input type="hidden" name="volver" value="ficha">
+                {% if usuario_editado.is_active %}
+                <button type="submit" class="btn btn-sm btn-fx"><i class="bi bi-person-slash" aria-hidden="true"></i> Desactivar cuenta</button>
+                {% else %}
+                <button type="submit" class="btn btn-sm btn-success"><i class="bi bi-person-check" aria-hidden="true"></i> Activar cuenta</button>
+                {% endif %}
+            </form>
+            {% endif %}
+        </div>
+    </section>
+    {% endif %}
+
+    <form method="post" novalidate id="pf-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="fx-aviso rojo" role="alert"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><div>{{ form.non_field_errors|join:" " }}</div></div>
+        {% endif %}
+
+        <!-- Rol -->
+        <section class="fx-panel">
+            <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-person-badge" aria-hidden="true"></i></span><h2>Rol</h2>
+                <span class="fx-nota">{% if familia_fija == 'cliente' %}Es cliente: puede cambiar entre los roles de cliente{% elif familia_fija == 'geolab' %}Es de Geolab: puede cambiar entre los roles de Geolab{% else %}Define qué parte del portal ve{% endif %}</span></div>
+            {% for familia, items in grupos_rol %}
+            <div class="pf-familia">
+                <h3>{{ familia }}</h3>
+                <div class="pf-roles" role="radiogroup" aria-label="Roles de {{ familia }}">
+                    {% for r in items %}
+                    <label class="pf-rol">
+                        <input type="radio" name="rol" value="{{ r.clave }}" data-familia="{{ r.familia }}" {% if rol_actual == r.clave %}checked{% endif %}>
+                        <span class="caja"><i class="bi bi-{{ r.icono }}" aria-hidden="true"></i><span><strong>{{ r.nombre }}</strong><small>{{ r.alcance }}</small></span></span>
+                    </label>
+                    {% endfor %}
+                </div>
+            </div>
+            {% endfor %}
+            {% if form.rol.errors %}<div class="fx-panel-body pt-0"><div class="pf-error">{{ form.rol.errors.0 }}</div></div>{% endif %}
+        </section>
+
+        <div class="pf-grid">
+            <!-- Cuenta -->
+            <section class="fx-panel">
+                <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-person" aria-hidden="true"></i></span><h2>Cuenta</h2></div>
+                <div class="fx-panel-body">
+                    {% with f=form.username %}
+                    <div class="pf-campo fx-campo">
+                        <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                        <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="150" required
+                               autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="maria.lopez"
+                               class="form-control{% if f.errors %} is-invalid{% endif %}">
+                        {% if f.errors %}<div class="pf-error">{{ f.errors.0 }}</div>{% else %}<div class="pf-ayuda">Con este nombre inicia sesión.</div>{% endif %}
+                    </div>
+                    {% endwith %}
+                    <div class="pf-dos">
+                        {% for f in form %}{% if f.name == 'nombre' or f.name == 'apellido' %}
+                        <div class="pf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                            <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="150"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}" {% if f.name == 'nombre' and not usuario_editado %}required{% endif %}>
+                            {% if f.errors %}<div class="pf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endif %}{% endfor %}
+                    </div>
+                    {% with f=form.email %}
+                    <div class="pf-campo fx-campo">
+                        <label for="{{ f.id_for_label }}">{{ f.label }} <span class="fx-nota" data-para-familia="geolab">(opcional)</span></label>
+                        <input type="email" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}"
+                               class="form-control{% if f.errors %} is-invalid{% endif %}">
+                        {% if f.errors %}<div class="pf-error">{{ f.errors.0 }}</div>{% endif %}
+                    </div>
+                    {% endwith %}
+                    <div class="pf-dos">
+                        {% with f=form.password1 %}
+                        <div class="pf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{% if usuario_editado %}Nueva contraseña{% else %}{{ f.label }}{% endif %}</label>
+                            <input type="password" name="{{ f.html_name }}" id="{{ f.id_for_label }}" autocomplete="new-password"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}">
+                            {% if f.errors %}<div class="pf-error">{% for e in f.errors %}{{ e }} {% endfor %}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                        {% with f=form.password2 %}
+                        <div class="pf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                            <input type="password" name="{{ f.html_name }}" id="{{ f.id_for_label }}" autocomplete="new-password"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}">
+                            {% if f.errors %}<div class="pf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                    </div>
+                    <div class="pf-ayuda mb-3">{% if usuario_editado %}Déjela en blanco para conservar la actual.{% else %}Mínimo 8 caracteres, que no sea solo números ni se parezca al usuario.{% endif %}</div>
+
+                    {% with f=form.codigo_empleado %}
+                    <div class="pf-campo fx-campo" data-para-familia="geolab">
+                        <label for="{{ f.id_for_label }}">{{ f.label }} <span class="fx-nota">(opcional)</span></label>
+                        <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="20" class="form-control">
+                    </div>
+                    {% endwith %}
+                </div>
+                <label class="pf-switch form-switch">
+                    <input type="checkbox" class="form-check-input" role="switch" name="superusuario" {% if form.superusuario.value %}checked{% endif %}>
+                    <span><strong>Superusuario</strong>
+                        <small>Ve y cambia todo, entra al admin de Django y a este panel, sin importar el rol. Désela solo a quien administra el portal.</small>
+                        {% if form.superusuario.errors %}<span class="pf-error d-block">{{ form.superusuario.errors.0 }}</span>{% endif %}
+                    </span>
+                </label>
+            </section>
+
+            <!-- Acceso: depende del rol -->
+            <div class="pf-acceso">
+                <section class="fx-panel" id="pf-sin-rol">
+                    <div class="fx-vacio"><i class="bi bi-hand-index" aria-hidden="true"></i><p>Elija un rol arriba y aquí aparece lo que hay que asignarle.</p></div>
+                </section>
+
+                <section class="fx-panel" data-para="admin lab recepcion calidad" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-unlock" aria-hidden="true"></i></span><h2>Acceso</h2></div>
+                    <div class="fx-panel-body">
+                        <p class="mb-0 fx-nota" data-para="admin lab recepcion" hidden>Ve <strong>todo el portal</strong>: empresas, obras, remisiones, ensayos, Facturación (todas las ciudades) y Calidad completa. No hay nada que asignarle.</p>
+                        <p class="mb-0 fx-nota" data-para="calidad" hidden>Solo entra a <strong>Calidad</strong>, pero allí manda: ve las 8 áreas, sube y elimina, y crea Usuarios de Calidad. No hay nada que asignarle.</p>
+                    </div>
+                </section>
+
+                <!-- Usuario de Calidad -->
+                <section class="fx-panel" data-para="calidad_usuario" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-folder2-open" aria-hidden="true"></i></span><h2>Carpetas de Calidad</h2></div>
+                    <div class="fx-panel-body">
+                        {% if usuario_editado and rol_actual == 'calidad_usuario' and form.initial.rol == 'calidad_usuario' %}
+                        <p class="fx-nota">Las carpetas se marcan carpeta por carpeta, con permisos de ver, cargar y eliminar.</p>
+                        <a href="{% url 'panel_usuario_carpetas' usuario_editado.pk %}" class="btn btn-sm btn-fx"><i class="bi bi-folder2-open" aria-hidden="true"></i> Editar sus carpetas</a>
+                        {% else %}
+                        <p class="mb-0 fx-nota">Al guardar pasa a la pantalla de carpetas para marcar qué puede ver, cargar y eliminar. Sin carpetas no ve nada.</p>
+                        {% endif %}
+                    </div>
+                </section>
+
+                <!-- Técnico: áreas de Calidad -->
+                <section class="fx-panel" data-para="tecnico" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-patch-check" aria-hidden="true"></i></span><h2>Áreas de Calidad</h2>
+                        <span class="fx-nota">Además de sus ensayos</span></div>
+                    <ul class="pf-areas">
+                        {% for f in form.campos_calidad %}
+                        <li>
+                            <span class="nombre">{{ f.label }}</span>
+                            <span class="pf-tres" role="radiogroup" aria-label="{{ f.label }}">
+                                {% for valor, texto in f.field.choices %}
+                                <label><input type="radio" name="{{ f.html_name }}" value="{{ valor }}" {% if f.value|default:'' == valor %}checked{% endif %}><span>{{ texto }}</span></label>
+                                {% endfor %}
+                            </span>
+                        </li>
+                        {% empty %}
+                        <li class="fx-nota">No hay áreas de Calidad creadas.</li>
+                        {% endfor %}
+                    </ul>
+                </section>
+
+                <!-- Usuario de Facturación -->
+                <section class="fx-panel" data-para="facturacion" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-geo-alt" aria-hidden="true"></i></span><h2>Ciudades de Facturación</h2>
+                        <span class="fx-nota">Solo verá empresas, obras y facturas de estas sedes</span></div>
+                    <div class="fx-panel-body">
+                        <div class="pf-ciudades" role="group" aria-label="Ciudades">
+                            {% for valor, nombre in form.fields.ciudades.choices %}
+                            <label class="pf-ciudad"><input type="checkbox" name="ciudades" value="{{ valor }}" {% if valor in ciudades_elegidas %}checked{% endif %}>
+                                <span><i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ nombre }}</span></label>
+                            {% empty %}
+                            <p class="fx-nota mb-0">No hay ciudades: ninguna constructora tiene ciudad asignada.</p>
+                            {% endfor %}
+                        </div>
+                        {% if form.ciudades.errors %}<div class="pf-error">{{ form.ciudades.errors.0 }}</div>{% endif %}
+                    </div>
+                </section>
+                <section class="fx-panel" data-para="facturacion" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-ui-checks-grid" aria-hidden="true"></i></span><h2>Secciones de Facturación</h2>
+                        <span class="fx-nota">Las mismas del menú del módulo</span></div>
+                    {% for grupo, items in grupos_fx %}
+                    <div class="pf-grupo" data-grupo>
+                        <div class="pf-grupo-head"><h3>{{ grupo }}</h3>
+                            {% if items|length > 1 %}<button type="button" class="pf-todo" data-todo>Marcar todo</button>{% endif %}</div>
+                        {% for clave, nombre, desc, marcada in items %}
+                        <label class="pf-item form-switch">
+                            <input type="checkbox" class="form-check-input" role="switch" name="secciones" value="{{ clave }}" {% if marcada %}checked{% endif %}>
+                            <span><strong>{{ nombre }}</strong><small>{{ desc }}</small></span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    {% if form.secciones.errors %}<div class="fx-panel-body pt-0"><div class="pf-error">{{ form.secciones.errors.0 }}</div></div>{% endif %}
+                </section>
+
+                <!-- Clientes -->
+                <section class="fx-panel filtros" data-para-familia="cliente" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-buildings" aria-hidden="true"></i></span><h2>Empresa</h2></div>
+                    <div class="fx-panel-body">
+                        {% with f=form.empresa %}
+                        <div class="pf-campo fx-campo">
+                            <label for="pf-empresa">{{ f.label }}</label>
+                            <select name="{{ f.html_name }}" id="pf-empresa" class="form-select{% if f.errors %} is-invalid{% endif %}">
+                                <option value="">Buscar empresa…</option>
+                                {% for e in empresas %}
+                                <option value="{{ e.id }}" {% if f.value|stringformat:'s' == e.id|stringformat:'s' %}selected{% endif %}>{{ e.nombre }} · {{ e.codigo }}{% if e.ciudad %} · {{ e.ciudad }}{% endif %}</option>
+                                {% endfor %}
+                            </select>
+                            {% if f.errors %}<div class="pf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                        <div class="pf-dos mb-0">
+                            {% for f in form %}{% if f.name == 'cargo' or f.name == 'telefono' %}
+                            <div class="pf-campo fx-campo">
+                                <label for="{{ f.id_for_label }}">{{ f.label }} <span class="fx-nota">(opcional)</span></label>
+                                <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" class="form-control"
+                                       {% if f.name == 'cargo' %}placeholder="Ing. residente torre 1"{% else %}inputmode="tel"{% endif %}>
+                            </div>
+                            {% endif %}{% endfor %}
+                        </div>
+                        <p class="fx-nota mb-0 mt-3" data-para="director" hidden>El director ve todas las obras de su empresa, también las que se creen después.</p>
+                    </div>
+                </section>
+                <section class="fx-panel" data-para="residente remitente" hidden>
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-cone-striped" aria-hidden="true"></i></span><h2>Obras</h2>
+                        <span class="fx-nota" id="pf-obras-cuenta"></span></div>
+                    <div class="pf-obras-barra">
+                        <input type="search" class="form-control form-control-sm" id="pf-obras-busca" placeholder="Filtrar obras" aria-label="Filtrar obras">
+                        <button type="button" class="pf-todo" id="pf-obras-todas">Marcar todas</button>
+                    </div>
+                    <div class="pf-obras" id="pf-obras" aria-live="polite">
+                        {% for o in obras_iniciales %}
+                        <label class="pf-obra"><input type="checkbox" name="obras" value="{{ o.id }}" {% if o.id|stringformat:'s' in obras_marcadas %}checked{% endif %}>
+                            <span>{{ o.nombre }}</span><span class="fx-cod">{{ o.codigo_obra }}</span></label>
+                        {% empty %}
+                        <div class="vacio">Elija la empresa para ver sus obras.</div>
+                        {% endfor %}
+                    </div>
+                    {% if form.obras.errors %}<div class="fx-panel-body pt-2"><div class="pf-error">{{ form.obras.errors.0 }}</div></div>{% endif %}
+                </section>
+            </div>
+        </div>
+
+        <div class="pf-botones">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> {% if usuario_editado %}Guardar cambios{% else %}Crear usuario{% endif %}</button>
+            <a href="{% url 'panel_usuarios' %}" class="btn btn-fx">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/tom-select@2.4.3/dist/js/tom-select.complete.min.js"></script>
+<script>
+(function () {
+    const form = document.getElementById('pf-form');
+    const URL_OBRAS = "{% url 'panel_obras_empresa' 0 %}";
+
+    // ── Lo que se ve según el rol elegido ──
+    function rolElegido() {
+        const r = form.querySelector('input[name="rol"]:checked');
+        return r ? { clave: r.value, familia: r.dataset.familia } : null;
+    }
+    function aplicarRol() {
+        const r = rolElegido();
+        document.getElementById('pf-sin-rol').hidden = !!r;
+        document.querySelectorAll('[data-para]').forEach(el => {
+            el.hidden = !r || !el.dataset.para.split(' ').includes(r.clave);
+        });
+        document.querySelectorAll('[data-para-familia]').forEach(el => {
+            el.hidden = !r || el.dataset.paraFamilia !== r.familia;
+        });
+    }
+    form.querySelectorAll('input[name="rol"]').forEach(i => i.addEventListener('change', aplicarRol));
+    aplicarRol();
+
+    // ── Secciones de Facturación: marcar todo por grupo ──
+    function textosTodo() {
+        form.querySelectorAll('[data-grupo]').forEach(g => {
+            const b = g.querySelector('[data-todo]');
+            if (b) b.textContent = [...g.querySelectorAll('input')].every(i => i.checked) ? 'Quitar todo' : 'Marcar todo';
+        });
+    }
+    form.querySelectorAll('[data-todo]').forEach(b => b.addEventListener('click', () => {
+        const inputs = [...b.closest('[data-grupo]').querySelectorAll('input')];
+        const todos = inputs.every(i => i.checked);
+        inputs.forEach(i => { i.checked = !todos; });
+        textosTodo();
+    }));
+    form.addEventListener('change', e => { if (e.target.name === 'secciones') textosTodo(); });
+    textosTodo();
+
+    // ── Obras de la empresa ──
+    const lista = document.getElementById('pf-obras');
+    const busca = document.getElementById('pf-obras-busca');
+    const cuenta = document.getElementById('pf-obras-cuenta');
+    const btnTodas = document.getElementById('pf-obras-todas');
+    const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const visibles = () => [...lista.querySelectorAll('.pf-obra')].filter(l => !l.hidden);
+
+    function contar() {
+        const total = lista.querySelectorAll('input[name="obras"]').length;
+        const marcadas = lista.querySelectorAll('input[name="obras"]:checked').length;
+        cuenta.textContent = total ? `${marcadas} de ${total} marcadas` : '';
+        const vis = visibles();
+        btnTodas.hidden = !vis.length;
+        btnTodas.textContent = vis.length && vis.every(l => l.querySelector('input').checked) ? 'Quitar todas' : 'Marcar todas';
+    }
+    function filtrar() {
+        const t = busca.value.trim().toLowerCase();
+        lista.querySelectorAll('.pf-obra').forEach(l => { l.hidden = t && !l.textContent.toLowerCase().includes(t); });
+        contar();
+    }
+    async function cargarObras(empresaId) {
+        busca.value = '';
+        if (!empresaId) { lista.innerHTML = '<div class="vacio">Elija la empresa para ver sus obras.</div>'; contar(); return; }
+        lista.innerHTML = '<div class="vacio">Cargando obras…</div>';
+        try {
+            const r = await fetch(URL_OBRAS.replace('/0/', `/${empresaId}/`), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+            if (!r.ok) throw new Error(r.status);
+            const { obras } = await r.json();
+            lista.innerHTML = obras.length
+                ? obras.map(o => `<label class="pf-obra"><input type="checkbox" name="obras" value="${o.id}"><span>${esc(o.nombre)}</span><span class="fx-cod">${esc(o.codigo_obra)}</span></label>`).join('')
+                : '<div class="vacio">Esta empresa no tiene obras.</div>';
+        } catch (e) {
+            lista.innerHTML = '<div class="vacio">No se pudieron cargar las obras. Vuelva a elegir la empresa.</div>';
+        }
+        contar();
+    }
+    busca.addEventListener('input', filtrar);
+    btnTodas.addEventListener('click', () => {
+        const vis = visibles();
+        const todas = vis.every(l => l.querySelector('input').checked);
+        vis.forEach(l => { l.querySelector('input').checked = !todas; });
+        contar();
+    });
+    lista.addEventListener('change', contar);
+    contar();
+
+    const selEmpresa = document.getElementById('pf-empresa');
+    new TomSelect(selEmpresa, { maxOptions: 400, placeholder: 'Buscar empresa…', allowEmptyOption: true });
+    selEmpresa.addEventListener('change', () => cargarObras(selEmpresa.value));
+})();
+</script>
+{% endblock %}

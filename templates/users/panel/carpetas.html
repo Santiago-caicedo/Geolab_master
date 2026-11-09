@@ -1,0 +1,37 @@
+{% extends 'base.html' %}
+{% block title %}Carpetas de {{ usuario_editado.username }} · Usuarios{% endblock %}
+
+{% block avisos %}{% include 'facturacion/_fx.html' %}{% endblock %}
+
+{% block panel_title %}<i class="bi bi-people text-primary me-1"></i> Panel de usuarios{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'panel_usuarios' %}">Usuarios</a>
+        <span aria-hidden="true">/</span>
+        <a href="{% url 'panel_usuario' usuario_editado.pk %}">{{ usuario_editado.username }}</a>
+        <span aria-hidden="true">/</span>
+        <span>Carpetas</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Carpetas de Calidad de {{ usuario_editado.get_full_name|default:usuario_editado.username }}</h1>
+            <p class="fx-sub">Lo que no marque queda bloqueado: no lo ve ni lo puede abrir con el enlace.
+                <strong>Ver</strong> abre la carpeta y descarga, <strong>Cargar</strong> sube archivos y crea subcarpetas,
+                <strong>Eliminar</strong> borra documentos. Marcar una carpeta marca también sus subcarpetas.</p>
+        </div>
+    </header>
+
+    <form method="post">
+        {% csrf_token %}
+        <section class="fx-panel">
+            {% include 'calidad/_matriz_carpetas.html' %}
+        </section>
+        <div class="d-flex gap-2 flex-wrap">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Guardar carpetas</button>
+            <a href="{% url 'panel_usuario' usuario_editado.pk %}" class="btn btn-fx">Volver a la cuenta</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

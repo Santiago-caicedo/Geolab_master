@@ -1,7 +1,15 @@
 from django.urls import path
-from . import views
+from . import views, views_panel
 
 urlpatterns = [
+    # Panel de usuarios (solo superusuarios): todas las cuentas del portal en un lugar
+    path('usuarios/panel/', views_panel.panel_usuarios, name='panel_usuarios'),
+    path('usuarios/panel/nuevo/', views_panel.panel_usuario_nuevo, name='panel_usuario_nuevo'),
+    path('usuarios/panel/<int:pk>/', views_panel.panel_usuario, name='panel_usuario'),
+    path('usuarios/panel/<int:pk>/estado/', views_panel.panel_usuario_estado, name='panel_usuario_estado'),
+    path('usuarios/panel/<int:pk>/carpetas/', views_panel.panel_usuario_carpetas, name='panel_usuario_carpetas'),
+    path('usuarios/panel/api/obras/<int:empresa_pk>/', views_panel.panel_obras_empresa, name='panel_obras_empresa'),
+
     # Lista de usuarios cliente
     path('usuarios/', views.lista_usuarios_cliente, name='lista_usuarios_cliente'),
 

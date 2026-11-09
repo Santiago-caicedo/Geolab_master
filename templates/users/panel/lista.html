@@ -1,0 +1,214 @@
+{% extends 'base.html' %}
+{% block title %}Usuarios del portal{% endblock %}
+
+{% block avisos %}{% include 'facturacion/_fx.html' %}{% endblock %}
+
+{% block panel_title %}<i class="bi bi-people text-primary me-1"></i> Panel de usuarios{% endblock %}
+
+{% block extra_css %}
+<style>
+.pu { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 992px) { .pu { grid-template-columns: 232px minmax(0, 1fr); } }
+
+/* Riel de roles: filtra la lista y cuenta cuántos hay de cada uno */
+.pu-riel { position: sticky; top: 5.5rem; }
+.pu-riel .fx-panel { margin-bottom: 0; }
+.pu-riel h3 { font-size: .72rem; font-weight: 650; color: var(--muted); margin: 0; padding: .7rem 1rem .3rem; letter-spacing: .02em; }
+.pu-rol { display: flex; align-items: center; gap: .55rem; padding: .42rem 1rem; color: var(--text); text-decoration: none; font-size: .845rem;
+          border-left: 3px solid transparent; }
+.pu-rol i { color: #94a3b8; width: 1rem; text-align: center; }
+.pu-rol span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-rol b { font-weight: 600; font-size: .75rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.pu-rol:hover { background: var(--soft); color: var(--ink); }
+.pu-rol.on { background: var(--azul-bg); border-left-color: var(--link); color: var(--azul-ink); font-weight: 600; }
+.pu-rol.on i, .pu-rol.on b { color: var(--azul-ink); }
+.pu-rol.alerta i { color: var(--ambar); }
+.pu-riel .sep { border-top: 1px solid var(--line); margin: .4rem 0; }
+@media (max-width: 991.98px) {
+    .pu-riel { position: static; }
+    .pu-riel .fx-panel { display: flex; overflow-x: auto; scrollbar-width: none; }
+    .pu-riel h3, .pu-riel .sep { display: none; }
+    .pu-rol { border-left: 0; border-bottom: 3px solid transparent; white-space: nowrap; padding: .6rem .8rem; }
+    .pu-rol.on { border-bottom-color: var(--link); }
+    .pu-rol span { overflow: visible; }
+}
+
+/* Barra de búsqueda */
+.pu-busca { display: flex; gap: .5rem; flex-wrap: wrap; padding: .75rem 1rem; border-bottom: 1px solid var(--line); }
+.pu-busca .campo { position: relative; flex: 1 1 260px; }
+.pu-busca .campo i { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: #94a3b8; }
+.pu-busca .campo input { padding-left: 2rem; }
+.pu-busca select { flex: 0 0 175px; }
+
+/* Filas */
+.pu-persona strong { display: block; color: var(--ink); font-weight: 600; }
+.pu-persona .login { font-family: var(--mono); font-size: .76rem; color: var(--muted); }
+.pu-persona .login, .pu-persona .correo { display: block; }
+.pu-persona .correo { font-size: .78rem; color: var(--muted); max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-persona strong .fx-estado { margin-left: .35rem; vertical-align: 1px; }
+.pu-roltag { display: inline-flex; align-items: center; gap: .4rem; font-size: .8125rem; color: var(--ink); white-space: nowrap; }
+.pu-roltag i { color: var(--link); }
+.pu-super { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; font-weight: 650; color: #6d28d9; background: #f1ebfd;
+            border-radius: 999px; padding: .1rem .5rem; margin-top: .2rem; }
+.pu-sinrol { color: var(--rojo); font-weight: 600; font-size: .8125rem; }
+.pu-alcance { font-size: .8125rem; }
+.pu-alcance .empresa { display: block; color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pu-problema { display: flex; gap: .35rem; align-items: flex-start; font-size: .76rem; margin-top: .3rem; line-height: 1.3; }
+.pu-problema.rojo { color: var(--rojo); } .pu-problema.ambar { color: var(--ambar); }
+tr.pu-inactivo td { color: #94a3b8; }
+tr.pu-inactivo .pu-persona strong, tr.pu-inactivo .pu-roltag { color: #94a3b8; }
+tr.pu-inactivo .pu-persona strong .fx-estado { color: var(--rojo); }
+.pu-alcance .empresa { max-width: 200px; }
+.pu-persona .correo { max-width: 210px; }
+.pu-tabla td, .pu-tabla thead th { padding-left: .7rem; padding-right: .7rem; }
+.pu-tabla td:first-child, .pu-tabla thead th:first-child { padding-left: 1rem; }
+.pu-tabla .acc { padding-right: .75rem; }
+@media (max-width: 1365.98px) { .pu-opc { display: none; } }
+/* En el teléfono cada cuenta es una tarjeta: datos a la izquierda, botones a la derecha */
+@media (max-width: 767.98px) {
+    .pu-tabla thead { display: none; }
+    .pu-tabla tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto; padding: .6rem 0; border-bottom: 1px solid var(--line); }
+    .pu-tabla tbody tr:last-child { border-bottom: 0; }
+    .pu-tabla td { display: block; border: 0 !important; padding: .1rem 1rem !important; grid-column: 1; }
+    .pu-tabla td.acc { grid-column: 2; grid-row: 1 / span 3; align-self: center; width: auto; }
+    .pu-tabla tbody tr:hover td { background: transparent; }
+    .pu-alcance .empresa, .pu-persona .correo { max-width: 100%; }
+    .pu-busca select { flex: 1 1 auto; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Usuarios</h1>
+            <p class="fx-sub">Todas las cuentas del portal, del personal de Geolab y de los clientes: <strong>{{ total }}</strong> en total,
+                <strong>{{ activos }}</strong> activas. Desde aquí se crean, se editan y se les da o quita acceso.</p>
+        </div>
+        <div class="fx-acciones">
+            <a href="{% url 'panel_usuario_nuevo' %}{% if rol and rol != 'superusuario' and rol != 'sin_rol' %}?rol={{ rol }}{% endif %}" class="btn btn-primary btn-sm">
+                <i class="bi bi-person-plus" aria-hidden="true"></i> Nuevo usuario</a>
+        </div>
+    </header>
+
+    {% if con_problemas and not solo_problemas %}
+    <div class="fx-aviso ambar" role="status">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div>{{ con_problemas }} cuenta{{ con_problemas|pluralize }} tiene{{ con_problemas|pluralize:"n" }} algo mal configurado (sin rol, sin empresa, sin permisos…).
+            <a href="?problemas=1">Ver cuáles</a></div>
+    </div>
+    {% endif %}
+
+    <div class="pu">
+        <nav class="pu-riel" aria-label="Filtrar por rol">
+            <div class="fx-panel">
+                <a class="pu-rol {% if not rol and not solo_problemas %}on{% endif %}" href="?{% if q %}q={{ q|urlencode }}{% endif %}">
+                    <i class="bi bi-people" aria-hidden="true"></i><span>Todos</span><b>{{ total }}</b></a>
+                {% for familia, items in grupos %}
+                <div class="sep"></div>
+                <h3>{{ familia }}</h3>
+                {% for r, n in items %}
+                <a class="pu-rol {% if rol == r.clave %}on{% endif %}" href="?rol={{ r.clave }}{% if q %}&q={{ q|urlencode }}{% endif %}">
+                    <i class="bi bi-{{ r.icono }}" aria-hidden="true"></i><span>{{ r.nombre }}</span><b>{{ n }}</b></a>
+                {% endfor %}
+                {% endfor %}
+                <div class="sep"></div>
+                <a class="pu-rol {% if rol == 'superusuario' %}on{% endif %}" href="?rol=superusuario">
+                    <i class="bi bi-shield-lock" aria-hidden="true"></i><span>Superusuarios</span><b>{{ superusuarios }}</b></a>
+                <a class="pu-rol {% if rol == 'sin_rol' %}on{% endif %}" href="?rol=sin_rol">
+                    <i class="bi bi-question-circle" aria-hidden="true"></i><span>Sin rol</span></a>
+                <a class="pu-rol alerta {% if solo_problemas %}on{% endif %}" href="?problemas=1">
+                    <i class="bi bi-exclamation-triangle" aria-hidden="true"></i><span>Necesitan atención</span><b>{{ con_problemas }}</b></a>
+            </div>
+        </nav>
+
+        <section class="fx-panel">
+            <form method="get" class="pu-busca" role="search">
+                {% if rol %}<input type="hidden" name="rol" value="{{ rol }}">{% endif %}
+                {% if solo_problemas %}<input type="hidden" name="problemas" value="1">{% endif %}
+                <div class="campo">
+                    <i class="bi bi-search" aria-hidden="true"></i>
+                    <input type="search" name="q" value="{{ q }}" class="form-control" placeholder="Nombre, usuario, correo o empresa" aria-label="Buscar usuario">
+                </div>
+                <select name="estado" class="form-select" aria-label="Estado" onchange="this.form.submit()">
+                    <option value="">Todos los estados</option>
+                    <option value="activos" {% if estado == 'activos' %}selected{% endif %}>Solo activos</option>
+                    <option value="inactivos" {% if estado == 'inactivos' %}selected{% endif %}>Solo inactivos</option>
+                </select>
+                <button type="submit" class="btn btn-fx">Buscar</button>
+                {% if filtrando %}<a href="{% url 'panel_usuarios' %}" class="btn btn-fx">Quitar filtros</a>{% endif %}
+            </form>
+
+            {% if pagina.object_list %}
+            <div class="table-responsive">
+                <table class="fx-tabla pu-tabla">
+                    <thead>
+                        <tr><th>Persona</th><th>Rol</th><th>Qué puede ver</th><th class="pu-opc">Último ingreso</th><th class="acc"><span class="visually-hidden">Acciones</span></th></tr>
+                    </thead>
+                    <tbody>
+                        {% for u in pagina %}
+                        <tr class="{% if not u.is_active %}pu-inactivo{% endif %}">
+                            <td class="pu-persona">
+                                <strong>{{ u.get_full_name|default:u.username }}{% if not u.is_active %} <span class="fx-estado anulada">Inactivo</span>{% endif %}</strong>
+                                <span class="login">{{ u.username }}</span>
+                                {% if u.email %}<span class="correo">{{ u.email }}</span>{% endif %}
+                                {% for gravedad, texto in u.problemas %}
+                                <div class="pu-problema {{ gravedad }}"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><span>{{ texto }}</span></div>
+                                {% endfor %}
+                            </td>
+                            <td>
+                                {% if u.rol %}<span class="pu-roltag"><i class="bi bi-{{ u.rol.icono }}" aria-hidden="true"></i>{{ u.rol.nombre }}</span>
+                                {% elif not u.is_superuser %}<span class="pu-sinrol">Sin rol</span>{% endif %}
+                                {% if u.is_superuser %}<div><span class="pu-super"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Superusuario</span></div>{% endif %}
+                            </td>
+                            <td class="pu-alcance">{{ u.alcance }}
+                                {% if u.empresa %}<span class="empresa" title="{{ u.empresa.nombre }}">{{ u.empresa.nombre }} <span class="fx-cod suave">{{ u.empresa.codigo }}</span></span>{% endif %}
+                            </td>
+                            <td class="fx-fecha pu-opc">{% if u.last_login %}{{ u.last_login|date:"j M Y" }}{% else %}Nunca{% endif %}</td>
+                            <td class="acc">
+                                <div class="fx-iconos">
+                                    <a href="{% url 'panel_usuario' u.pk %}" class="fx-icono" title="Editar" aria-label="Editar a {{ u.username }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                    {% if u.rol.clave == 'calidad_usuario' %}
+                                    <a href="{% url 'panel_usuario_carpetas' u.pk %}" class="fx-icono" title="Carpetas de Calidad" aria-label="Carpetas de {{ u.username }}"><i class="bi bi-folder2-open" aria-hidden="true"></i></a>
+                                    {% endif %}
+                                    {% if u.pk != request.user.pk %}
+                                    <form method="post" action="{% url 'panel_usuario_estado' u.pk %}">
+                                        {% csrf_token %}
+                                        {% if u.is_active %}
+                                        <button type="submit" class="fx-icono rojo" title="Desactivar" aria-label="Desactivar a {{ u.username }}"><i class="bi bi-person-slash" aria-hidden="true"></i></button>
+                                        {% else %}
+                                        <button type="submit" class="fx-icono verde" title="Activar" aria-label="Activar a {{ u.username }}"><i class="bi bi-person-check" aria-hidden="true"></i></button>
+                                        {% endif %}
+                                    </form>
+                                    {% endif %}
+                                </div>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+            <div class="fx-pie">
+                <span>{{ resultados }} cuenta{{ resultados|pluralize }}{% if filtrando %} con este filtro{% endif %}</span>
+                {% if pagina.has_other_pages %}
+                <nav class="fx-paginas" aria-label="Páginas">
+                    {% for n in paginas %}
+                    {% if n == pagina.number %}<span class="actual" aria-current="page">{{ n }}</span>
+                    {% elif n == pagina.paginator.ELLIPSIS %}<span aria-hidden="true">…</span>
+                    {% else %}<a href="?{% if querystring %}{{ querystring }}&{% endif %}page={{ n }}">{{ n }}</a>{% endif %}
+                    {% endfor %}
+                </nav>
+                {% endif %}
+            </div>
+            {% else %}
+            <div class="fx-vacio">
+                <i class="bi bi-person-x" aria-hidden="true"></i>
+                <p>{% if solo_problemas %}Ninguna cuenta tiene problemas de configuración.{% elif filtrando %}Ninguna cuenta coincide con la búsqueda.{% else %}Todavía no hay usuarios.{% endif %}</p>
+                {% if filtrando %}<a href="{% url 'panel_usuarios' %}" class="btn btn-sm btn-fx">Ver todos</a>{% endif %}
+            </div>
+            {% endif %}
+        </section>
+    </div>
+</div>
+{% endblock %}
