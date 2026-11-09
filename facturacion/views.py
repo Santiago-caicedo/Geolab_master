@@ -623,10 +623,14 @@ def guardar_precio_obra(request, obra_pk, precio_pk):
 
 @staff_required
 def lista_impuestos(request):
-    """Lista y gestión de impuestos."""
-    impuestos = Impuesto.objects.all()
+    """Lista y gestión de impuestos (globales: valen para todas las sedes)."""
+    impuestos = Impuesto.objects.order_by('-activo', 'nombre', 'pk')
+    # El que usa generar_factura: el "IVA" activo más antiguo (mismo criterio que _porcentaje_iva)
+    iva = Impuesto.objects.filter(nombre__iexact='IVA', activo=True).order_by('pk').first()
     return render(request, 'facturacion/lista_impuestos.html', {
         'impuestos': impuestos,
+        'iva_en_uso': iva,
+        'ivas_activos': Impuesto.objects.filter(nombre__iexact='IVA', activo=True).count(),
     })
 
 

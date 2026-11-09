@@ -1,53 +1,91 @@
 {% extends 'base_facturacion.html' %}
 {% block title %}Impuestos{% endblock %}
 
-{% block content %}
-<div class="d-flex justify-content-between align-items-center mb-4">
-    <h3><i class="bi bi-percent me-2"></i>Impuestos</h3>
-    <a href="{% url 'crear_impuesto' %}" class="btn btn-primary btn-sm">
-        <i class="bi bi-plus-circle"></i> Nuevo Impuesto
-    </a>
-</div>
+{% block extra_css %}
+<style>
+.imp-tabla .c-pct { width: 140px; text-align: right; }
+.imp-pct { font-size: 1.05rem; font-weight: 650; color: var(--ink); font-variant-numeric: tabular-nums; }
+.imp-pct small { font-size: .8rem; font-weight: 500; color: var(--muted); margin-left: .1rem; }
+.imp-nombre { font-weight: 600; color: var(--ink); }
+.imp-uso { display: inline-flex; align-items: center; gap: .3rem; font-size: .75rem; font-weight: 600; color: #0b5c8f;
+           background: #e1f0fb; border-radius: 999px; padding: .12rem .55rem; margin-left: .5rem; white-space: nowrap; }
+.fx-tabla tr.imp-en-uso td { background: #f1f9f5; }
+.fx-tabla tr.imp-en-uso td:first-child { box-shadow: inset 3px 0 0 var(--verde); }
+.fx-tabla tr.imp-inactivo td { color: #94a3b8; }
+.fx-tabla tr.imp-inactivo .imp-nombre, .fx-tabla tr.imp-inactivo .imp-pct { color: #94a3b8; }
+.fx-estado.inactivo { color: var(--muted); background: #eef1f5; }
+</style>
+{% endblock %}
 
-<div class="card border-0 shadow-sm">
-    <div class="table-responsive">
-        <table class="table table-sm table-hover mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>Nombre</th>
-                    <th class="text-center">Porcentaje</th>
-                    <th class="text-center">Estado</th>
-                    <th></th>
-                </tr>
-            </thead>
-            <tbody>
-                {% for imp in impuestos %}
-                <tr>
-                    <td class="fw-bold">{{ imp.nombre }}</td>
-                    <td class="text-center">{{ imp.porcentaje }}%</td>
-                    <td class="text-center">
-                        {% if imp.activo %}
-                        <span class="badge bg-success">Activo</span>
-                        {% else %}
-                        <span class="badge bg-secondary">Inactivo</span>
-                        {% endif %}
-                    </td>
-                    <td>
-                        <a href="{% url 'editar_impuesto' imp.pk %}" class="btn btn-sm btn-outline-primary">
-                            <i class="bi bi-pencil"></i>
-                        </a>
-                    </td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="4" class="text-center text-muted py-4">
-                        No hay impuestos configurados.
-                        <br><a href="{% url 'crear_impuesto' %}">Crear IVA</a>
-                    </td>
-                </tr>
-                {% endfor %}
-            </tbody>
-        </table>
+{% block content %}
+<div class="fx">
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Impuestos</h1>
+            <p class="fx-sub">
+                {% if iva_en_uso %}
+                Las facturas nuevas se generan con <strong>IVA {{ iva_en_uso.porcentaje|floatformat:"-2" }} %</strong>.
+                {% endif %}
+                Los impuestos valen para todas las sedes; una factura ya emitida conserva el IVA con que se generó.
+            </p>
+        </div>
+        <div class="fx-acciones">
+            <a href="{% url 'crear_impuesto' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Nuevo impuesto</a>
+        </div>
+    </header>
+
+    {% if not iva_en_uso %}
+    <div class="fx-aviso ambar" role="alert">
+        <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
+        <div>No hay un impuesto activo llamado <strong>IVA</strong>: las facturas nuevas saldrían <strong>sin IVA</strong>.
+        {% if impuestos %}Active el IVA o cree uno.{% else %}<a href="{% url 'crear_impuesto' %}">Crear el IVA</a>.{% endif %}</div>
     </div>
+    {% elif ivas_activos > 1 %}
+    <div class="fx-aviso info" role="status">
+        <i class="bi bi-info-circle-fill" aria-hidden="true"></i>
+        <div>Hay {{ ivas_activos }} impuestos activos llamados IVA: las facturas usan el marcado como <strong>En uso</strong>.
+        Desactive los demás para evitar confusiones.</div>
+    </div>
+    {% endif %}
+
+    <section class="fx-panel">
+        {% if impuestos %}
+        <div class="table-responsive">
+            <table class="fx-tabla imp-tabla">
+                <thead>
+                    <tr>
+                        <th scope="col">Impuesto</th>
+                        <th scope="col" class="c-pct">Porcentaje</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="acc"><span class="visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for imp in impuestos %}
+                    <tr class="{% if imp == iva_en_uso %}imp-en-uso{% elif not imp.activo %}imp-inactivo{% endif %}">
+                        <td>
+                            <span class="imp-nombre">{{ imp.nombre }}</span>
+                            {% if imp == iva_en_uso %}<span class="imp-uso" title="Es el que se aplica al generar facturas"><i class="bi bi-receipt" aria-hidden="true"></i> En uso en las facturas</span>{% endif %}
+                        </td>
+                        <td class="c-pct"><span class="imp-pct">{{ imp.porcentaje|floatformat:"-2" }}<small>%</small></span></td>
+                        <td>
+                            {% if imp.activo %}<span class="fx-estado ok">Activo</span>{% else %}<span class="fx-estado inactivo">Inactivo</span>{% endif %}
+                        </td>
+                        <td class="acc">
+                            <a href="{% url 'editar_impuesto' imp.pk %}" class="fx-icono" title="Editar" aria-label="Editar {{ imp.nombre }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="fx-vacio">
+            <i class="bi bi-percent" aria-hidden="true"></i>
+            <p>No hay impuestos configurados. Para que las facturas lleven IVA, cree uno llamado <strong>IVA</strong> con su porcentaje (por ejemplo, 19).</p>
+            <a href="{% url 'crear_impuesto' %}" class="btn btn-sm btn-primary">Crear el IVA</a>
+        </div>
+        {% endif %}
+    </section>
 </div>
 {% endblock %}

@@ -1167,3 +1167,27 @@ class PantallasFacturacionTests(TestCase):
         self.assertIn(reverse('eliminar_servicio_facturacion', args=[libre.pk]), html)
         self.assertEqual(html.count('lp-fila con-precio'), 2)
 
+    def test_impuestos_marca_el_iva_en_uso_y_avisa_si_falta(self):
+        url = reverse('lista_impuestos')
+        self.assertContains(self.client.get(url), 'saldrían <strong>sin IVA</strong>')
+        # crear desde el formulario: el porcentaje llega como número y el interruptor marca activo
+        r = self.client.get(reverse('crear_impuesto'))
+        self.assertContains(r, 'role="switch"')
+        self.assertEqual(r.content.decode().count('>Activo<'), 1)                 # antes salía dos veces
+        r = self.client.post(reverse('crear_impuesto'), {'nombre': 'IVA', 'porcentaje': '19', 'activo': 'on'}, follow=True)
+        self.assertContains(r, 'Impuesto creado.')
+        iva = Impuesto.objects.get(nombre='IVA')
+        otro = Impuesto.objects.create(nombre='iva', porcentaje='5.00')          # segundo IVA activo, más nuevo
+        Impuesto.objects.create(nombre='ReteICA', porcentaje='0.97', activo=False)
+        r = self.client.get(url)
+        self.assertEqual(r.context['iva_en_uso'], iva)                            # el más antiguo, como en las facturas
+        self.assertContains(r, 'Las facturas nuevas se generan con <strong>IVA 19 %</strong>')
+        self.assertContains(r, 'Hay 2 impuestos activos llamados IVA')
+        self.assertEqual(r.content.decode().count('En uso en las facturas'), 1)
+        # editar muestra el porcentaje sin coma decimal (el campo numérico no acepta "19,00")
+        r = self.client.get(reverse('editar_impuesto', args=[iva.pk]))
+        self.assertContains(r, 'value="19.00"')
+        r = self.client.post(reverse('editar_impuesto', args=[otro.pk]), {'nombre': 'iva', 'porcentaje': 'abc'})
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'class="error" id="err-pct"')
+

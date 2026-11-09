@@ -1,44 +1,83 @@
 {% extends 'base_facturacion.html' %}
-{% block title %}{{ titulo }}{% endblock %}
+{% block title %}{% if form.instance.pk %}Editar impuesto{% else %}Nuevo impuesto{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.imp-form { max-width: 560px; }
+.imp-form .fx-campo { margin-bottom: 1rem; }
+.imp-form .ayuda { font-size: .8125rem; color: var(--muted); margin-top: .3rem; }
+.imp-form .error { font-size: .8125rem; color: var(--rojo); margin-top: .3rem; }
+.imp-form .is-invalid { border-color: var(--rojo); }
+.imp-pct-campo { position: relative; max-width: 180px; }
+.imp-pct-campo input { padding-right: 2rem; text-align: right; font-variant-numeric: tabular-nums; }
+.imp-pct-campo span { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+.imp-switch { display: flex; gap: .75rem; align-items: flex-start; padding: .75rem .9rem; border: 1px solid var(--line); border-radius: 10px; }
+.imp-switch .form-check-input { margin: .15rem 0 0; width: 2.2em; height: 1.2em; cursor: pointer; flex: none; }
+.imp-switch label { font-weight: 600; color: var(--ink); font-size: .875rem; cursor: pointer; margin: 0; }
+.imp-switch .ayuda { margin-top: .1rem; }
+.imp-botones { display: flex; gap: .5rem; padding-top: .25rem; }
+.imp-botones .btn { font-size: .875rem; min-height: 38px; padding: .4rem 1rem; display: inline-flex; align-items: center; gap: .35rem; }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="row justify-content-center">
-    <div class="col-md-6">
-        <div class="card border-0 shadow-sm">
-            <div class="card-header bg-white">
-                <h4 class="mb-0">{{ titulo }}</h4>
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'lista_impuestos' %}">Impuestos</a>
+        <span aria-hidden="true">/</span>
+        <span>{% if form.instance.pk %}{{ form.instance.nombre }}{% else %}Nuevo{% endif %}</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">{% if form.instance.pk %}Editar {{ form.instance.nombre }}{% else %}Nuevo impuesto{% endif %}</h1>
+            <p class="fx-sub">Las facturas usan el impuesto activo llamado <strong>IVA</strong>. Un cambio solo afecta las facturas que se generen después.</p>
+        </div>
+    </header>
+
+    <form method="post" class="fx-panel imp-form">
+        {% csrf_token %}
+        <div class="fx-panel-body">
+            {% if form.non_field_errors %}
+            <div class="fx-aviso rojo" role="alert"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><div>{{ form.non_field_errors|join:" " }}</div></div>
+            {% endif %}
+
+            <div class="fx-campo">
+                <label for="{{ form.nombre.id_for_label }}">Nombre</label>
+                <input type="text" name="{{ form.nombre.html_name }}" id="{{ form.nombre.id_for_label }}" value="{{ form.nombre.value|default:'' }}"
+                       class="form-control{% if form.nombre.errors %} is-invalid{% endif %}" maxlength="50" required placeholder="IVA"
+                       {% if form.nombre.errors %}aria-describedby="err-nombre"{% endif %}>
+                {% if form.nombre.errors %}<div class="error" id="err-nombre">{{ form.nombre.errors.0 }}</div>
+                {% else %}<div class="ayuda">Escriba exactamente <strong>IVA</strong> para el que deben llevar las facturas.</div>{% endif %}
             </div>
-            <div class="card-body">
-                <form method="post">
-                    {% csrf_token %}
-                    {% for field in form %}
-                    <div class="mb-3">
-                        <label class="form-label fw-bold">{{ field.label }}</label>
-                        {% if field.field.widget.input_type == 'checkbox' %}
-                        <div class="form-check">
-                            {{ field }}
-                            <label class="form-check-label">{{ field.label }}</label>
-                        </div>
-                        {% else %}
-                        {{ field }}
-                        {% endif %}
-                        {% if field.help_text %}
-                        <div class="form-text">{{ field.help_text }}</div>
-                        {% endif %}
-                        {% if field.errors %}
-                        <div class="text-danger small">{{ field.errors.0 }}</div>
-                        {% endif %}
+
+            <div class="fx-campo">
+                <label for="{{ form.porcentaje.id_for_label }}">Porcentaje</label>
+                <div class="imp-pct-campo">
+                    <input type="number" name="{{ form.porcentaje.html_name }}" id="{{ form.porcentaje.id_for_label }}" value="{{ form.porcentaje.value|default:''|stringformat:'s' }}"
+                           class="form-control{% if form.porcentaje.errors %} is-invalid{% endif %}" step="0.01" min="0" max="100" inputmode="decimal" required placeholder="19"
+                           {% if form.porcentaje.errors %}aria-describedby="err-pct"{% endif %}>
+                    <span aria-hidden="true">%</span>
+                </div>
+                {% if form.porcentaje.errors %}<div class="error" id="err-pct">{{ form.porcentaje.errors.0 }}</div>
+                {% else %}<div class="ayuda">Por ejemplo, 19 para el IVA general.</div>{% endif %}
+            </div>
+
+            <div class="fx-campo">
+                <div class="imp-switch form-switch">
+                    <input type="checkbox" class="form-check-input" role="switch" name="{{ form.activo.html_name }}" id="{{ form.activo.id_for_label }}"
+                           {% if form.activo.value %}checked{% endif %}>
+                    <div>
+                        <label for="{{ form.activo.id_for_label }}">Activo</label>
+                        <div class="ayuda">Si lo desactiva, deja de aplicarse en las facturas nuevas.</div>
                     </div>
-                    {% endfor %}
-                    <div class="d-flex gap-2">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="bi bi-check-circle"></i> Guardar
-                        </button>
-                        <a href="{% url 'lista_impuestos' %}" class="btn btn-outline-secondary">Cancelar</a>
-                    </div>
-                </form>
+                </div>
+            </div>
+
+            <div class="imp-botones">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> Guardar</button>
+                <a href="{% url 'lista_impuestos' %}" class="btn btn-fx">Cancelar</a>
             </div>
         </div>
-    </div>
+    </form>
 </div>
 {% endblock %}
