@@ -10,7 +10,7 @@
             <p class="fx-sub">Empresas de {{ request.ciudad_facturacion }} con facturas emitidas. Entre a una para ver sus obras y facturas.</p>
         </div>
         <div class="fx-acciones">
-            <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary"><i class="bi bi-receipt" aria-hidden="true"></i> Generar factura</a>
+            {% if fx_puede.generar %}<a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary"><i class="bi bi-receipt" aria-hidden="true"></i> Generar factura</a>{% endif %}
         </div>
     </header>
 
@@ -35,7 +35,7 @@
         <div class="fx-vacio">
             <i class="bi bi-archive" aria-hidden="true"></i>
             <p>Todavía no hay facturas en {{ request.ciudad_facturacion }}. Las facturas se crean desde los servicios registrados de cada obra.</p>
-            <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary">Generar factura</a>
+            {% if fx_puede.generar %}<a href="{% url 'generar_factura' %}" class="btn btn-sm btn-primary">Generar factura</a>{% endif %}
         </div>
         {% endif %}
     </section>

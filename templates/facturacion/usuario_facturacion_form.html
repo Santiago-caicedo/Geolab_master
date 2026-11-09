@@ -1,0 +1,263 @@
+{% extends 'base_facturacion.html' %}
+{% block title %}{% if usuario_editado %}Editar {{ usuario_editado.username }}{% else %}Nuevo usuario de Facturación{% endif %}{% endblock %}
+
+{% block extra_css %}
+<style>
+.uf-grid { display: grid; gap: 1rem; grid-template-columns: minmax(0, 1fr); align-items: start; }
+@media (min-width: 992px) { .uf-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); } }
+@media (min-width: 1300px) { .uf-grid { grid-template-columns: minmax(0, 4fr) minmax(0, 6fr) minmax(220px, 3fr); } }
+.uf-grid .fx-panel { margin-bottom: 0; }
+.uf-campo { margin-bottom: .9rem; }
+.uf-campo:last-child { margin-bottom: 0; }
+.uf-ayuda { font-size: .8rem; color: var(--muted); margin-top: .3rem; }
+.uf-error { font-size: .8rem; color: var(--rojo); margin-top: .3rem; }
+.fx .is-invalid { border-color: var(--rojo); }
+.uf-dos { display: grid; gap: .9rem .75rem; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin-bottom: .9rem; }
+.uf-dos .uf-campo { margin-bottom: 0; }
+
+/* Ciudades: botones que se encienden */
+.uf-ciudades { display: flex; flex-wrap: wrap; gap: .5rem; }
+.uf-ciudad { position: relative; }
+.uf-ciudad input { position: absolute; opacity: 0; inset: 0; cursor: pointer; }
+.uf-ciudad span { display: inline-flex; align-items: center; gap: .4rem; padding: .45rem .85rem; border-radius: 999px; min-height: 38px;
+                  border: 1px solid #d5dde7; background: #fff; font-size: .875rem; font-weight: 600; color: var(--text); cursor: pointer; }
+.uf-ciudad span i { color: #b6c2d1; }
+.uf-ciudad input:checked + span { background: var(--azul-bg); border-color: #9ccbea; color: var(--azul-ink); }
+.uf-ciudad input:checked + span i { color: var(--azul-ink); }
+.uf-ciudad input:focus-visible + span { outline: 2px solid var(--link); outline-offset: 2px; }
+
+/* Secciones por grupo */
+.uf-grupo + .uf-grupo { border-top: 1px solid var(--line); }
+.uf-grupo-head { display: flex; align-items: center; justify-content: space-between; padding: .65rem 1rem; background: var(--fondo); }
+.uf-grupo-head h3 { font-size: .8125rem; font-weight: 650; color: var(--ink); margin: 0; }
+.uf-todo { font-size: .78rem; font-weight: 600; color: var(--link); background: none; border: 0; padding: .2rem .3rem; border-radius: 6px; }
+.uf-todo:hover { background: var(--azul-bg); }
+.uf-item { display: flex; gap: .75rem; align-items: flex-start; padding: .65rem 1rem; cursor: pointer; margin: 0; }
+.uf-item + .uf-item { border-top: 1px dashed var(--line); }
+.uf-item .form-check-input { margin: .15rem 0 0; width: 2.2em; height: 1.2em; flex: none; cursor: pointer; }
+.uf-item .form-check-input:checked { background-color: var(--verde); border-color: var(--verde); }
+.uf-item strong { display: block; font-size: .875rem; color: var(--ink); font-weight: 600; }
+.uf-item small { display: block; font-size: .8rem; color: var(--muted); line-height: 1.35; }
+.uf-item.on { background: #f7fcf9; }
+.uf-avisos { padding: 0 1rem; }
+.uf-avisos .fx-aviso { margin: .75rem 0 0; font-size: .8125rem; }
+.uf-avisos:empty { display: none; }
+.uf-avisos:not(:empty) { padding-bottom: .9rem; }
+
+/* Vista previa del menú, con los colores del menú real */
+.uf-previa { position: sticky; top: 5.5rem; }
+.uf-menu { background: #1c2e4a; border-radius: 12px; padding: .75rem .5rem; color: rgba(255,255,255,.85); font-size: .8125rem; min-height: 120px; }
+.uf-menu .sec { font-size: .62rem; letter-spacing: .08em; color: rgba(255,255,255,.45); padding: .6rem .6rem .25rem; }
+.uf-menu .it { display: flex; gap: .5rem; align-items: center; padding: .35rem .6rem; border-radius: 6px; }
+.uf-menu .it i { opacity: .8; }
+.uf-menu .ciudad { background: rgba(255,255,255,.07); }
+.uf-menu .nada { padding: .9rem .6rem; color: rgba(255,255,255,.55); font-size: .8rem; white-space: normal; }
+.uf-botones { display: flex; gap: .5rem; flex-wrap: wrap; margin-top: 1rem; }
+.uf-botones .btn { font-size: .875rem; min-height: 38px; padding: .4rem 1rem; display: inline-flex; align-items: center; gap: .35rem; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <nav class="fx-migas" aria-label="Ruta">
+        <a href="{% url 'usuarios_facturacion' %}">Usuarios de Facturación</a>
+        <span aria-hidden="true">/</span>
+        <span>{% if usuario_editado %}{{ usuario_editado.username }}{% else %}Nuevo{% endif %}</span>
+    </nav>
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">{% if usuario_editado %}{{ usuario_editado.get_full_name|default:usuario_editado.username }}{% else %}Nuevo usuario de Facturación{% endif %}</h1>
+            <p class="fx-sub">Solo verá las ciudades y secciones que marque. Lo que no marque no aparece en su menú y, si abre el enlace, el portal no lo deja entrar.</p>
+        </div>
+    </header>
+
+    <form method="post" novalidate id="uf-form">
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+        <div class="fx-aviso rojo" role="alert"><i class="bi bi-x-circle-fill" aria-hidden="true"></i><div>{{ form.non_field_errors|join:" " }}</div></div>
+        {% endif %}
+
+        <div class="uf-grid">
+            <!-- Cuenta -->
+            <section class="fx-panel">
+                <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-person" aria-hidden="true"></i></span><h2>Cuenta</h2></div>
+                <div class="fx-panel-body">
+                    {% with f=form.username %}
+                    <div class="uf-campo fx-campo">
+                        <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                        <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="150" required
+                               autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="maria.lopez"
+                               class="form-control{% if f.errors %} is-invalid{% endif %}" {% if not usuario_editado %}autofocus{% endif %}>
+                        {% if f.errors %}<div class="uf-error">{{ f.errors.0 }}</div>{% else %}<div class="uf-ayuda">Con este nombre inicia sesión.</div>{% endif %}
+                    </div>
+                    {% endwith %}
+                    <div class="uf-dos">
+                        {% with f=form.nombre %}
+                        <div class="uf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                            <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="150" required
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}">
+                            {% if f.errors %}<div class="uf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                        {% with f=form.apellido %}
+                        <div class="uf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                            <input type="text" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}" maxlength="150"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}">
+                            {% if f.errors %}<div class="uf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                    </div>
+                    {% with f=form.email %}
+                    <div class="uf-campo fx-campo">
+                        <label for="{{ f.id_for_label }}">{{ f.label }} <span class="fx-nota">(opcional)</span></label>
+                        <input type="email" name="{{ f.html_name }}" id="{{ f.id_for_label }}" value="{{ f.value|default:'' }}"
+                               class="form-control{% if f.errors %} is-invalid{% endif %}">
+                        {% if f.errors %}<div class="uf-error">{{ f.errors.0 }}</div>{% endif %}
+                    </div>
+                    {% endwith %}
+                    <div class="uf-dos">
+                        {% with f=form.password1 %}
+                        <div class="uf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{% if usuario_editado %}Nueva contraseña{% else %}{{ f.label }}{% endif %}</label>
+                            <input type="password" name="{{ f.html_name }}" id="{{ f.id_for_label }}" autocomplete="new-password"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}" {% if not usuario_editado %}required{% endif %}>
+                            {% if f.errors %}<div class="uf-error">{% for e in f.errors %}{{ e }} {% endfor %}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                        {% with f=form.password2 %}
+                        <div class="uf-campo fx-campo">
+                            <label for="{{ f.id_for_label }}">{{ f.label }}</label>
+                            <input type="password" name="{{ f.html_name }}" id="{{ f.id_for_label }}" autocomplete="new-password"
+                                   class="form-control{% if f.errors %} is-invalid{% endif %}" {% if not usuario_editado %}required{% endif %}>
+                            {% if f.errors %}<div class="uf-error">{{ f.errors.0 }}</div>{% endif %}
+                        </div>
+                        {% endwith %}
+                    </div>
+                    <div class="uf-ayuda">{% if usuario_editado %}Déjela en blanco para conservar la actual.{% else %}Mínimo 8 caracteres, que no sea solo números ni se parezca al usuario.{% endif %}</div>
+                </div>
+            </section>
+
+            <!-- Acceso -->
+            <div class="d-flex flex-column gap-3">
+                <section class="fx-panel">
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-geo-alt" aria-hidden="true"></i></span><h2>Ciudades</h2>
+                        <span class="fx-nota">Solo verá las empresas, obras y facturas de estas sedes</span></div>
+                    <div class="fx-panel-body">
+                        <div class="uf-ciudades" role="group" aria-label="Ciudades">
+                            {% for valor, nombre in form.fields.ciudades.choices %}
+                            <label class="uf-ciudad">
+                                <input type="checkbox" name="ciudades" value="{{ valor }}" {% if valor in ciudades_elegidas %}checked{% endif %}>
+                                <span><i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ nombre }}</span>
+                            </label>
+                            {% empty %}
+                            <p class="fx-nota mb-0">No hay ciudades: ninguna constructora tiene ciudad asignada.</p>
+                            {% endfor %}
+                        </div>
+                        {% if form.ciudades.errors %}<div class="uf-error">{{ form.ciudades.errors.0 }}</div>{% endif %}
+                    </div>
+                </section>
+
+                <section class="fx-panel">
+                    <div class="fx-panel-head"><span class="fx-ico"><i class="bi bi-ui-checks-grid" aria-hidden="true"></i></span><h2>Secciones</h2>
+                        <span class="fx-nota">Las mismas del menú lateral</span></div>
+                    {% for grupo, items in grupos %}
+                    <div class="uf-grupo" data-grupo>
+                        <div class="uf-grupo-head">
+                            <h3>{{ grupo }}</h3>
+                            {% if items|length > 1 %}<button type="button" class="uf-todo" data-todo>Marcar todo</button>{% endif %}
+                        </div>
+                        {% for clave, nombre, desc, marcada in items %}
+                        <label class="uf-item form-switch{% if marcada %} on{% endif %}">
+                            <input type="checkbox" class="form-check-input" role="switch" name="secciones" value="{{ clave }}" {% if marcada %}checked{% endif %}>
+                            <span><strong>{{ nombre }}</strong><small>{{ desc }}</small></span>
+                        </label>
+                        {% endfor %}
+                    </div>
+                    {% endfor %}
+                    <div class="uf-avisos" id="uf-avisos" aria-live="polite"></div>
+                    {% if form.secciones.errors %}<div class="fx-panel-body pt-0"><div class="uf-error">{{ form.secciones.errors.0 }}</div></div>{% endif %}
+                </section>
+            </div>
+
+            <!-- Vista previa -->
+            <aside class="uf-previa" aria-label="Así verá su menú">
+                <div class="fx-label mb-2">Así verá su menú</div>
+                <div class="uf-menu" id="uf-menu" aria-hidden="true"></div>
+            </aside>
+        </div>
+
+        <div class="uf-botones">
+            <button type="submit" class="btn btn-primary"><i class="bi bi-check2" aria-hidden="true"></i> {% if usuario_editado %}Guardar cambios{% else %}Crear usuario{% endif %}</button>
+            <a href="{% url 'usuarios_facturacion' %}" class="btn btn-fx">Cancelar</a>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const form = document.getElementById('uf-form');
+    const menu = document.getElementById('uf-menu');
+    const avisos = document.getElementById('uf-avisos');
+    // Mismo orden, grupos e íconos que includes/sidebar_facturacion.html
+    const MENU = [
+        ['PANEL', [['panel', 'speedometer2', 'Panel Facturación']]],
+        ['OPERACIÓN', [['registrar', 'plus-circle', 'Registrar Servicio'], ['generar', 'file-earmark-text', 'Generar Factura'], ['historico', 'clock-history', 'Histórico']]],
+        ['REPOSITORIO', [['repositorio', 'archive', 'Repositorio Facturas']]],
+        ['CONFIGURACIÓN', [['precios', 'tags', 'Precios por Obra'], ['catalogo', 'list-check', 'Catálogo Servicios'], ['impuestos', 'percent', 'Impuestos']]],
+    ];
+    const esc = s => String(s).replace(/[&<>"']/g, c => ({'&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'}[c]));
+    const marcadas = name => new Set([...form.querySelectorAll(`input[name="${name}"]:checked`)].map(i => i.value));
+
+    function aviso(texto) {
+        return `<div class="fx-aviso info"><i class="bi bi-info-circle-fill" aria-hidden="true"></i><div>${texto}</div></div>`;
+    }
+
+    function pintar() {
+        const s = marcadas('secciones');
+        const ciudades = [...form.querySelectorAll('input[name="ciudades"]:checked')].map(i => i.value);
+        let html = '';
+        if (ciudades.length) {
+            html += `<div class="it ciudad"><i class="bi bi-geo-alt-fill"></i>${esc(ciudades.length === 1 ? ciudades[0] : ciudades.length + ' ciudades · cambiar')}</div>`;
+        }
+        MENU.forEach(([grupo, items]) => {
+            const vis = items.filter(([c]) => s.has(c));
+            if (!vis.length) return;
+            html += `<div class="sec">${grupo}</div>`;
+            vis.forEach(([, ico, nombre]) => { html += `<div class="it"><i class="bi bi-${ico}"></i>${nombre}</div>`; });
+        });
+        if (!s.size || !ciudades.length) {
+            html += `<div class="nada">${!ciudades.length ? 'Sin ciudad no puede entrar al módulo.' : 'Sin secciones no puede entrar al módulo.'}</div>`;
+        }
+        menu.innerHTML = html;
+
+        // Lo que conviene saber de la combinación elegida (no impide guardar)
+        const notas = [];
+        if (s.has('generar') && !s.has('repositorio')) notas.push('Sin <strong>Repositorio</strong>: podrá descargar el PDF de la factura que acaba de generar, pero no ver las anteriores ni marcarlas pagadas.');
+        if (s.has('registrar') && !s.has('precios')) notas.push('Sin <strong>Precios por obra</strong>: si un servicio no tiene precio en la obra no podrá registrarlo; tendrá que pedir que lo configuren.');
+        if (s.has('impuestos')) notas.push('Los <strong>impuestos</strong> valen para todas las ciudades, no solo las suyas.');
+        avisos.innerHTML = notas.map(aviso).join('');
+
+        form.querySelectorAll('input[name="secciones"]').forEach(i => i.closest('.uf-item').classList.toggle('on', i.checked));
+        form.querySelectorAll('[data-grupo]').forEach(g => {
+            const b = g.querySelector('[data-todo]');
+            if (!b) return;
+            const todos = [...g.querySelectorAll('input[name="secciones"]')].every(i => i.checked);
+            b.textContent = todos ? 'Quitar todo' : 'Marcar todo';
+        });
+    }
+
+    form.addEventListener('change', pintar);
+    form.querySelectorAll('[data-todo]').forEach(b => b.addEventListener('click', () => {
+        const inputs = [...b.closest('[data-grupo]').querySelectorAll('input[name="secciones"]')];
+        const todos = inputs.every(i => i.checked);
+        inputs.forEach(i => { i.checked = !todos; });
+        pintar();
+    }));
+    pintar();
+})();
+</script>
+{% endblock %}

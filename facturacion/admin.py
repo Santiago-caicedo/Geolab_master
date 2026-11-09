@@ -1,7 +1,7 @@
 from django.contrib import admin
 from .models import (
     CategoriaServicio, TipoServicio, PrecioServicio,
-    Impuesto, RegistroServicio, Factura,
+    Impuesto, RegistroServicio, Factura, AccesoFacturacion,
 )
 
 
@@ -51,3 +51,9 @@ class FacturaAdmin(admin.ModelAdmin):
     list_filter = ('estado', 'fecha_emision')
     search_fields = ('constructora__nombre', 'obra__nombre')
     raw_id_fields = ('constructora', 'obra')
+
+
+@admin.register(AccesoFacturacion)
+class AccesoFacturacionAdmin(admin.ModelAdmin):
+    list_display = ('usuario', 'ciudades', 'secciones', 'actualizado')
+    readonly_fields = ('actualizado', 'actualizado_por')

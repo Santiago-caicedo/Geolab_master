@@ -59,7 +59,7 @@
 <div class="alert alert-warning">
     <i class="bi bi-exclamation-triangle me-1"></i>
     Ninguna constructora tiene ciudad asignada, así que no hay ciudades para elegir.
-    Asigna la ciudad a las constructoras desde <a href="{% url 'lista_constructoras' %}">Empresas</a>.
+    {% if fx_puede.portal %}Asigna la ciudad a las constructoras desde <a href="{% url 'lista_constructoras' %}">Empresas</a>.{% endif %}
 </div>
 {% endif %}
 

@@ -69,6 +69,7 @@ MIDDLEWARE = [
 
     # Debe ir despues de Authentication y Message: usa request.user y messages
     'users.middleware.RestriccionCalidadMiddleware',
+    'users.middleware.RestriccionFacturacionMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'
@@ -83,6 +84,7 @@ TEMPLATES = [
                 'django.template.context_processors.request',
                 'django.contrib.auth.context_processors.auth',
                 'django.contrib.messages.context_processors.messages',
+                'facturacion.permisos.contexto',
             ],
         },
     },

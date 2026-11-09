@@ -32,27 +32,49 @@ from .forms import (
 )
 from users.models import Constructora
 from core.models import Obra
-from . import sede
+from . import permisos, sede
 
 logger = logging.getLogger(__name__)
 
 
 def _rechazo_staff(request):
-    """Respuesta de rechazo si el usuario no es staff de Geolab; None si pasa."""
-    if not request.user.is_authenticated:
+    """Respuesta de rechazo si el usuario no puede usar Facturación; None si pasa."""
+    user = request.user
+    if not user.is_authenticated:
         return redirect('login')
-    if not request.user.es_geolab or not request.user.es_admin_geolab:
-        messages.error(request, 'No tienes permiso para acceder a Facturación.')
-        return redirect('home')
-    return None
+    if permisos.puede_entrar(user):
+        return None
+    if permisos.es_restringido(user):
+        # Usuario de Facturación sin ciudades o sin secciones: no hay a dónde mandarlo
+        # (el portal lo devolvería aquí), así que se le explica y se queda.
+        return render(request, 'facturacion/sin_acceso.html', status=403)
+    messages.error(request, 'No tienes permiso para acceder a Facturación.')
+    return redirect('home')
 
 
 def staff_sin_ciudad(view_func):
-    """Decorador: requiere login + es_geolab + es_admin_geolab (sin ciudad)."""
+    """Decorador: requiere poder usar el módulo (sin ciudad)."""
     def wrapper(request, *args, **kwargs):
         rechazo = _rechazo_staff(request)
         if rechazo:
             return rechazo
+        return view_func(request, *args, **kwargs)
+    return wrapper
+
+
+def superusuario_required(view_func):
+    """Decorador: solo superusuarios (administración de los Usuarios de Facturación)."""
+    def wrapper(request, *args, **kwargs):
+        if not request.user.is_authenticated:
+            return redirect('login')
+        if not request.user.is_superuser:
+            messages.error(request, 'Solo un superusuario puede administrar los usuarios de Facturación.')
+            if permisos.puede_entrar(request.user):
+                return redirect(permisos.url_inicio(request.user))
+            return redirect('home')
+        ciudad = sede.ciudad_actual(request)
+        if ciudad:
+            request.ciudad_facturacion = ciudad
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -64,13 +86,17 @@ def _es_ajax(request):
 
 def staff_required(view_func):
     """
-    Decorador: staff + ciudad seleccionada.
+    Decorador: usuario del módulo + ciudad seleccionada + permiso sobre la vista.
 
     Todo el módulo trabaja sobre una ciudad (sede) guardada en la sesión.
     Si no hay ciudad, redirige a seleccionar_ciudad (las APIs JSON y las
     peticiones AJAX devuelven JSON en vez de redirigir: una pantalla que
     espera JSON y recibe el login mostraba "Error de conexión"). Deja la
     ciudad en `request.ciudad_facturacion` para vistas y templates.
+
+    El Usuario de Facturación solo pasa con una ciudad suya y una vista que
+    alguna de sus secciones abra (facturacion/permisos.py); si le quitan la
+    ciudad que tenía en la sesión, vuelve al selector.
     """
     def wrapper(request, *args, **kwargs):
         rechazo = _rechazo_staff(request)
@@ -82,7 +108,15 @@ def staff_required(view_func):
                     status=401 if not request.user.is_authenticated else 403,
                 )
             return rechazo
+        user = request.user
         ciudad = sede.ciudad_actual(request)
+        if ciudad and not permisos.puede_ciudad(user, ciudad):
+            sede.olvidar_ciudad(request)
+            ciudad = None
+        if not ciudad:
+            ciudad = permisos.ciudad_unica(user)
+            if ciudad:
+                sede.fijar_ciudad(request, ciudad)
         if not ciudad:
             if request.path.startswith('/facturacion/api/') or _es_ajax(request):
                 return JsonResponse(
@@ -92,6 +126,14 @@ def staff_required(view_func):
             url = reverse('seleccionar_ciudad_facturacion')
             return redirect(f'{url}?next={request.get_full_path()}')
         request.ciudad_facturacion = ciudad
+
+        url_name = request.resolver_match.url_name if request.resolver_match else None
+        if not permisos.puede_vista(user, url_name):
+            texto = f'Tu usuario no tiene acceso a {permisos.nombre_de_vista(url_name)}.'
+            if request.path.startswith('/facturacion/api/') or _es_ajax(request):
+                return JsonResponse({'status': 'error', 'message': texto}, status=403)
+            messages.error(request, texto)
+            return redirect(permisos.url_inicio(user))
         return view_func(request, *args, **kwargs)
     return wrapper
 
@@ -117,10 +159,16 @@ def seleccionar_ciudad(request):
     Se vuelve a pasar por aquí cada vez que se entra desde el portal o al
     pulsar "Cambiar" en el sidebar.
     """
-    ciudades = sede.ciudades_disponibles()
+    ciudades = permisos.ciudades_de(request.user)
     siguiente = request.POST.get('next') or request.GET.get('next') or ''
     if not url_has_allowed_host_and_scheme(siguiente, allowed_hosts={request.get_host()}):
         siguiente = ''
+
+    unica = permisos.ciudad_unica(request.user)
+    if unica:
+        # Usuario de Facturación con una sola ciudad: no hay nada que elegir
+        sede.fijar_ciudad(request, unica)
+        return redirect(siguiente or permisos.url_inicio(request.user))
 
     if request.method == 'POST':
         ciudad = (request.POST.get('ciudad') or '').strip()
@@ -128,7 +176,7 @@ def seleccionar_ciudad(request):
             messages.error(request, 'Selecciona una ciudad válida.')
         else:
             sede.fijar_ciudad(request, ciudad)
-            return redirect(siguiente or 'dashboard_facturacion')
+            return redirect(siguiente or permisos.url_inicio(request.user))
 
     conteo = {
         fila['ciudad']: fila['n']
@@ -138,7 +186,8 @@ def seleccionar_ciudad(request):
     context = {
         'ciudades': [(c, conteo.get(c, 0)) for c in ciudades],
         'ciudad_actual': sede.ciudad_actual(request),
-        'sin_ciudad': Constructora.objects.filter(Q(ciudad__isnull=True) | Q(ciudad='')).count(),
+        'sin_ciudad': (0 if permisos.es_restringido(request.user)
+                       else Constructora.objects.filter(Q(ciudad__isnull=True) | Q(ciudad='')).count()),
         'next': siguiente,
     }
     return render(request, 'facturacion/seleccionar_ciudad.html', context)
@@ -975,6 +1024,9 @@ def generar_factura(request):
         'iva_porcentaje': iva_porcentaje,
         'hay_iva': hay_iva,
         'tiene_registros': tiene_registros,
+        # Recién generada por quien no tiene el repositorio: el aviso trae el enlace al PDF
+        'generada': (sede.facturas_de(ciudad).filter(pk=request.GET['generada']).first()
+                     if request.GET.get('generada', '').isdigit() else None),
     }
     return render(request, 'facturacion/generar_factura.html', context)
 
@@ -1029,7 +1081,7 @@ def finalizar_factura(request):
                 if ya and not actuales:
                     # Doble clic o doble pestaña: la factura ya existe, no se crea otra
                     messages.info(request, f'La factura #{ya.pk} ya se había generado con estos servicios.')
-                    return redirect('repositorio_facturas_obra', obra_pk=obra.pk)
+                    return _ir_a_factura(request, ya)
                 messages.error(request, (
                     'Los servicios pendientes de esta obra cambiaron desde la vista previa '
                     '(alguien registró, editó o facturó algo). Revisa la vista previa de nuevo.'
@@ -1093,12 +1145,19 @@ def finalizar_factura(request):
             request,
             f'Factura #{factura.pk} generada exitosamente. Total: ${total:,.2f}'
         )
-        return redirect('repositorio_facturas_obra', obra_pk=obra.pk)
+        return _ir_a_factura(request, factura)
 
     except Exception as e:
         logger.exception(f"Error finalizando factura: {e}")
         messages.error(request, 'Error al generar la factura. Intente nuevamente.')
         return redirect(volver_a_previa)
+
+
+def _ir_a_factura(request, factura):
+    """Después de generar: al repositorio de la obra, o (sin ese permiso) a Generar con el enlace al PDF."""
+    if permisos.puede_seccion(request.user, 'repositorio'):
+        return redirect('repositorio_facturas_obra', obra_pk=factura.obra_id)
+    return redirect(reverse('generar_factura') + f'?generada={factura.pk}')
 
 
 def _generar_pdf_factura(factura, request):
@@ -1292,7 +1351,7 @@ def descargar_factura_pdf(request, pk):
             factura.refresh_from_db()
         except Exception:
             messages.error(request, 'No se pudo generar el PDF.')
-            return redirect('repositorio_facturas_obra', obra_pk=factura.obra.pk)
+            return _ir_a_factura(request, factura)
 
     # Redirigir a la URL del archivo (S3 en prod, media local en dev)
     return redirect(factura.pdf_archivo.url)

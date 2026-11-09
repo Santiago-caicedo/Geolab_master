@@ -58,3 +58,43 @@ class RestriccionCalidadMiddleware:
         if ruta == '/':
             return True
         return ruta.startswith(self.PREFIJOS_PERMITIDOS)
+
+
+class RestriccionFacturacionMiddleware:
+    """
+    Encierra en /facturacion/ al Usuario de Facturación (area='facturacion').
+    Dentro del módulo, qué ciudades y secciones abre lo decide
+    facturacion.permisos (decorador staff_required). Lista blanca: lo que se
+    agregue al portal en el futuro nace cerrado para este rol.
+    """
+
+    PREFIJOS_PERMITIDOS = (
+        '/facturacion/',
+        '/accounts/',
+        '/static/',
+        '/media/facturas/',   # PDF de facturas en DEBUG (en producción van a S3 firmados)
+    )
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if self._debe_restringir(request):
+            if request.headers.get('X-Requested-With') == 'XMLHttpRequest':
+                from django.http import JsonResponse
+                return JsonResponse(
+                    {'status': 'error', 'message': 'Tu usuario solo tiene acceso a Facturación.'},
+                    status=403,
+                )
+            messages.warning(request, 'Tu usuario solo tiene acceso a Facturación.')
+            return redirect('seleccionar_ciudad_facturacion')
+        return self.get_response(request)
+
+    def _debe_restringir(self, request):
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated or user.is_superuser:
+            return False
+        if not user.es_usuario_facturacion:
+            return False
+        ruta = request.path
+        return ruta != '/' and not ruta.startswith(self.PREFIJOS_PERMITIDOS)

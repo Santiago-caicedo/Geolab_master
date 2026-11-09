@@ -129,8 +129,8 @@
                 </p>
             </div>
             <div class="inf-actions">
-                <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-hero"><i class="bi bi-plus-lg me-1"></i>Registrar servicio</a>
-                <a href="{% url 'generar_factura' %}" class="btn btn-sm btn-hero-primary"><i class="bi bi-receipt me-1"></i>Generar factura</a>
+                {% if fx_puede.registrar %}<a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-hero"><i class="bi bi-plus-lg me-1"></i>Registrar servicio</a>{% endif %}
+                {% if fx_puede.generar %}<a href="{% url 'generar_factura' %}" class="btn btn-sm btn-hero-primary"><i class="bi bi-receipt me-1"></i>Generar factura</a>{% endif %}
             </div>
         </header>
         <div class="inf-hero-facts" aria-label="Resumen de la sede">
@@ -163,7 +163,7 @@
             <section class="inf-panel" aria-labelledby="fcPend">
                 <div class="fc-head">
                     <h2 id="fcPend"><span class="inf-ico" aria-hidden="true"><i class="bi bi-hourglass-split"></i></span>Por facturar<small>servicios registrados sin factura</small></h2>
-                    <a class="fc-mas" href="{% url 'historico_facturacion' %}">Histórico <i class="bi bi-arrow-right"></i></a>
+                    {% if fx_puede.historico %}<a class="fc-mas" href="{% url 'historico_facturacion' %}">Histórico <i class="bi bi-arrow-right"></i></a>{% endif %}
                 </div>
                 {% if obras_por_facturar %}
                 <table class="inf-table fc-pend">
@@ -188,7 +188,7 @@
                                 <span class="fc-edad{% if o.dias > 30 %} vieja{% endif %}">desde {{ o.desde|date:"j M" }}</span>
                             </td>
                             <td class="inf-acc">
-                                <a class="fc-facturar" href="{{ o.url }}" aria-label="Facturar {{ o.obra__nombre }}">Facturar</a>
+                                {% if fx_puede.generar %}<a class="fc-facturar" href="{{ o.url }}" aria-label="Facturar {{ o.obra__nombre }}">Facturar</a>{% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -239,7 +239,7 @@
             <section class="inf-panel" aria-labelledby="fcClientes">
                 <div class="fc-head">
                     <h2 id="fcClientes"><span class="inf-ico verde" aria-hidden="true"><i class="bi bi-buildings"></i></span>Clientes que más facturan<small>12 meses</small></h2>
-                    <a class="fc-mas" href="{% url 'repositorio_clientes' %}">Repositorio <i class="bi bi-arrow-right"></i></a>
+                    {% if fx_puede.repositorio %}<a class="fc-mas" href="{% url 'repositorio_clientes' %}">Repositorio <i class="bi bi-arrow-right"></i></a>{% endif %}
                 </div>
                 {% if top_clientes %}
                 <ul class="fc-rank">
@@ -247,7 +247,7 @@
                     <li>
                         <div class="fila">
                             <span class="inf-code">{{ c.constructora__codigo }}</span>
-                            <a class="nom inf-nombre" href="{% url 'repositorio_obras_cliente' c.constructora %}">{{ c.constructora__nombre }}</a>
+                            {% if fx_puede.repositorio %}<a class="nom inf-nombre" href="{% url 'repositorio_obras_cliente' c.constructora %}">{{ c.constructora__nombre }}</a>{% else %}<span class="nom inf-nombre">{{ c.constructora__nombre }}</span>{% endif %}
                             <span class="val fc-pesos">${{ c.total|floatformat:"0g" }}</span>
                         </div>
                         <div class="barra" aria-hidden="true"><i style="width: {{ c.ancho }}%"></i></div>
@@ -264,7 +264,7 @@
             <section class="inf-panel" aria-labelledby="fcFacturas">
                 <div class="fc-head">
                     <h2 id="fcFacturas"><span class="inf-ico" aria-hidden="true"><i class="bi bi-receipt"></i></span>Últimas facturas</h2>
-                    <a class="fc-mas" href="{% url 'repositorio_clientes' %}">Ver todas <i class="bi bi-arrow-right"></i></a>
+                    {% if fx_puede.repositorio %}<a class="fc-mas" href="{% url 'repositorio_clientes' %}">Ver todas <i class="bi bi-arrow-right"></i></a>{% endif %}
                 </div>
                 {% if ultimas_facturas %}
                 <ul class="fc-fact">
@@ -289,7 +289,7 @@
             <section class="inf-panel" aria-labelledby="fcServicios">
                 <div class="fc-head">
                     <h2 id="fcServicios"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-clipboard-data"></i></span>Servicios más realizados<small>90 días</small></h2>
-                    <a class="fc-mas" href="{% url 'catalogo_servicios' %}">Catálogo <i class="bi bi-arrow-right"></i></a>
+                    {% if fx_puede.catalogo %}<a class="fc-mas" href="{% url 'catalogo_servicios' %}">Catálogo <i class="bi bi-arrow-right"></i></a>{% endif %}
                 </div>
                 {% if top_servicios %}
                 <ul class="fc-rank">

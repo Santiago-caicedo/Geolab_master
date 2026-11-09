@@ -191,7 +191,8 @@ def notificar_nueva_remision(request, remision):
             es_geolab=True,
             is_active=True,
             email__isnull=False
-        ).exclude(email='').values_list('email', flat=True)
+        ).exclude(email='').exclude(perfil_geolab__area='facturacion')
+        .values_list('email', flat=True)
     )
 
     if staff_emails:

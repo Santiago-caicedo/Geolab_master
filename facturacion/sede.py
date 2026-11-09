@@ -36,6 +36,10 @@ def fijar_ciudad(request, ciudad):
     request.session[SESSION_KEY] = ciudad
 
 
+def olvidar_ciudad(request):
+    request.session.pop(SESSION_KEY, None)
+
+
 def constructoras_de(ciudad):
     return Constructora.objects.filter(ciudad__iexact=ciudad)
 

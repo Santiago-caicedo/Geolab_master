@@ -17,7 +17,7 @@
             <p class="fx-sub">Facturas de la obra, de la más reciente a la más antigua.</p>
         </div>
         <div class="fx-acciones">
-            <a href="{% url 'generar_factura' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx"><i class="bi bi-receipt" aria-hidden="true"></i> Nueva factura</a>
+            {% if fx_puede.generar %}<a href="{% url 'generar_factura' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx"><i class="bi bi-receipt" aria-hidden="true"></i> Nueva factura</a>{% endif %}
         </div>
     </header>
 

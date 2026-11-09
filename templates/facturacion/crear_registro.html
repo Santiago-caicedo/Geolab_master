@@ -58,7 +58,7 @@
             <p class="fx-sub">Cada servicio toma el precio de la lista de la obra y queda congelado: un cambio de precio posterior no lo altera.</p>
         </div>
         <div class="fx-acciones">
-            <a href="{% url 'historico_facturacion' %}" class="btn btn-sm btn-fx"><i class="bi bi-clock-history" aria-hidden="true"></i> Histórico</a>
+            {% if fx_puede.historico %}<a href="{% url 'historico_facturacion' %}" class="btn btn-sm btn-fx"><i class="bi bi-clock-history" aria-hidden="true"></i> Histórico</a>{% endif %}
         </div>
     </header>
 
@@ -130,6 +130,9 @@
     const URL_PRECIO = "{% url 'api_get_precio' %}";
     const URL_GUARDAR = "{% url 'crear_registro_facturacion' %}";
     const URL_PRECIOS_OBRA = "{% url 'gestionar_precios_obra' 0 %}";   // /facturacion/obras/0/precios/
+    const PUEDE_PRECIOS = {{ fx_puede.precios|yesno:'true,false' }};
+    const PUEDE_HISTORICO = {{ fx_puede.historico|yesno:'true,false' }};
+    const URL_HISTORICO = {% if fx_puede.historico %}"{% url 'historico_facturacion' %}"{% else %}''{% endif %};
     const CSRF = "{{ csrf_token }}";
 
     const inputFecha = document.getElementById('input-fecha');
@@ -255,7 +258,9 @@
                     tr.classList.add('sin-precio');
                     const url = URL_PRECIOS_OBRA.replace('/0/', `/${encodeURIComponent(obraSeleccionada)}/`);
                     tr.querySelector('.c-precio').insertAdjacentHTML('beforeend',
-                        `<span class="rs-sinprecio">Sin precio en esta obra. <a href="${url}" target="_blank" rel="noopener">Configurar</a></span>`);
+                        PUEDE_PRECIOS
+                            ? `<span class="rs-sinprecio">Sin precio en esta obra. <a href="${url}" target="_blank" rel="noopener">Configurar</a></span>`
+                            : `<span class="rs-sinprecio">Sin precio en esta obra. Pida que lo configuren.</span>`);
                 }
                 actualizarSubtotal(tr); refrescar();
             })
@@ -329,7 +334,7 @@
             .then(({ status, data }) => {
                 if (data.status === 'success') {
                     envioId = null;
-                    avisar(data.repetido ? 'info' : 'verde', `${esc(data.message)} <a href="{% url 'historico_facturacion' %}">Ver histórico</a>`);
+                    avisar(data.repetido ? 'info' : 'verde', esc(data.message) + (PUEDE_HISTORICO ? ` <a href="${URL_HISTORICO}">Ver histórico</a>` : ''));
                     lineas().forEach((tr) => { tr._ts.destroy(); tr.remove(); });
                     crearLinea();
                 } else {

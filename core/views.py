@@ -21,6 +21,9 @@ def dashboard_router(request):
         # Roles confinados al SGC (coordinador y usuarios de calidad)
         if request.user.es_confinado_a_calidad:
             return redirect('explorador_calidad')
+        # Usuario de Facturación: su único módulo
+        if request.user.es_usuario_facturacion:
+            return redirect('seleccionar_ciudad_facturacion')
         return dashboard_staff(request)
     elif request.user.es_cliente:
         # Verificar si es remitente (nuevo rol)

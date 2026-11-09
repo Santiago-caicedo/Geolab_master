@@ -420,7 +420,7 @@ def gestionar_accesos(request):
     # Usuarios de Calidad, cuyos permisos son por carpeta (otra pantalla).
     usuarios_geolab = [
         u for u in usuarios_geolab
-        if not u.es_admin_sgc and not u.es_usuario_calidad
+        if not u.es_admin_sgc and not u.es_usuario_calidad and not u.es_usuario_facturacion
     ]
 
     if request.method == 'POST':

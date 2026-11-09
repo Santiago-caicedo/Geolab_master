@@ -262,3 +262,28 @@ class Factura(models.Model):
     @property
     def total_registros(self):
         return self.registros.count()
+
+
+class AccesoFacturacion(models.Model):
+    """
+    Permisos de un Usuario de Facturación (FuncionarioGeolab.area = 'facturacion'):
+    qué ciudades (sedes) y qué secciones del módulo puede abrir. Las claves de
+    sección y qué vistas abre cada una viven en facturacion/permisos.py.
+    Lo crea y edita solo un superusuario desde /facturacion/usuarios/.
+    """
+    usuario = models.OneToOneField(
+        settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name='acceso_facturacion'
+    )
+    ciudades = models.JSONField(default=list, blank=True, verbose_name='Ciudades')
+    secciones = models.JSONField(default=list, blank=True, verbose_name='Secciones')
+    actualizado = models.DateTimeField(auto_now=True)
+    actualizado_por = models.ForeignKey(
+        settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True, related_name='+'
+    )
+
+    class Meta:
+        verbose_name = 'Acceso a Facturación'
+        verbose_name_plural = 'Accesos a Facturación'
+
+    def __str__(self):
+        return f'{self.usuario} · {", ".join(self.ciudades)}'

@@ -225,6 +225,8 @@
         {% include 'includes/sidebar_tecnico.html' %}
     {% elif user.es_confinado_a_calidad %}
         {% include 'includes/sidebar_calidad.html' %}
+    {% elif user.es_usuario_facturacion %}
+        {% include 'includes/sidebar_facturacion.html' %}
     {% elif user.es_geolab %}
         {% include 'includes/sidebar_staff.html' %}
     {% elif user.es_remitente %}
@@ -250,6 +252,8 @@
                             Panel de Laboratorio
                         {% elif user.es_confinado_a_calidad %}
                             Sistema de Calidad
+                        {% elif user.es_usuario_facturacion %}
+                            Facturación
                         {% elif user.es_geolab %}
                             Panel Administrativo
                         {% elif user.es_remitente %}
@@ -267,7 +271,8 @@
 
             <div class="d-flex align-items-center gap-4">
 
-                <!-- Campana de notificaciones -->
+                <!-- Campana de notificaciones (el Usuario de Facturación no la usa: son avisos del laboratorio) -->
+                {% if not user.es_usuario_facturacion %}
                 <div class="dropdown">
                     <button class="btn btn-light rounded-circle position-relative border shadow-sm d-flex align-items-center justify-content-center"
                             style="width: 40px; height: 40px;"
@@ -299,6 +304,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
 
                 <div class="d-flex align-items-center gap-3 ps-3 border-start">
                     <div class="text-end d-none d-sm-block" style="line-height: 1.2;">
@@ -308,6 +314,8 @@
                         <small class="text-muted" style="font-size: 0.7rem;">
                             {% if user.es_tecnico_laboratorio %}
                                 Tecnico de Laboratorio
+                            {% elif user.es_usuario_facturacion %}
+                                Facturación
                             {% elif user.es_geolab %}
                                 Staff Geolab
                             {% elif user.es_remitente %}
@@ -407,7 +415,9 @@
         });
 
         // ========== NOTIFICACIONES ==========
+        const HAY_CAMPANA = {{ user.es_usuario_facturacion|yesno:'false,true' }};
         function actualizarContadorNotificaciones() {
+            if (!HAY_CAMPANA) return;
             fetch('{% url "contar_notificaciones_no_leidas" %}')
                 .then(response => response.json())
                 .then(data => {

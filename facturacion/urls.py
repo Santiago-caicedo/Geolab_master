@@ -1,5 +1,5 @@
 from django.urls import path
-from . import views
+from . import views, views_usuarios
 
 urlpatterns = [
     # Dashboard
@@ -47,6 +47,12 @@ urlpatterns = [
     path('facturacion/factura/<int:pk>/pagada/', views.marcar_factura_pagada, name='marcar_factura_pagada'),
     path('facturacion/factura/<int:pk>/pendiente/', views.marcar_factura_pendiente, name='marcar_factura_pendiente'),
     path('facturacion/factura/<int:pk>/pdf/', views.descargar_factura_pdf, name='descargar_factura_pdf'),
+
+    # Usuarios de Facturación (solo superusuarios)
+    path('facturacion/usuarios/', views_usuarios.usuarios_facturacion, name='usuarios_facturacion'),
+    path('facturacion/usuarios/nuevo/', views_usuarios.crear_usuario_facturacion, name='crear_usuario_facturacion'),
+    path('facturacion/usuarios/<int:pk>/', views_usuarios.editar_usuario_facturacion, name='editar_usuario_facturacion'),
+    path('facturacion/usuarios/<int:pk>/estado/', views_usuarios.estado_usuario_facturacion, name='estado_usuario_facturacion'),
 
     # APIs
     path('facturacion/api/obras/', views.api_get_obras, name='api_get_obras_facturacion'),

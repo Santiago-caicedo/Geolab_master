@@ -96,6 +96,21 @@ geolab_master/
 - Diseño: `templates/facturacion/_fx.html` es el sistema visual del módulo (clases `.fx-*`: encabezado, paneles, campos, `fx-tabla`, estados `fx-estado pendiente/ok/anulada`, `fx-icono`, `fx-lista`/`fx-fila`, `fx-aviso`) y los avisos flotantes. Dinero con `{% load fx %}{{ valor|pesos }}` → `$ 18.500` / `$ 6.750,50` (`facturacion/formato.py`, la misma lógica que la lista de precios). Lista de precios de la obra: cada fila guarda sola (`guardar_precio_obra`, JSON `{precio, anterior}`; 409 si otra persona lo cambió).
 - Integridad: `base.html` bloquea los botones de todo formulario POST tras enviarlo (`data-reenvio` lo exime). `staff_required` responde JSON (401/403, `sesion: true`) a peticiones AJAX. `ConstructoraForm` no deja cambiar la ciudad de una empresa con facturas/registros; el catálogo no deja mover servicios entre transporte (código 7) y otras categorías si ya tienen registros. `seed_facturacion` solo corre con `DEBUG=True`. Fechas por defecto con `timezone.localdate`.
 
+**Usuarios de Facturación (permisos por ciudad y sección):** un superusuario los crea en `/facturacion/usuarios/`
+(`views_usuarios.py`, solo `is_superuser`; usuario + `FuncionarioGeolab(area='facturacion')` + `AccesoFacturacion`
+en una transacción). `AccesoFacturacion` guarda `ciudades` y `secciones` (JSON). Las secciones y qué vistas abre cada
+una están en `facturacion/permisos.py`: `SECCIONES` (panel, registrar, generar, historico, repositorio, precios,
+catalogo, impuestos) y `VISTAS` (url_name → secciones que la abren; las APIs compartidas las abre cualquiera de sus
+pantallas, `descargar_factura_pdf` = repositorio o generar). `staff_required` aplica todo: ciudad suya (si se la
+quitan, vuelve al selector; con una sola ciudad se fija sola) y vista permitida (si no, a su `url_inicio` con aviso, o
+403 JSON en APIs/AJAX). Una vista que no esté en `VISTAS` queda cerrada para este rol: **al agregar una ruta al módulo,
+ponerla en `VISTAS`** (o en `SIN_SECCION`); `tests_permisos.MapaDeVistasTests` falla si falta. Los templates preguntan
+`fx_puede.<sección>` (context processor `permisos.contexto`) para ocultar enlaces; `fx_puede.portal` = puede salir del
+módulo. `RestriccionFacturacionMiddleware` lo encierra en `/facturacion/` (lista blanca, como el de calidad); no recibe
+correos de remisiones ni ve la campana. Sin ciudades o sin secciones ve `sin_acceso.html` (403). Staff admin y
+superusuarios siguen con acceso completo. Pruebas: `python manage.py test facturacion.tests_permisos` (matriz sección ×
+ruta: lo rechazado no cambia datos).
+
 **Ciudad (sede) activa:** al entrar al módulo (el enlace del sidebar de staff apunta a
 `seleccionar_ciudad_facturacion`) se elige una ciudad, guardada en sesión
 (`facturacion/sede.py`, clave `facturacion_ciudad`). El decorador `staff_required` de
@@ -126,6 +141,7 @@ Obra 1:N RegistroServicio N:1 Factura
 | Técnico Lab | `es_geolab=True`, `area='tecnico'` | Solo ensayos/dashboard |
 | Coord. Calidad | `es_geolab=True`, `area='calidad'` | **Solo** `/calidad/*`, pero manda dentro del SGC |
 | Usuario Calidad | `es_geolab=True`, `area='calidad_usuario'` | **Solo** `/calidad/*` y solo carpetas asignadas (ver/cargar/eliminar) |
+| Usuario Facturación | `es_geolab=True`, `area='facturacion'` | **Solo** `/facturacion/*`, solo sus ciudades y secciones (`AccesoFacturacion`) |
 | Director | `es_cliente=True`, `rol='director'` | Todas obras de su empresa |
 | Residente | `es_cliente=True`, `rol='residente'` | Solo obras asignadas |
 | Remitente | `es_cliente=True`, `rol='remitente'` | Solo crear remisiones |

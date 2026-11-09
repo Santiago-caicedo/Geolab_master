@@ -1,0 +1,18 @@
+{% extends 'base_facturacion.html' %}
+{% block title %}Facturación sin permisos{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <section class="fx-panel" style="max-width: 560px;">
+        <div class="fx-vacio">
+            <i class="bi bi-person-lock" aria-hidden="true"></i>
+            <p>Su usuario todavía no tiene ciudades o secciones de Facturación asignadas, así que no hay nada que mostrarle.
+            Pida al administrador del portal que se las asigne y vuelva a entrar.</p>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit" class="btn btn-sm btn-fx"><i class="bi bi-box-arrow-left" aria-hidden="true"></i> Cerrar sesión</button>
+            </form>
+        </div>
+    </section>
+</div>
+{% endblock %}

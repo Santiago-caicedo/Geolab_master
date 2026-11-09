@@ -1,0 +1,95 @@
+{% extends 'base_facturacion.html' %}
+{% block title %}Usuarios de Facturación{% endblock %}
+
+{% block extra_css %}
+<style>
+.uf-nombre { font-weight: 600; color: var(--ink); }
+.uf-login { font-family: var(--mono); font-size: .78rem; color: var(--muted); }
+.uf-chips { display: flex; flex-wrap: wrap; gap: .3rem; }
+.uf-chip { font-size: .75rem; font-weight: 600; border-radius: 999px; padding: .12rem .55rem; white-space: nowrap;
+           background: var(--soft); color: var(--text); border: 1px solid var(--line); }
+.uf-chip.ciudad { background: var(--azul-bg); color: var(--azul-ink); border-color: transparent; }
+.uf-chip.todo { background: var(--verde-bg); color: var(--verde); border-color: transparent; }
+.fx-estado.inactivo { color: var(--muted); background: #eef1f5; }
+.fx-tabla tr.uf-inactivo td { color: #94a3b8; }
+.fx-tabla tr.uf-inactivo .uf-nombre { color: #94a3b8; }
+.fx-tabla tr.uf-inactivo .uf-chip { opacity: .6; }
+.uf-fecha { font-size: .8125rem; color: var(--muted); white-space: nowrap; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="fx">
+    <header class="fx-head">
+        <div>
+            <h1 class="fx-titulo">Usuarios de Facturación</h1>
+            <p class="fx-sub">Cuentas que solo entran a este módulo, a las ciudades y secciones que usted les dé.
+            El resto del portal queda cerrado para ellas. Solo un superusuario ve esta pantalla.</p>
+        </div>
+        <div class="fx-acciones">
+            <a href="{% url 'crear_usuario_facturacion' %}" class="btn btn-sm btn-primary"><i class="bi bi-person-plus" aria-hidden="true"></i> Nuevo usuario</a>
+        </div>
+    </header>
+
+    <section class="fx-panel">
+        {% if usuarios %}
+        <div class="table-responsive">
+            <table class="fx-tabla">
+                <thead>
+                    <tr>
+                        <th scope="col">Usuario</th>
+                        <th scope="col">Ciudades</th>
+                        <th scope="col">Secciones</th>
+                        <th scope="col">Último ingreso</th>
+                        <th scope="col">Estado</th>
+                        <th scope="col" class="acc"><span class="visually-hidden">Acciones</span></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for u in usuarios %}
+                    <tr class="{% if not u.is_active %}uf-inactivo{% endif %}">
+                        <td>
+                            <div class="uf-nombre">{{ u.get_full_name|default:u.username }}</div>
+                            <div class="uf-login">{{ u.username }}</div>
+                        </td>
+                        <td>
+                            <div class="uf-chips">
+                                {% for c in u.fx_ciudades %}<span class="uf-chip ciudad">{{ c }}</span>{% empty %}<span class="fx-estado pendiente">Ninguna</span>{% endfor %}
+                            </div>
+                        </td>
+                        <td>
+                            <div class="uf-chips">
+                                {% if u.fx_todas %}<span class="uf-chip todo">Todas las secciones</span>
+                                {% else %}{% for s in u.fx_secciones %}<span class="uf-chip">{{ s }}</span>{% empty %}<span class="fx-estado pendiente">Ninguna</span>{% endfor %}{% endif %}
+                            </div>
+                        </td>
+                        <td class="uf-fecha">{% if u.last_login %}{{ u.last_login|date:"j M Y, H:i" }}{% else %}Nunca{% endif %}</td>
+                        <td>{% if u.is_active %}<span class="fx-estado ok">Activo</span>{% else %}<span class="fx-estado inactivo">Inactivo</span>{% endif %}</td>
+                        <td class="acc">
+                            <div class="fx-iconos">
+                                <a href="{% url 'editar_usuario_facturacion' u.pk %}" class="fx-icono" title="Editar permisos" aria-label="Editar permisos de {{ u.username }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                                <form method="post" action="{% url 'estado_usuario_facturacion' u.pk %}">
+                                    {% csrf_token %}
+                                    {% if u.is_active %}
+                                    <button type="submit" class="fx-icono rojo" title="Desactivar" aria-label="Desactivar a {{ u.username }}"><i class="bi bi-person-slash" aria-hidden="true"></i></button>
+                                    {% else %}
+                                    <button type="submit" class="fx-icono verde" title="Activar" aria-label="Activar a {{ u.username }}"><i class="bi bi-person-check" aria-hidden="true"></i></button>
+                                    {% endif %}
+                                </form>
+                            </div>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="fx-vacio">
+            <i class="bi bi-person-lock" aria-hidden="true"></i>
+            <p>Aún no hay usuarios de Facturación. Cree uno y elija qué ciudades y qué secciones puede abrir.</p>
+            <a href="{% url 'crear_usuario_facturacion' %}" class="btn btn-sm btn-primary">Crear usuario</a>
+        </div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

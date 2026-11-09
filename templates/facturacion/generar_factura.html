@@ -24,10 +24,20 @@
             <h1 class="fx-titulo">Generar factura</h1>
             <p class="fx-sub">Elija la obra y el periodo: se listan los servicios registrados que aún no se han facturado.</p>
         </div>
+        {% if fx_puede.repositorio %}
         <div class="fx-acciones">
             <a href="{% url 'repositorio_clientes' %}" class="btn btn-sm btn-fx"><i class="bi bi-archive" aria-hidden="true"></i> Facturas emitidas</a>
         </div>
+        {% endif %}
     </header>
+
+    {% if generada %}
+    <div class="fx-aviso verde" role="status">
+        <i class="bi bi-check-circle-fill" aria-hidden="true"></i>
+        <div>Factura <strong>#{{ generada.pk }}</strong> de {{ generada.obra.nombre }}.
+        <a href="{% url 'descargar_factura_pdf' generada.pk %}" target="_blank" rel="noopener">Descargar el PDF</a></div>
+    </div>
+    {% endif %}
 
     <form method="get" class="fx-panel filtros" id="gf-buscar">
         <div class="fx-panel-body">
@@ -57,7 +67,7 @@
         <div class="fx-aviso ambar" role="alert">
             <i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i>
             <div>No hay un impuesto activo llamado <strong>IVA</strong>: esta factura saldría <strong>sin IVA</strong>.
-            Revíselo en <a href="{% url 'lista_impuestos' %}">Impuestos</a> antes de generarla.</div>
+            {% if fx_puede.impuestos %}Revíselo en <a href="{% url 'lista_impuestos' %}">Impuestos</a> antes de generarla.{% else %}Avise a quien administra los impuestos antes de generarla.{% endif %}</div>
         </div>
         {% endif %}
 
@@ -179,7 +189,7 @@
         <div class="fx-vacio">
             <i class="bi bi-check2-all" aria-hidden="true"></i>
             <p><strong>{{ obra.nombre }}</strong> no tiene servicios pendientes de facturar entre el {{ periodo.0|date:"d/m/Y" }} y el {{ periodo.1|date:"d/m/Y" }}.</p>
-            <a href="{% url 'historico_facturacion' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx">Ver su histórico</a>
+            {% if fx_puede.historico %}<a href="{% url 'historico_facturacion' %}?constructora={{ obra.constructora.pk }}&obra={{ obra.pk }}" class="btn btn-sm btn-fx">Ver su histórico</a>{% endif %}
         </div>
     </section>
     {% endif %}

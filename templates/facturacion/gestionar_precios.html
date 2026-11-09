@@ -22,7 +22,7 @@
         </div>
         <div class="lp-head-acciones">
             <a href="{% url 'precios_obras' %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i> Todas las obras</a>
-            <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-building" aria-hidden="true"></i> Ver obra</a>
+            {% if fx_puede.portal %}<a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-building" aria-hidden="true"></i> Ver obra</a>{% endif %}
         </div>
     </header>
 
@@ -85,7 +85,7 @@
     {% empty %}
     <div class="card lp-vacio">
         <i class="bi bi-journal-x" aria-hidden="true"></i>
-        <p>El catálogo de {{ request.ciudad_facturacion }} no tiene servicios. Créelos en <a href="{% url 'catalogo_servicios' %}">Catálogo de servicios</a>.</p>
+        <p>El catálogo de {{ request.ciudad_facturacion }} no tiene servicios. {% if fx_puede.catalogo %}Créelos en <a href="{% url 'catalogo_servicios' %}">Catálogo de servicios</a>.{% else %}Pida que los creen en el catálogo.{% endif %}</p>
     </div>
     {% endfor %}
 

@@ -18,7 +18,7 @@
             </p>
         </div>
         <div class="fx-acciones">
-            <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Registrar servicio</a>
+            {% if fx_puede.registrar %}<a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-primary"><i class="bi bi-plus-lg" aria-hidden="true"></i> Registrar servicio</a>{% endif %}
         </div>
     </header>
 
@@ -102,7 +102,7 @@
                             <a href="{% url 'historico_facturacion' %}" class="btn btn-sm btn-fx">Quitar filtros</a>
                             {% else %}
                             <p>Todavía no hay servicios registrados en esta sede.</p>
-                            <a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-primary">Registrar servicio</a>
+                            {% if fx_puede.registrar %}<a href="{% url 'crear_registro_facturacion' %}" class="btn btn-sm btn-primary">Registrar servicio</a>{% endif %}
                             {% endif %}
                         </div>
                     </td></tr>
