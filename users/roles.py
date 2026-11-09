@@ -92,8 +92,12 @@ def problemas_de(user):
         out.append(('rojo', 'Es de Geolab pero no tiene área: hoy el portal la trata como administrador total.'))
     if user.es_cliente and not user.es_geolab and not perfil_cliente(user):
         out.append(('ambar', 'Es cliente pero no tiene empresa: no puede ver nada.'))
-    if not user.es_geolab and not user.es_cliente and not user.is_superuser:
-        out.append(('ambar', 'No tiene rol: al entrar solo ve una página de espera.'))
+    if not user.es_geolab and not user.es_cliente:
+        if user.is_superuser:
+            out.append(('ambar', 'Es superusuario pero no tiene rol: al entrar al portal ve la página de espera '
+                                 'y no las pantallas de Geolab. Póngale el rol Administrativo.'))
+        else:
+            out.append(('ambar', 'No tiene rol: al entrar solo ve una página de espera.'))
     rol = rol_de(user)
     if rol == 'facturacion':
         acceso = acceso_facturacion(user)

@@ -162,7 +162,8 @@ sin permisos/obras/carpetas). Reglas: una cuenta no cambia de familia Geolab ↔
 recibe cualquier rol); nadie se quita su propio superusuario ni su acceso al admin, ni se desactiva. Superusuario (`is_superuser`:
 manda en el portal) y acceso al admin de Django (`is_staff`: `/admin/` lo exige) son interruptores separados; un
 superusuario sin `is_staff` tiene todo el portal pero no el admin. El enlace "Configuración Avanzada" del sidebar
-solo se muestra con `is_staff`. Al editar, el nombre y la contraseña son opcionales. `/usuarios/` (clientes) sigue para el
+solo se muestra con `is_staff`. Un superusuario sin rol (creado con `createsuperuser` o en `/admin/`: sin `es_geolab` ni perfil) ve la
+página de espera en el portal; el panel lo marca y le propone el rol Administrativo al editarlo. Al editar, el nombre y la contraseña son opcionales. `/usuarios/` (clientes) sigue para el
 staff administrativo, ahora con `es_admin_geolab` o superusuario (antes bastaba `es_geolab` y un técnico podía
 crear o desactivar clientes). Pruebas: `python manage.py test users.tests_panel`.
 

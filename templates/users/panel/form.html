@@ -120,7 +120,7 @@
     </header>
 
     {% for gravedad, texto in problemas %}
-    <div class="fx-aviso {{ gravedad }}" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div>{{ texto }} Al guardar con un rol queda corregido.</div></div>
+    <div class="fx-aviso {{ gravedad }}" role="alert"><i class="bi bi-exclamation-triangle-fill" aria-hidden="true"></i><div>{{ texto }} Al guardar con un rol queda corregido{% if sin_rol_sugerido %}: ya le dejamos marcado <strong>Administrativo</strong>{% endif %}.</div></div>
     {% endfor %}
 
     {% if usuario_editado %}

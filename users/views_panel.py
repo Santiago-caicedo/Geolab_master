@@ -182,6 +182,7 @@ def _contexto_form(form, usuario=None):
         'empresas': Constructora.objects.order_by('nombre').values('id', 'nombre', 'codigo', 'ciudad'),
         'problemas': roles.problemas_de(usuario) if usuario else [],
         'es_yo': bool(usuario and usuario.pk == form.actor.pk),
+        'sin_rol_sugerido': bool(usuario and not roles.rol_de(usuario) and form['rol'].value() == 'admin'),
     }
 
 

@@ -82,8 +82,13 @@ class UsuarioPanelForm(forms.Form):
     # ── iniciales de una cuenta existente ─────────────────────────────────
     @staticmethod
     def iniciales(usuario):
+        rol = roles.rol_de(usuario)
+        if not rol and usuario.is_superuser and not usuario.es_cliente:
+            # Superusuario creado con createsuperuser o desde /admin/: sin rol el portal no le abre las
+            # pantallas de Geolab. Se le propone Administrativo (todo el portal) para poder guardar.
+            rol = 'admin'
         datos = {
-            'rol': roles.rol_de(usuario) or '',
+            'rol': rol or '',
             'username': usuario.username, 'nombre': usuario.first_name,
             'apellido': usuario.last_name, 'email': usuario.email,
             'superusuario': usuario.is_superuser,

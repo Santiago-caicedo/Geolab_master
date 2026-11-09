@@ -243,6 +243,24 @@ class EditarTests(PanelBase):
         self.assertEqual(u.perfil_geolab.area, 'tecnico')
         self.assertFalse(u.es_admin_geolab)
 
+    def test_superusuario_de_createsuperuser_se_guarda_sin_pelear_con_el_rol(self):
+        """createsuperuser no marca es_geolab ni crea perfil: el panel le propone Administrativo."""
+        u = UsuarioBase.objects.create_superuser('jefe2', password=CLAVE)
+        r = self.client.get(reverse('panel_usuario', args=[u.pk]))
+        self.assertContains(r, 'no tiene rol')
+        self.assertContains(r, 'value="admin" data-familia="geolab" checked')
+        # Le quita el admin de Django y guarda sin tocar nada más
+        r = self.editar(u, admin_django='')
+        self.assertEqual(r.status_code, 302)
+        u.refresh_from_db()
+        self.assertTrue(u.is_superuser)
+        self.assertFalse(u.is_staff)
+        self.assertTrue(u.es_geolab)
+        self.assertEqual(u.perfil_geolab.area, 'admin')
+        # Y ya ve el portal de Geolab en vez de la página de espera
+        self.client.force_login(u)
+        self.assertTemplateUsed(self.client.get('/'), 'core/home_staff.html')
+
     def test_residente_cambia_de_obras_y_director_de_empresa(self):
         u = self.crear('residente', empresa=self.marval.pk, obras=[self.obra1.pk, self.obra2.pk])
         self.editar(u, obras=[self.obra2.pk])
