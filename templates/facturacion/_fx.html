@@ -61,6 +61,11 @@ Misma paleta que Precios por obra (.tar) y la lista de precios (.lp).
 .fx .ts-wrapper.single .ts-control { flex-wrap: nowrap; }
 .fx .ts-wrapper.single .ts-control > .item { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .fx-campos.compactos { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+/* En pantalla ancha, los nombres (empresa, obra, servicio) se llevan el espacio; las fechas tienen largo fijo */
+@media (min-width: 1200px) {
+    .fx-campos.filtro-historico { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.8fr) minmax(0, 1.3fr) 140px 140px auto; }
+    .fx-campos.filtro-factura { grid-template-columns: minmax(0, 1.4fr) minmax(0, 1.8fr) 160px 160px auto; }
+}
 
 /* Tablas */
 .fx-tabla { width: 100%; margin: 0; font-size: .875rem; border-collapse: separate; border-spacing: 0; }
@@ -171,6 +176,20 @@ tr.fx-anulada .fx-dinero { text-decoration: line-through; }
 @keyframes fx-entra { from { opacity: 0; transform: translateY(-6px); } }
 @media (prefers-reduced-motion: reduce) { .fx-toast { animation: none; } .fx-toast.sale { transition: none; } }
 </style>
+
+<script>
+// Selectores con buscador (Tom Select) de una sola opción: al elegir, sueltan el foco. Si no, el
+// campo de búsqueda sigue activo junto al nombre elegido, que se ve cortado y con el cursor parpadeando.
+// Para cambiar la elección basta con volver a hacer clic.
+document.addEventListener('change', (ev) => {
+    const ts = ev.target && ev.target.tomselect;
+    if (!ts || ts.settings.mode !== 'single') return;
+    // Nombre completo al pasar el ratón (los largos se recortan con "…")
+    const item = ts.control.querySelector('.item');
+    ts.control.title = item ? item.textContent.trim() : '';
+    if (ts.isFocused) setTimeout(() => ts.blur(), 0);
+}, true);
+</script>
 
 {% if messages %}
 <div class="fx-toasts" id="fx-toasts">
