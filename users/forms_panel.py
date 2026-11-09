@@ -36,6 +36,7 @@ class UsuarioPanelForm(forms.Form):
     password1 = forms.CharField(label='Contraseña', required=False, strip=False, widget=forms.PasswordInput)
     password2 = forms.CharField(label='Repetir contraseña', required=False, strip=False, widget=forms.PasswordInput)
     superusuario = forms.BooleanField(label='Superusuario', required=False)
+    admin_django = forms.BooleanField(label='Acceso al admin de Django', required=False)
 
     # Geolab
     codigo_empleado = forms.CharField(label='Código de empleado', max_length=20, required=False)
@@ -86,6 +87,7 @@ class UsuarioPanelForm(forms.Form):
             'username': usuario.username, 'nombre': usuario.first_name,
             'apellido': usuario.last_name, 'email': usuario.email,
             'superusuario': usuario.is_superuser,
+            'admin_django': usuario.is_staff,
         }
         geo = roles.perfil_geolab(usuario)
         if geo:
@@ -145,6 +147,8 @@ class UsuarioPanelForm(forms.Form):
         if self.usuario and self.actor and self.usuario.pk == self.actor.pk and self.usuario.is_superuser \
                 and not datos.get('superusuario'):
             self.add_error('superusuario', 'No puede quitarse a sí mismo el superusuario.')
+        if self.usuario and self.actor and self.usuario.pk == self.actor.pk and self.usuario.is_staff                 and not datos.get('admin_django'):
+            self.add_error('admin_django', 'No puede quitarse a sí mismo el acceso al admin de Django.')
 
         if not rol:
             return datos
@@ -186,11 +190,10 @@ class UsuarioPanelForm(forms.Form):
         usuario.email = d.get('email') or ''
         usuario.es_geolab = rol.familia == 'geolab'
         usuario.es_cliente = rol.familia == 'cliente'
-        # El superusuario entra también al admin de Django: darlo o quitarlo cambia los dos.
-        # Si no cambia, is_staff queda como estaba (alguien puede tener admin con permisos sueltos).
-        superusuario = bool(d.get('superusuario'))
-        if superusuario != usuario.is_superuser:
-            usuario.is_superuser = usuario.is_staff = superusuario
+        # Son independientes: el admin de Django exige is_staff, así que un superusuario sin él
+        # manda en todo el portal pero no entra a /admin/.
+        usuario.is_superuser = bool(d.get('superusuario'))
+        usuario.is_staff = bool(d.get('admin_django'))
         if d.get('password1'):
             usuario.set_password(d['password1'])
         usuario.save()

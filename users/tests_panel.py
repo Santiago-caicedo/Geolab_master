@@ -180,10 +180,24 @@ class CrearCadaRolTests(PanelBase):
         r = self.client.post(reverse('panel_usuario_nuevo'), self.datos('admin', password2='otra.cosa.2026'))
         self.assertIn('password2', r.context['form'].errors)
 
-    def test_crear_superusuario(self):
+    def test_crear_superusuario_sin_admin_de_django(self):
         u = self.crear('admin', superusuario='on')
         self.assertTrue(u.is_superuser)
-        self.assertTrue(u.is_staff)
+        self.assertFalse(u.is_staff)
+        # Manda en el portal (panel de usuarios) pero /admin/ no lo deja entrar
+        self.client.force_login(u)
+        self.assertEqual(self.client.get(reverse('panel_usuarios')).status_code, 200)
+        r = self.client.get('/admin/')
+        self.assertEqual(r.status_code, 302)
+        self.assertIn('/admin/login/', r['Location'])
+        self.assertNotContains(self.client.get('/'), 'Configuración Avanzada')
+
+    def test_crear_con_admin_de_django(self):
+        u = self.crear('admin', superusuario='on', admin_django='on')
+        self.assertTrue(u.is_superuser and u.is_staff)
+        self.client.force_login(u)
+        self.assertEqual(self.client.get('/admin/').status_code, 200)
+        self.assertContains(self.client.get('/'), 'Configuración Avanzada')
 
 
 class EditarTests(PanelBase):
@@ -256,7 +270,17 @@ class EditarTests(PanelBase):
         self.assertEqual(r.status_code, 302)
         u.refresh_from_db()
         self.assertFalse(u.is_superuser)
+        self.assertTrue(u.is_staff)  # son independientes: el admin de Django se quita aparte
+        self.editar(u, admin_django='')
+        u.refresh_from_db()
         self.assertFalse(u.is_staff)
+
+    def test_no_se_quita_su_propio_admin_de_django(self):
+        r = self.editar(self.super, admin_django='')
+        self.assertEqual(r.status_code, 200)
+        self.assertIn('admin_django', r.context['form'].errors)
+        self.super.refresh_from_db()
+        self.assertTrue(self.super.is_staff)
 
     def test_cambiar_su_propia_clave_no_cierra_su_sesion(self):
         r = self.editar(self.super, password1='Nueva.Clave.2026', password2='Nueva.Clave.2026')

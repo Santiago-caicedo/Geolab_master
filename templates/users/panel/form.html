@@ -46,6 +46,8 @@
 .pf-switch { display: flex; gap: .75rem; align-items: flex-start; margin: 0; cursor: pointer; padding: .75rem 1rem; border-top: 1px solid var(--line); background: var(--fondo); }
 .pf-switch .form-check-input { margin: .15rem 0 0; width: 2.2em; height: 1.2em; flex: none; cursor: pointer; }
 .pf-switch .form-check-input:checked { background-color: #6d28d9; border-color: #6d28d9; }
+.pf-switch + .pf-switch { border-top-style: dashed; }
+.pf-switch-admin .form-check-input:checked { background-color: var(--ink); border-color: var(--ink); }
 .pf-switch strong { display: block; font-size: .875rem; color: var(--ink); }
 .pf-switch small { display: block; font-size: .78rem; color: var(--muted); line-height: 1.35; }
 
@@ -229,8 +231,15 @@
                 <label class="pf-switch form-switch">
                     <input type="checkbox" class="form-check-input" role="switch" name="superusuario" {% if form.superusuario.value %}checked{% endif %}>
                     <span><strong>Superusuario</strong>
-                        <small>Ve y cambia todo, entra al admin de Django y a este panel, sin importar el rol. Désela solo a quien administra el portal.</small>
+                        <small>Manda en todo el portal sin importar el rol: este panel, los usuarios de Facturación y eliminar informes. Désela solo a quien administra el portal.</small>
                         {% if form.superusuario.errors %}<span class="pf-error d-block">{{ form.superusuario.errors.0 }}</span>{% endif %}
+                    </span>
+                </label>
+                <label class="pf-switch form-switch pf-switch-admin">
+                    <input type="checkbox" class="form-check-input" role="switch" name="admin_django" {% if form.admin_django.value %}checked{% endif %}>
+                    <span><strong>Acceso al admin de Django</strong>
+                        <small>Entra a Configuración avanzada (/admin/), donde se ven y cambian las tablas de la base directamente. Aparte del superusuario: normalmente solo para quien da soporte técnico.</small>
+                        {% if form.admin_django.errors %}<span class="pf-error d-block">{{ form.admin_django.errors.0 }}</span>{% endif %}
                     </span>
                 </label>
             </section>

@@ -56,7 +56,7 @@ def _usuarios():
 def _alcance(u, rol):
     """Lo que la persona puede ver, en pocas palabras, para la lista."""
     if u.is_superuser:
-        return 'Todo el portal y la administración'
+        return 'Todo el portal, incluida la administración de usuarios'
     if rol in roles.TODO_EL_PORTAL:
         return 'Todo el portal'
     if rol == 'tecnico':

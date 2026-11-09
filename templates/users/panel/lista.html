@@ -50,6 +50,7 @@
 .pu-roltag i { color: var(--link); }
 .pu-super { display: inline-flex; align-items: center; gap: .25rem; font-size: .7rem; font-weight: 650; color: #6d28d9; background: #f1ebfd;
             border-radius: 999px; padding: .1rem .5rem; margin-top: .2rem; }
+.pu-super.pu-django { color: var(--ink); background: #e8edf6; }
 .pu-sinrol { color: var(--rojo); font-weight: 600; font-size: .8125rem; }
 .pu-alcance { font-size: .8125rem; }
 .pu-alcance .empresa { display: block; color: var(--muted); font-size: .78rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -161,6 +162,7 @@ tr.pu-inactivo .pu-persona strong .fx-estado { color: var(--rojo); }
                                 {% if u.rol %}<span class="pu-roltag"><i class="bi bi-{{ u.rol.icono }}" aria-hidden="true"></i>{{ u.rol.nombre }}</span>
                                 {% elif not u.is_superuser %}<span class="pu-sinrol">Sin rol</span>{% endif %}
                                 {% if u.is_superuser %}<div><span class="pu-super"><i class="bi bi-shield-lock-fill" aria-hidden="true"></i>Superusuario</span></div>{% endif %}
+                                {% if u.is_staff %}<div><span class="pu-super pu-django"><i class="bi bi-gear-wide-connected" aria-hidden="true"></i>Admin Django</span></div>{% endif %}
                             </td>
                             <td class="pu-alcance">{{ u.alcance }}
                                 {% if u.empresa %}<span class="empresa" title="{{ u.empresa.nombre }}">{{ u.empresa.nombre }} <span class="fx-cod suave">{{ u.empresa.codigo }}</span></span>{% endif %}

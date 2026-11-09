@@ -57,9 +57,11 @@
         </a>
         {% endif %}
 
+        {% if request.user.is_staff %}
         <a href="/admin/" class="nav-link" target="_blank">
             <i class="bi bi-gear-wide-connected"></i> Configuración Avanzada
         </a>
+        {% endif %}
 
         <div class="flex-grow-1"></div>
 
