@@ -1,4 +1,5 @@
 {% extends 'base_facturacion.html' %}
+{% load fx %}
 {% block title %}Precios por obra{% endblock %}
 
 {% block content %}
@@ -7,7 +8,7 @@
     <header class="tar-head">
         <h1 class="tar-title">Precios por obra</h1>
         <p class="tar-lead">
-            <strong>{{ resumen.con }} de {{ total_obras }}</strong> obra{{ total_obras|pluralize }} de {{ request.ciudad_facturacion }}
+            <strong>{{ resumen.con|cifra }} de {{ total_obras|cifra }}</strong> obra{{ total_obras|pluralize }} de {{ request.ciudad_facturacion }}
             tiene{{ resumen.con|pluralize:"n" }} lista de precios.
             {% if resumen.atender %}
             <span class="tar-alerta">{{ resumen.atender }} recibe{{ resumen.atender|pluralize:"n" }} informes y aún no la tiene{{ resumen.atender|pluralize:"n" }}.</span>
@@ -22,7 +23,7 @@
         </div>
         <div class="tar-filtros" role="group" aria-label="Filtrar obras">
             <button type="button" class="tar-filtro" data-estado="" aria-pressed="true">
-                <span class="nombre">Todas</span><span class="n">{{ total_obras }}</span>
+                <span class="nombre">Todas</span><span class="n">{{ total_obras|cifra }}</span>
             </button>
             {% for t in tramos %}
             <button type="button" class="tar-filtro" data-estado="{{ t.clave }}" aria-pressed="false" {% if not t.n %}disabled{% endif %}>
@@ -69,7 +70,7 @@
                             <span class="tar-obra-nombre">{{ o.nombre }}</span>
                             <span class="tar-estado {{ o.estado }}">
                                 {% if o.estado == 'con' %}
-                                    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ o.n_precios }} precio{{ o.n_precios|pluralize }}
+                                    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ o.n_precios|cifra }} precio{{ o.n_precios|pluralize }}
                                 {% elif o.estado == 'atender' %}
                                     <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Sin lista
                                 {% else %}
@@ -104,7 +105,7 @@
         </div>
     </section>
 
-    <p class="tar-pie">El catálogo de {{ request.ciudad_facturacion }} tiene {{ total_servicios }} servicios; cada obra solo lleva precio en los que se le cobran.</p>
+    <p class="tar-pie">El catálogo de {{ request.ciudad_facturacion }} tiene {{ total_servicios|cifra }} servicios; cada obra solo lleva precio en los que se le cobran.</p>
 </div>
 {% endblock %}
 

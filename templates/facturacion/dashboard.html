@@ -1,4 +1,5 @@
 {% extends 'base_facturacion.html' %}
+{% load fx %}
 
 {% block title %}Facturación · {{ request.ciudad_facturacion }}{% endblock %}
 
@@ -123,9 +124,9 @@
                 <div class="inf-eyebrow">Facturación · {{ request.ciudad_facturacion }}</div>
                 <h1 class="inf-title">{{ hoy|date:"F Y"|capfirst }}</h1>
                 <p class="fc-dia mb-0">
-                    {% if facturas_mes %}<strong>${{ total_mes|floatformat:"0g" }}</strong> en {{ facturas_mes }} factura{{ facturas_mes|pluralize }}{% else %}Aún no hay facturas este mes{% endif %}
+                    {% if facturas_mes %}<strong>{{ total_mes|pesos }}</strong> en {{ facturas_mes|cifra }} factura{{ facturas_mes|pluralize }}{% else %}Aún no hay facturas este mes{% endif %}
                     {% if variacion is not None %}<span class="fc-var {% if variacion >= 0 %}sube{% else %}baja{% endif %}" title="Frente al mismo tramo del mes anterior">{% if variacion >= 0 %}▲ {{ variacion }}{% else %}▼ {{ variacion|stringformat:"d"|cut:"-" }}{% endif %} %</span>{% endif %}
-                    · {% if por_facturar_n %}<strong>{{ por_facturar_n }}</strong> servicio{{ por_facturar_n|pluralize }} sin facturar{% else %}todo lo registrado está facturado{% endif %}
+                    · {% if por_facturar_n %}<strong>{{ por_facturar_n|cifra }}</strong> servicio{{ por_facturar_n|pluralize }} sin facturar{% else %}todo lo registrado está facturado{% endif %}
                 </p>
             </div>
             <div class="inf-actions">
@@ -136,23 +137,23 @@
         <div class="inf-hero-facts" aria-label="Resumen de la sede">
             <div class="dato">
                 <div class="eti">Facturado este mes</div>
-                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ total_mes|floatformat:"0g" }}</div>
-                <div class="sub">{{ facturas_mes }} factura{{ facturas_mes|pluralize }} emitida{{ facturas_mes|pluralize }}</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ total_mes|cifra }}</div>
+                <div class="sub">{{ facturas_mes|cifra }} factura{{ facturas_mes|pluralize }} emitida{{ facturas_mes|pluralize }}</div>
             </div>
             <div class="dato">
                 <div class="eti">Por facturar</div>
-                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_facturar_total|floatformat:"0g" }}</div>
-                <div class="sub">{{ por_facturar_n }} servicio{{ por_facturar_n|pluralize }} registrado{{ por_facturar_n|pluralize }}</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_facturar_total|cifra }}</div>
+                <div class="sub">{{ por_facturar_n|cifra }} servicio{{ por_facturar_n|pluralize }} registrado{{ por_facturar_n|pluralize }}</div>
             </div>
             <div class="dato">
                 <div class="eti">Por cobrar</div>
-                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_cobrar_total|floatformat:"0g" }}</div>
+                <div class="val pesos fc-pesos"><span class="sig">$</span>{{ por_cobrar_total|cifra }}</div>
                 <div class="sub">{{ por_cobrar_n }} factura{{ por_cobrar_n|pluralize }} sin pagar</div>
             </div>
             <div class="dato">
                 <div class="eti">Clientes de la sede</div>
-                <div class="val">{{ total_constructoras }}</div>
-                <div class="sub">{{ total_obras }} obra{{ total_obras|pluralize }}</div>
+                <div class="val">{{ total_constructoras|cifra }}</div>
+                <div class="sub">{{ total_obras|cifra }} obra{{ total_obras|pluralize }}</div>
             </div>
         </div>
     </section>
@@ -184,7 +185,7 @@
                             </td>
                             <td class="num fc-col-n"><span class="inf-cifra">{{ o.n }}</span>{% if o.aplazados %}<span class="fc-edad">{{ o.aplazados }} aplazado{{ o.aplazados|pluralize }}</span>{% endif %}</td>
                             <td class="num">
-                                <span class="valor fc-pesos">${{ o.total|floatformat:"0g" }}</span>
+                                <span class="valor fc-pesos">{{ o.total|pesos }}</span>
                                 <span class="fc-edad{% if o.dias > 30 %} vieja{% endif %}">desde {{ o.desde|date:"j M" }}</span>
                             </td>
                             <td class="inf-acc">
@@ -196,7 +197,7 @@
                 </table>
                 <div class="fc-pie">
                     <span>Ordenadas por valor. «Facturar» abre la factura con el periodo de esos servicios.</span>
-                    <span>Total <strong class="fc-pesos">${{ por_facturar_total|floatformat:"0g" }}</strong></span>
+                    <span>Total <strong class="fc-pesos">{{ por_facturar_total|pesos }}</strong></span>
                 </div>
                 {% else %}
                 <div class="fc-vacio"><i class="bi bi-check2-circle"></i>No hay servicios pendientes: todo lo registrado ya está facturado.</div>
@@ -213,8 +214,8 @@
                         {% for x in serie %}
                         <div class="fc-b{% if x.actual %} actual{% endif %}" style="--alto: {{ x.alto|stringformat:'s' }}%" tabindex="-1">
                             <i style="height: {{ x.alto|stringformat:'s' }}%"></i>
-                            {% if x.actual or x.pico %}<span class="etq">${{ x.total|floatformat:"0g" }}</span>{% endif %}
-                            <span class="tip">${{ x.total|floatformat:"0g" }}<small>{{ x.mes|date:"F Y"|capfirst }}</small></span>
+                            {% if x.actual or x.pico %}<span class="etq">{{ x.total|pesos }}</span>{% endif %}
+                            <span class="tip">{{ x.total|pesos }}<small>{{ x.mes|date:"F Y"|capfirst }}</small></span>
                         </div>
                         {% endfor %}
                     </div>
@@ -224,12 +225,12 @@
                     <table class="visually-hidden">
                         <caption>Facturado por mes, últimos 12 meses</caption>
                         <thead><tr><th scope="col">Mes</th><th scope="col">Facturado</th></tr></thead>
-                        <tbody>{% for x in serie %}<tr><th scope="row">{{ x.mes|date:"F Y" }}</th><td>${{ x.total|floatformat:"0g" }}</td></tr>{% endfor %}</tbody>
+                        <tbody>{% for x in serie %}<tr><th scope="row">{{ x.mes|date:"F Y" }}</th><td>{{ x.total|pesos }}</td></tr>{% endfor %}</tbody>
                     </table>
                 </div>
                 <div class="fc-chart-pie">
                     <span>Pasa el mouse sobre una barra para ver el valor del mes.</span>
-                    <span>12 meses: <strong class="fc-pesos">${{ total_12m|floatformat:"0g" }}</strong></span>
+                    <span>12 meses: <strong class="fc-pesos">{{ total_12m|pesos }}</strong></span>
                 </div>
             </section>
         </div>
@@ -248,7 +249,7 @@
                         <div class="fila">
                             <span class="inf-code">{{ c.constructora__codigo }}</span>
                             {% if fx_puede.repositorio %}<a class="nom inf-nombre" href="{% url 'repositorio_obras_cliente' c.constructora %}">{{ c.constructora__nombre }}</a>{% else %}<span class="nom inf-nombre">{{ c.constructora__nombre }}</span>{% endif %}
-                            <span class="val fc-pesos">${{ c.total|floatformat:"0g" }}</span>
+                            <span class="val fc-pesos">{{ c.total|pesos }}</span>
                         </div>
                         <div class="barra" aria-hidden="true"><i style="width: {{ c.ancho }}%"></i></div>
                         <div class="sub">{{ c.n }} factura{{ c.n|pluralize }}</div>
@@ -273,7 +274,7 @@
                         <div class="it">
                             <span class="no"><span class="inf-num ot">N.º {{ f.pk }}</span></span>
                             <span class="obra">{{ f.obra.nombre }}</span>
-                            <span class="monto fc-pesos">${{ f.total|floatformat:"0g" }}</span>
+                            <span class="monto fc-pesos">{{ f.total|pesos }}</span>
                             <span class="det">{{ f.constructora.nombre }} · {{ f.fecha_emision|date:"j M Y" }}</span>
                             <span class="fc-estado {{ f.estado }}">{{ f.get_estado_display }}</span>
                         </div>
@@ -300,7 +301,7 @@
                             <span class="nom" title="{{ s.tipo_servicio__nombre }}">{{ s.tipo_servicio__nombre }}</span>
                             <span class="val"><span class="inf-cifra">{{ s.n }}</span></span>
                         </div>
-                        <div class="sub fc-pesos">${{ s.total|floatformat:"0g" }} registrados</div>
+                        <div class="sub fc-pesos">{{ s.total|pesos }} registrados</div>
                     </li>
                     {% endfor %}
                 </ul>

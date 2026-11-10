@@ -1,3 +1,4 @@
+{% load fx %}
 <!DOCTYPE html>
 <html>
 <head>
@@ -171,9 +172,9 @@
                 <td>{{ r.tipo_servicio.codigo }}</td>
                 <td>{{ r.tipo_servicio.nombre }}</td>
                 <td>{{ r.numero_informe }}</td>
-                <td class="text-center">{{ r.cantidad }}</td>
-                <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
-                <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
+                <td class="text-center">{{ r.cantidad|cifra }}</td>
+                <td class="text-end">{{ r.precio_unitario_congelado|pesos }}</td>
+                <td class="text-end fw-bold">{{ r.subtotal|pesos }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -200,9 +201,9 @@
                 <td>{{ r.fecha_realizacion|date:"d/m/Y" }}</td>
                 <td>{{ r.tipo_servicio.nombre }}</td>
                 <td>{{ r.numero_informe }}</td>
-                <td class="text-center">{{ r.cantidad }}</td>
-                <td class="text-end">${{ r.precio_unitario_congelado|floatformat:2 }}</td>
-                <td class="text-end fw-bold">${{ r.subtotal|floatformat:2 }}</td>
+                <td class="text-center">{{ r.cantidad|cifra }}</td>
+                <td class="text-end">{{ r.precio_unitario_congelado|pesos }}</td>
+                <td class="text-end fw-bold">{{ r.subtotal|pesos }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -213,15 +214,15 @@
     <table class="totales">
         <tr>
             <td>Subtotal:</td>
-            <td class="text-end">${{ factura.subtotal|floatformat:2 }}</td>
+            <td class="text-end">{{ factura.subtotal|pesos }}</td>
         </tr>
         <tr>
             <td>IVA{% if factura.iva_transporte_facturado %} (incluye transporte){% endif %}:</td>
-            <td class="text-end">${{ factura.monto_iva|floatformat:2 }}</td>
+            <td class="text-end">{{ factura.monto_iva|pesos }}</td>
         </tr>
         <tr class="total-final">
             <td>TOTAL:</td>
-            <td class="text-end">${{ factura.total|floatformat:2 }}</td>
+            <td class="text-end">{{ factura.total|pesos }}</td>
         </tr>
     </table>
 

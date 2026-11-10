@@ -12,7 +12,7 @@
         <div>
             <h1 class="fx-titulo">Histórico de registros</h1>
             <p class="fx-sub">
-                <strong>{{ total_registros }}</strong> registro{{ total_registros|pluralize }}{% if hay_filtros %} con estos filtros{% endif %}
+                <strong>{{ total_registros|cifra }}</strong> registro{{ total_registros|pluralize }}{% if hay_filtros %} con estos filtros{% endif %}
                 {% if totales.total %}· {{ totales.total|pesos }} en total{% endif %}
                 {% if totales.n_pendientes %}· <span class="text-nowrap" style="color: var(--ambar)">{{ totales.pendiente|pesos }} por facturar ({{ totales.n_pendientes }})</span>{% endif %}
             </p>

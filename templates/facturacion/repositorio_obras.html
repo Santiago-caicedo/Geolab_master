@@ -26,7 +26,7 @@
                         <strong>{{ o.nombre }}</strong>
                         <span class="fx-sec"><span class="fx-cod suave">{{ o.codigo_obra }}</span></span>
                     </span>
-                    <span class="fx-cifra opc"><b>{{ o.total_facturas }}</b><small>factura{{ o.total_facturas|pluralize }}</small></span>
+                    <span class="fx-cifra opc"><b>{{ o.total_facturas|cifra }}</b><small>factura{{ o.total_facturas|pluralize }}</small></span>
                     <span class="fx-cifra"><b>{{ o.total_facturado|pesos }}</b><small>facturado</small></span>
                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>

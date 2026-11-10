@@ -24,7 +24,7 @@
                         <strong>{{ c.nombre }}</strong>
                         <span class="fx-sec"><span class="fx-cod">{{ c.codigo }}</span>{% if c.nit %} &nbsp;NIT {{ c.nit }}{% endif %}</span>
                     </span>
-                    <span class="fx-cifra opc"><b>{{ c.total_facturas }}</b><small>factura{{ c.total_facturas|pluralize }}</small></span>
+                    <span class="fx-cifra opc"><b>{{ c.total_facturas|cifra }}</b><small>factura{{ c.total_facturas|pluralize }}</small></span>
                     <span class="fx-cifra"><b>{{ c.total_facturado|pesos }}</b><small>facturado</small></span>
                     <i class="bi bi-chevron-right" aria-hidden="true"></i>
                 </a>

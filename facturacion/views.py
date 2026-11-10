@@ -25,6 +25,7 @@ from .models import (
     CategoriaServicio, TipoServicio, PrecioServicio,
     Impuesto, RegistroServicio, Factura,
 )
+from .formato import texto_precio
 from .forms import (
     CategoriaServicioForm, TipoServicioForm, PrecioServicioForm,
     ImpuestoForm, RegistroServicioForm,
@@ -1143,7 +1144,7 @@ def finalizar_factura(request):
 
         messages.success(
             request,
-            f'Factura #{factura.pk} generada exitosamente. Total: ${total:,.2f}'
+            f'Factura #{factura.pk} generada exitosamente. Total: $ {texto_precio(total)}'
         )
         return _ir_a_factura(request, factura)
 

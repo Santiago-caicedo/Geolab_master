@@ -1,4 +1,5 @@
 {% extends 'base_facturacion.html' %}
+{% load fx %}
 {% block title %}Precios · {{ obra.nombre }}{% endblock %}
 
 {% block content %}
@@ -16,7 +17,7 @@
         <div class="lp-head-texto">
             <h1 class="lp-titulo">{{ obra.nombre }} <span class="lp-codigo">{{ obra.codigo_obra }}</span></h1>
             <p class="lp-resumen">
-                <strong id="lp-con-precio">{{ con_precio }}</strong> de {{ total_servicios }} servicios del catálogo
+                <strong id="lp-con-precio">{{ con_precio|cifra }}</strong> de {{ total_servicios|cifra }} servicios del catálogo
                 tienen precio en esta obra.
             </p>
         </div>
@@ -388,7 +389,7 @@
                 aviso(tr, datos.valor ? 'Guardado' : 'Precio quitado');
                 tr._timerListo = setTimeout(() => { tr.classList.remove('listo'); if (!tr.classList.contains('pendiente')) aviso(tr, ''); }, 1800);
             }
-            if (typeof datos.con_precio === 'number') document.getElementById('lp-con-precio').textContent = datos.con_precio;
+            if (typeof datos.con_precio === 'number') document.getElementById('lp-con-precio').textContent = String(datos.con_precio).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
             contarCategoria(tr);
             return true;
         }

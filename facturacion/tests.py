@@ -1191,3 +1191,30 @@ class PantallasFacturacionTests(TestCase):
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'class="error" id="err-pct"')
 
+
+
+class FormatoCifrasTests(SimpleTestCase):
+    """Toda cifra de Facturación sale con punto de miles y conserva los centavos."""
+
+    def test_filtros(self):
+        from .templatetags.fx import cifra, pesos
+        self.assertEqual(pesos(Decimal('2815000')), '$ 2.815.000')
+        self.assertEqual(pesos(Decimal('1234567.50')), '$ 1.234.567,50')
+        self.assertEqual(pesos(Decimal('0.05')), '$ 0,05')
+        self.assertEqual(cifra(13575), '13.575')
+        self.assertEqual(cifra(0), '0')
+
+    def test_pdf_de_factura(self):
+        from types import SimpleNamespace as N
+        from django.template.loader import render_to_string
+        r = N(fecha_realizacion=None, tipo_servicio=N(codigo='1-1', nombre='Cilindros'), numero_informe='INF 1',
+              cantidad=1200, precio_unitario_congelado=Decimal('6750.50'), subtotal=Decimal('8100600.00'))
+        factura = N(pk=1, subtotal=Decimal('8100600'), monto_iva=Decimal('1539114.25'), total=Decimal('9639714.25'),
+                    iva_transporte_facturado=False, fecha_inicio_periodo=None, fecha_fin_periodo=None,
+                    fecha_emision=None, estado='PENDIENTE', get_estado_display=lambda: 'Pendiente',
+                    constructora=N(nombre='X', nit='', codigo=''), obra=N(nombre='Y', codigo_obra=''))
+        html = render_to_string('facturacion/factura_pdf.html', {
+            'factura': factura, 'registros_normales': [r], 'registros_transporte': [], 'logo_base64': ''})
+        for texto in ('$ 6.750,50', '$ 8.100.600', '$ 1.539.114,25', '$ 9.639.714,25', '1.200'):
+            self.assertIn(texto, html)
+        self.assertNotIn('8100600', html)

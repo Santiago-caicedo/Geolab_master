@@ -1,4 +1,5 @@
 {% extends 'base_facturacion.html' %}
+{% load fx %}
 {% block title %}Catálogo de servicios{% endblock %}
 
 {% block content %}
@@ -7,7 +8,7 @@
         <div class="lp-head-texto">
             <h1 class="lp-titulo">Catálogo de servicios</h1>
             <p class="lp-resumen">
-                <strong>{{ total_servicios }}</strong> servicio{{ total_servicios|pluralize }} en {{ categorias|length }} categoría{{ categorias|length|pluralize }}
+                <strong>{{ total_servicios|cifra }}</strong> servicio{{ total_servicios|pluralize }} en {{ categorias|length }} categoría{{ categorias|length|pluralize }}
                 de {{ request.ciudad_facturacion }}. El precio de cada uno se pone en la lista de cada obra.
             </p>
         </div>
@@ -61,8 +62,8 @@
                         <td class="c-serv"><span class="lp-cod lp-cod-m" aria-hidden="true">{{ s.codigo }}</span>{{ s.nombre }}</td>
                         <td class="c-norma">{{ s.norma|default:"—" }}</td>
                         <td class="c-uso">
-                            {% if s.n_obras %}<span class="cat-uso si">{{ s.n_obras }} obra{{ s.n_obras|pluralize }}</span>{% else %}<span class="cat-uso">Sin precio</span>{% endif %}
-                            {% if s.n_registros %}<span class="cat-reg">{{ s.n_registros }} registro{{ s.n_registros|pluralize }}</span>{% endif %}
+                            {% if s.n_obras %}<span class="cat-uso si">{{ s.n_obras|cifra }} obra{{ s.n_obras|pluralize }}</span>{% else %}<span class="cat-uso">Sin precio</span>{% endif %}
+                            {% if s.n_registros %}<span class="cat-reg">{{ s.n_registros|cifra }} registro{{ s.n_registros|pluralize }}</span>{% endif %}
                         </td>
                         <td class="c-acc">
                             <a href="{% url 'editar_servicio_facturacion' s.pk %}" class="cat-icono" title="Editar" aria-label="Editar {{ s.codigo }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
