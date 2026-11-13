@@ -47,13 +47,13 @@
 
         <div class="nav-section">ADMINISTRACIÓN</div>
 
-        {% if request.user.is_superuser %}
-        <a href="{% url 'panel_usuarios' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
-            <i class="bi bi-people"></i> Panel de Usuarios
+        <a href="{% url 'lista_usuarios_cliente' %}" class="nav-link {% if 'usuarios' in request.path and '/usuarios/panel/' not in request.path %}active{% endif %}">
+            <i class="bi bi-person-lines-fill"></i> Usuarios
         </a>
-        {% else %}
-        <a href="{% url 'lista_usuarios_cliente' %}" class="nav-link {% if 'usuarios' in request.path %}active{% endif %}">
-            <i class="bi bi-people"></i> Usuarios y Accesos
+
+        {% if request.user.is_superuser %}
+        <a href="{% url 'panel_usuarios' %}" class="nav-link {% if '/usuarios/panel/' in request.path %}active{% endif %}">
+            <i class="bi bi-people"></i> Panel de Usuarios
         </a>
         {% endif %}
 
