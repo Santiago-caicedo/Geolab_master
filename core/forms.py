@@ -135,10 +135,12 @@ class InformeForm(forms.Form):
 
     def informes_repetidos(self, obra):
         """Títulos que la obra ya tiene (se cargan igual, pero se avisa)."""
+        # Se compara sin tildes, guiones ni extensión: la copia que trae WordPress se llama
+        # 'INF-0340-2026-VIGAS.pdf' y la que se sube aquí 'INF 0340-2026 VIGAS'
+        from .informes_duplicados import clave_titulo
         titulos = [titulo_desde_archivo(a.name) for a in self.cleaned_data['archivos']]
-        existentes = set(
-            obra.informes.filter(titulo__in=titulos).values_list('titulo', flat=True))
-        return [t for t in titulos if t in existentes]
+        existentes = {clave_titulo(t) for t in obra.informes.values_list('titulo', flat=True)}
+        return [t for t in titulos if clave_titulo(t) in existentes]
 
 
 class ConstructoraForm(forms.ModelForm):

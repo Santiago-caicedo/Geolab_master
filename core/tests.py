@@ -254,6 +254,42 @@ class SincronizarWordpressTests(TestCase):
         self.assertIn('DRY-RUN', salida)
         self.assertFalse(Obra.objects.filter(id_wp_original=501).exists())
 
+    def test_no_trae_informes_ya_subidos_a_mano(self):
+        # El laboratorio subió INF-0002 en el portal y también en WordPress: no se trae la copia
+        self._run('--sin-informes')
+        ambala = Obra.objects.get(id_wp_original=501)
+        manual = Informe.objects.create(titulo='INF 0002', obra=ambala)
+        salida = self._run()
+        self.assertEqual(list(Informe.objects.filter(id_wp_original=902).values_list('id_wp_adjunto', flat=True)), [952])
+        self.assertTrue(Informe.objects.filter(pk=manual.pk).exists())
+        self.assertIn('1 ya subidos a mano en el portal', salida)
+        self.assertIn('0 creados', self._run())
+
+    def test_comando_borra_la_copia_de_wordpress(self):
+        from core.models import InformeEliminado
+        self._run()
+        ambala = Obra.objects.get(id_wp_original=501)
+        manual = Informe.objects.create(titulo='INF 0003', obra=ambala)          # duplicado de WP 902/952
+        otra = Obra.objects.create(nombre='Otra', codigo_obra='IBA8-9', constructora=ambala.constructora)
+        Informe.objects.create(titulo='INF-0002', obra=otra)                      # misma empresa, otra obra: solo se avisa
+        out = StringIO()
+        call_command('informes_duplicados', stdout=out)
+        self.assertIn('Copias de WordPress de informes ya subidos en el portal: 1', out.getvalue())
+        self.assertIn('Para revisar a mano (NO se borran): 1', out.getvalue())
+        self.assertTrue(Informe.objects.filter(id_wp_original=902, id_wp_adjunto=952).exists())   # sin --aplicar no borra
+        call_command('informes_duplicados', '--aplicar', stdout=StringIO())
+        self.assertFalse(Informe.objects.filter(id_wp_original=902, id_wp_adjunto=952).exists())
+        self.assertTrue(Informe.objects.filter(id_wp_original=902, id_wp_adjunto=951).exists())
+        self.assertTrue(Informe.objects.filter(pk=manual.pk).exists())
+        self.assertTrue(InformeEliminado.objects.filter(id_wp_original=902, id_wp_adjunto=952).exists())
+        self.assertIn('0 creados', self._run())   # la sincronización no la vuelve a traer
+
+    def test_clave_de_titulo(self):
+        from core.informes_duplicados import clave_titulo
+        self.assertEqual(clave_titulo('INF 4884-2026 COMPRESIÓN CILINDROS.xlsx'),
+                         clave_titulo('INF-4884-2026-COMPRESION-CILINDROS.xlsx.pdf'))
+        self.assertNotEqual(clave_titulo('INF-4884-2026'), clave_titulo('INF-4885-2026'))
+
     def test_no_borra_constructora_con_facturas(self):
         # una constructora vacía con factura no se toca, se avisa
         vacia = Constructora.objects.create(codigo='BUC99', nombre='VIEJA', ciudad='Bucaramanga')

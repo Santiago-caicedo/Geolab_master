@@ -115,11 +115,18 @@ Avisa los cambios con el evento "pdfs:cambio" (detail.total, detail.repetidos) e
     const totalEl = document.getElementById('cgPreviaTotal');
     const rechazo = document.getElementById('cgRechazo');
     let seleccion = [];          // File[] elegidos (se van sumando)
-    let existentes = new Set();  // títulos (en minúscula) que la obra ya tiene
+    let existentes = new Set();  // claves (claveInforme) de los títulos que la obra ya tiene
 
     const esPdf = f => f.name.toLowerCase().endsWith('.pdf') && (f.type === 'application/pdf' || f.type === '');
     const titulo = n => n.replace(/\.pdf$/i, '').trim();          // = forms.titulo_desde_archivo
     const clave = f => titulo(f.name).toLowerCase();
+    // = core/informes_duplicados.clave_titulo: la copia de WordPress se llama distinto
+    // ('INF-0340-2026-VIGAS.pdf' frente a 'INF 0340-2026 VIGAS') y también cuenta como repetida
+    const claveInforme = t => {
+        let s = (t || '').normalize('NFKD').replace(/\p{M}/gu, '').toLowerCase().trim();
+        while (/\.(pdf|xlsx|xlsm|xls|docx|doc)$/.test(s)) s = s.replace(/\.(pdf|xlsx|xlsm|xls|docx|doc)$/, '').trim();
+        return s.replace(/[^a-z0-9]/g, '');
+    };
 
     // Misma lectura que el filtro partes_informe (core/templatetags/informes_tags.py)
     const NUMERO = /^\s*INF?[\s_\-.]*(\d{1,6})(?:[\s_\-.]+((?:19|20)\d{2}|\d{2}))?(?!\d)[\s_\-.]*/i;
@@ -155,7 +162,7 @@ Avisa los cambios con el evento "pdfs:cambio" (detail.total, detail.repetidos) e
         filas.innerHTML = '';
         let repetidos = 0;
         seleccion.forEach((f, i) => {
-            const tit = titulo(f.name), p = partes(tit), ya = existentes.has(tit.toLowerCase());
+            const tit = titulo(f.name), p = partes(tit), ya = existentes.has(claveInforme(tit));
             if (ya) repetidos++;
             const tr = el('tr', 'inf-row' + (ya ? ' repetido' : ''));
 
@@ -219,7 +226,7 @@ Avisa los cambios con el evento "pdfs:cambio" (detail.total, detail.repetidos) e
     });
     // La pantalla avisa qué títulos ya tiene la obra elegida
     document.addEventListener('obra:titulos', e => {
-        existentes = new Set((e.detail.titulos || []).map(t => t.toLowerCase()));
+        existentes = new Set((e.detail.titulos || []).map(claveInforme));
         sincronizar();
     });
 })();

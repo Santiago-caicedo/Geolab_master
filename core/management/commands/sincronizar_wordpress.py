@@ -31,6 +31,7 @@ from django.db import transaction
 from django.db.models import Count
 from django.utils.timezone import is_naive, make_aware
 
+from core.informes_duplicados import clave_titulo, claves_manuales
 from core.models import Informe, InformeEliminado, Obra
 from core.wp_fuente import FuenteDump, FuenteMySQL
 from core.wp_normalizar import (
@@ -383,6 +384,8 @@ class Command(BaseCommand):
         eliminados, posts_eliminados = set(), set()
         for post, adj in InformeEliminado.objects.exclude(id_wp_original__isnull=True).values_list('id_wp_original', 'id_wp_adjunto'):
             (posts_eliminados if adj is None else eliminados).add(post if adj is None else (post, adj))
+        # Subidos a mano en el portal (el laboratorio carga en los dos lados): no se traen otra vez
+        manual_obra, manual_codigo = claves_manuales()
         self.galerias_bloqueadas = []
         nuevos = []
         for inf in informes:
@@ -412,6 +415,10 @@ class Command(BaseCommand):
                         actual.id_wp_adjunto = adj
                         cambios.append('adjunto')
                 if actual is None:
+                    clave = clave_titulo(titulo)
+                    if (obra.pk, clave) in manual_obra or (obra.constructora_id, obra.codigo_obra, clave) in manual_codigo:
+                        st['ya_en_portal'] += 1
+                        continue
                     nuevos.append(Informe(
                         id_wp_original=inf.id, id_wp_adjunto=adj, titulo=titulo, obra=obra,
                         fecha_creacion=_aware(inf.fecha), url_archivo_original=url,
@@ -436,7 +443,8 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Informes: {st["creados"]} creados, {st["actualizados"]} actualizados, {st["iguales"]} sin cambios, '
             f'{st["no_publicados"]} no publicados, {self.informes_sin_obra} sin obra, '
-            f'{st["eliminados"]} eliminados en el portal (no se traen).'
+            f'{st["eliminados"]} eliminados en el portal (no se traen), '
+            f'{st["ya_en_portal"]} ya subidos a mano en el portal (no se traen).'
         ))
         if nuevos:
             self.stdout.write('  Los PDF nuevos se descargan con: python manage.py descargar_archivos')

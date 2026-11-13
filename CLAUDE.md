@@ -408,6 +408,12 @@ Lectura en `core/wp_fuente.py` (`FuenteMySQL` base viva / `FuenteDump` volcado .
   Informe. Las filas viejas sin `id_wp_adjunto` las adopta el primer PDF del post (conservan pk).
   Un `InformeEliminado` sin adjunto bloquea el post completo; con adjunto, solo ese PDF.
 - Todo lo dudoso sale en "Avisos" (códigos de obra repetidos en WP, obras sin nombre, etc.).
+- Informes subidos a mano en el portal (sin `id_wp_original`): el laboratorio los sube también a WordPress, así
+  que el sync NO crea la copia si la obra (o una obra de la misma empresa con el mismo código) ya tiene uno con la
+  misma `clave_titulo` (`core/informes_duplicados.py`: sin tildes, extensiones ni signos; 'INF 0340-2026 VIGAS' =
+  'INF-0340-2026-VIGAS.pdf'). La carga de PDF avisa repetidos con la misma clave. Las copias que ya entraron se
+  limpian con `python manage.py informes_duplicados` (solo muestra) / `--aplicar` (borra la copia de WP, deja
+  InformeEliminado; conserva la subida a mano; compara tamaño del PDF, `--incluir-distintos`, `--sin-comparar`).
 
 ### Script maestro de sincronización (`scripts/`)
 
