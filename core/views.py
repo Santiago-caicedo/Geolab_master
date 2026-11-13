@@ -95,105 +95,53 @@ def dashboard_staff(request):
 @login_required
 def dashboard_client(request):
     """
-    Dashboard principal para clientes.
-    Muestra tarjetas de obras disponibles y últimos informes.
+    Inicio del cliente (residente o director): sus obras y los informes más recientes,
+    con el mismo esquema "registro" del staff.
     """
+    from django.db.models import Max
+
     perfil = request.user.perfil_cliente
+    hoy = timezone.localdate()
+    inicio_mes = hoy.replace(day=1)
 
-    # 1. FILTRADO DE SEGURIDAD - Obras según rol
     if perfil.rol == 'director':
-        # Director ve todas las obras de su empresa
         obras = Obra.objects.filter(constructora=perfil.empresa)
-        informes = Informe.objects.filter(obra__constructora=perfil.empresa)
     else:
-        # Residente ve solo sus obras asignadas
         obras = perfil.obras_asignadas.all()
-        informes = Informe.objects.filter(obra__in=obras)
+    obras = sorted(
+        obras.annotate(
+            num_informes=Count('informes', distinct=True),
+            informes_mes=Count('informes', distinct=True, filter=Q(informes__fecha_creacion__date__gte=inicio_mes)),
+            ultimo_informe=Max('informes__fecha_creacion'),
+        ),
+        key=lambda o: _orden_natural(o.codigo_obra),
+    )
+    for o in obras:
+        o.actividad = _actividad(o.ultimo_informe)
 
-    # 2. Anotar conteo de informes por obra
-    obras = obras.annotate(num_informes=Count('informes')).order_by('nombre')
+    informes = Informe.objects.filter(obra__in=[o.pk for o in obras])
+    recientes = list(informes.exclude(fecha_creacion__isnull=True).select_related('obra').order_by('-fecha_creacion')[:12])
+    ultima = max((o for o in obras if o.ultimo_informe), key=lambda o: o.ultimo_informe, default=None)
+    if ultima:
+        dias = (hoy - timezone.localtime(ultima.ultimo_informe).date()).days
+        ultima.hace = 'hoy' if dias <= 0 else 'ayer' if dias == 1 else f'hace {dias} días'
 
-    # 3. Últimos 5 informes para vista rápida
-    ultimos_informes = informes.select_related('obra').order_by('-fecha_creacion')[:5]
-
-    # 4. Total de informes disponibles
-    total_informes = informes.count()
-
-    context = {
+    return render(request, 'core/home_client.html', {
         'perfil': perfil,
-        'mis_obras': obras,
-        'ultimos_informes': ultimos_informes,
-        'total_informes': total_informes,
-    }
-    return render(request, 'core/home_client.html', context)
+        'obras': obras,
+        'una_obra': obras[0] if len(obras) == 1 else None,
+        'recientes': recientes,
+        'total_informes': sum(o.num_informes for o in obras),
+        'informes_mes': sum(o.informes_mes for o in obras),
+        'obra_ultimo': ultima,
+        'hoy': hoy,
+    })
 
 
 @login_required
 def informes_obra_cliente(request, pk):
-    """
-    Lista de informes de una obra específica para clientes.
-    Incluye búsqueda, filtros por fecha y ordenamiento.
-    """
-    obra = get_object_or_404(Obra, pk=pk)
-
-    # Verificar permisos del cliente
-    if not request.user.es_cliente:
-        return redirect('home')
-
-    perfil = request.user.perfil_cliente
-
-    # Verificar acceso según rol
-    if perfil.rol == 'director':
-        if obra.constructora != perfil.empresa:
-            messages.error(request, 'No tienes acceso a esta obra.')
-            return redirect('home')
-    else:
-        if obra not in perfil.obras_asignadas.all():
-            messages.error(request, 'No tienes acceso a esta obra.')
-            return redirect('home')
-
-    # Obtener informes de la obra
-    informes = Informe.objects.filter(obra=obra)
-
-    # Filtro de búsqueda
-    query = request.GET.get('q', '')
-    if query:
-        informes = informes.filter(titulo__icontains=query)
-
-    # Filtro de fecha desde
-    fecha_desde = request.GET.get('fecha_desde', '')
-    if fecha_desde:
-        informes = informes.filter(fecha_creacion__date__gte=fecha_desde)
-
-    # Filtro de fecha hasta
-    fecha_hasta = request.GET.get('fecha_hasta', '')
-    if fecha_hasta:
-        informes = informes.filter(fecha_creacion__date__lte=fecha_hasta)
-
-    # Ordenamiento (más reciente o más antiguo)
-    orden = request.GET.get('orden', 'reciente')
-    if orden == 'antiguo':
-        informes = informes.order_by('fecha_creacion')
-    else:
-        informes = informes.order_by('-fecha_creacion')
-
-    # Paginación (15 por página)
-    paginator = Paginator(informes, 15)
-    page_obj = paginator.get_page(request.GET.get('page'))
-
-    context = {
-        'obra': obra,
-        'page_obj': page_obj,
-        'query': query,
-        'fecha_desde': fecha_desde,
-        'fecha_hasta': fecha_hasta,
-        'orden': orden,
-        'total_informes': obra.informes.count(),
-        'perfil': perfil,
-    }
-    return render(request, 'core/informes_obra_cliente.html', context)
-
-
+    """Ruta vieja del portal de clientes: ahora la lista de informes es la misma del staff."""
+    return redirect('lista_informes_obra', pk=pk)
 
 
 @login_required

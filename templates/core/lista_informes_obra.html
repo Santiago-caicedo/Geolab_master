@@ -12,9 +12,13 @@
     {% include "includes/_mensajes.html" %}
 
     <nav class="inf-crumbs" aria-label="Ruta">
+        {% if user.es_geolab %}
         <a href="{% url 'lista_constructoras' %}">Empresas</a><span class="sep">/</span>
         <a href="{% url 'detalle_constructora' obra.constructora.pk %}">{{ obra.constructora.nombre }}</a><span class="sep">/</span>
         <a href="{% url 'detalle_obra' obra.pk %}">{{ obra.nombre }}</a><span class="sep">/</span>
+        {% else %}
+        <a href="{% url 'home' %}">Inicio</a><span class="sep">/</span>
+        {% endif %}
         <span aria-current="page">Informes</span>
     </nav>
 
@@ -29,9 +33,15 @@
             </div>
         </div>
         <div class="inf-actions">
+            {% if user.es_geolab %}
             <a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-hero">
                 <i class="bi bi-arrow-left me-1"></i>Volver a la obra
             </a>
+            {% else %}
+            <a href="{% url 'home' %}" class="btn btn-sm btn-hero">
+                <i class="bi bi-arrow-left me-1"></i>Volver al inicio
+            </a>
+            {% endif %}
             {% if user.es_geolab %}
             <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-hero-primary">
                 <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes
@@ -171,7 +181,7 @@
         {% else %}
         <div class="inf-empty">
             <i class="bi bi-folder2-open" aria-hidden="true"></i>
-            <p>Esta obra todavía no tiene informes.</p>
+            <p>{% if user.es_geolab %}Esta obra todavía no tiene informes.{% else %}Todavía no hay informes de esta obra. Aparecen aquí apenas el laboratorio los publique.{% endif %}</p>
             {% if user.es_geolab %}
             <a href="{% url 'cargar_informe_obra' obra.pk %}" class="btn btn-sm btn-primary">
                 <i class="bi bi-cloud-arrow-up me-1"></i>Cargar informes

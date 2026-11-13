@@ -321,7 +321,7 @@
                             {% elif user.es_remitente %}
                                 Remitente
                             {% elif user.es_cliente %}
-                                {{ user.perfil_cliente.get_rol_display }}
+                                {% if user.perfil_cliente.rol == 'director' %}Director{% else %}Residente{% endif %} · {{ user.perfil_cliente.empresa.nombre|truncatechars:28 }}
                             {% endif %}
                         </small>
                     </div>

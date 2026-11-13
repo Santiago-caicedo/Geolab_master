@@ -11,6 +11,8 @@ from pathlib import Path
 from django.core.management import call_command
 from django.core.management.base import CommandError
 from django.test import Client, SimpleTestCase, TestCase
+from django.urls import reverse
+from django.utils import timezone
 
 from core.models import Informe, Obra
 from core.wp_fuente import FuenteDump, ProyectoWP
@@ -984,3 +986,46 @@ class FormulariosCodigoTests(TestCase):
         form = ObraForm({'nombre': 'NUEVA', 'numero_codigo': 'x1'}, constructora=bog)
         self.assertIn('numero_codigo', form.errors)
 
+
+
+class PortalClienteTests(TestCase):
+    """Inicio del residente/director: solo sus obras, con el esquema registro."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from users.models import ClienteExterno
+        empresa = Constructora.objects.create(codigo='BUC56', nombre='MARVAL SAS', ciudad='Bucaramanga')
+        otra = Constructora.objects.create(codigo='BUC57', nombre='URBANIZADORA', ciudad='Bucaramanga')
+        cls.mia = Obra.objects.create(nombre='MONTE VISTA', codigo_obra='BUC56-6', constructora=empresa)
+        cls.vecina = Obra.objects.create(nombre='CEREZOS', codigo_obra='BUC56-9', constructora=empresa)
+        cls.ajena = Obra.objects.create(nombre='AJENA', codigo_obra='BUC57-1', constructora=otra)
+        Informe.objects.create(titulo='INF-4879-2026-COMPRESION-CILINDROS.xlsx.pdf', obra=cls.mia, fecha_creacion=timezone.now())
+        Informe.objects.create(titulo='INF-9999-2026-SECRETO.pdf', obra=cls.ajena, fecha_creacion=timezone.now())
+        res = UsuarioBase.objects.create_user('residente1', password='x', es_cliente=True)
+        ClienteExterno.objects.create(user=res, empresa=empresa, rol='residente').obras_asignadas.add(cls.mia)
+        dire = UsuarioBase.objects.create_user('director1', password='x', es_cliente=True)
+        ClienteExterno.objects.create(user=dire, empresa=empresa, rol='director')
+        cls.res, cls.dire = res, dire
+
+    def test_residente_ve_solo_su_obra(self):
+        self.client.force_login(self.res)
+        html = self.client.get(reverse('home')).content.decode()
+        self.assertIn('MONTE VISTA', html)
+        self.assertIn('INF 4879-2026', html)
+        self.assertNotIn('CEREZOS', html)
+        self.assertNotIn('9999', html)
+        # la obra ajena no se abre
+        self.assertEqual(self.client.get(reverse('lista_informes_obra', args=[self.ajena.pk])).status_code, 302)
+        self.assertEqual(self.client.get(reverse('lista_informes_obra', args=[self.mia.pk])).status_code, 200)
+
+    def test_director_ve_las_obras_de_su_empresa(self):
+        self.client.force_login(self.dire)
+        html = self.client.get(reverse('home')).content.decode()
+        self.assertIn('MONTE VISTA', html)
+        self.assertIn('CEREZOS', html)
+        self.assertNotIn('AJENA', html)
+
+    def test_ruta_vieja_redirige(self):
+        self.client.force_login(self.res)
+        r = self.client.get(reverse('informes_obra_cliente', args=[self.mia.pk]))
+        self.assertRedirects(r, reverse('lista_informes_obra', args=[self.mia.pk]))
