@@ -285,3 +285,6 @@ respaldos/
 # Llaves SSH / certificados privados (NUNCA a git)
 *.pem
 *.ppk
+
+# Excel del laboratorio con contraseñas de clientes: NUNCA se versiona
+USUARIOS Y CONTRASE*

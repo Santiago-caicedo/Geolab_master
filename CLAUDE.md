@@ -322,6 +322,7 @@ python manage.py foto_obras         # SOLO LECTURA: constructoras + obras como e
 python manage.py estado_sistema     # SOLO LECTURA: diagnóstico completo de la base (ver "Script maestro" abajo)
 python manage.py unir_obras --origen 171 --destino 164 [--aplicar]  # Une obras duplicadas: mueve remisiones/informes/precios/facturas/residentes al destino y borra el origen. Sin --aplicar es ensayo. Aborta si chocaría (misma OT, mismo precio...) o si son de constructoras distintas (--forzar)
 python manage.py importar_calidad   # Areas y carpetas SGC
+python manage.py cargar_usuarios_excel "USUARIOS Y CONTRASEÑAS (4).xlsx" [--aplicar]  # Residentes/remitentes/directores del Excel del lab (hojas BOG/BUC/IBA). Contraseñas TAL CUAL (excepción acordada nov-2026, sin validadores; nunca se imprimen). No toca usuarios existentes. Códigos repetidos: DESEMPATE en el comando; --obra USUARIO=CODIGO[@EMPRESA]; PENDIENTES no se cargan. El .xlsx está en .gitignore: NUNCA se versiona
 python manage.py limpiar_remisiones # Borra TODAS las remisiones (cascada). Flags: --noinput, --informes
 python manage.py marcar_notificaciones_leidas  # Marca leídas todas las notificaciones pendientes. Flags: --usuario <login>, --dry-run
 python manage.py cargar_catalogo_bucaramanga  # Categorías + servicios de facturación (sede Bucaramanga, sin precios). Idempotente. Flag: --dry-run
