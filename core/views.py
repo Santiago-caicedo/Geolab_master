@@ -264,7 +264,43 @@ def detalle_constructora(request, pk):
         'total_remisiones': sum(o.num_remisiones for o in obras),
         'obras_activas': sum(1 for o in obras if o.actividad in ('reciente', 'media')),
         'hoy': timezone.localdate(),
+        'puede_suspender': request.user.is_superuser or request.user.es_admin_geolab,
+        'suspendida': empresa.informes_suspendidos or empresa.remisiones_suspendidas,
     })
+
+@login_required
+def suspender_acceso_constructora(request, pk):
+    """
+    Suspende o reactiva el acceso al portal de los clientes de una empresa (POST, staff
+    administrativo). Dos interruptores: informes (residentes y directores) y remisiones
+    (remitentes). El corte lo aplica users.middleware.SuspensionClienteMiddleware.
+    """
+    empresa = get_object_or_404(Constructora, pk=pk)
+    if request.method != 'POST':
+        return redirect('detalle_constructora', pk=pk)
+    if not (request.user.is_superuser or request.user.es_admin_geolab):
+        messages.error(request, 'Solo el personal administrativo de Geolab puede cambiar el acceso de una empresa.')
+        return redirect('detalle_constructora', pk=pk)
+
+    antes = (empresa.informes_suspendidos, empresa.remisiones_suspendidas)
+    empresa.informes_suspendidos = request.POST.get('informes') == '1'
+    empresa.remisiones_suspendidas = request.POST.get('remisiones') == '1'
+    if (empresa.informes_suspendidos, empresa.remisiones_suspendidas) == antes:
+        messages.info(request, 'El acceso de la empresa quedó igual que estaba.')
+        return redirect('detalle_constructora', pk=pk)
+    empresa.suspension_actualizada = timezone.now()
+    empresa.suspension_por = request.user
+    empresa.save(update_fields=['informes_suspendidos', 'remisiones_suspendidas',
+                                'suspension_actualizada', 'suspension_por'])
+
+    suspendido = [n for n, v in (('informes', empresa.informes_suspendidos), ('remisiones', empresa.remisiones_suspendidas)) if v]
+    if suspendido:
+        messages.warning(request, f'Acceso suspendido para {empresa.nombre}: ' + ' y '.join(suspendido) + '. '
+                         'Sus usuarios verán el aviso de suspensión al entrar.')
+    else:
+        messages.success(request, f'Acceso reactivado para {empresa.nombre}: sus usuarios ya pueden entrar al portal.')
+    return redirect('detalle_constructora', pk=pk)
+
 
 def _puede_ver_obra(user, obra):
     """Staff Geolab ve todo; el director, las obras de su empresa; los demás clientes, sus obras asignadas."""

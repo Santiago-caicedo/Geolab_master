@@ -8,6 +8,8 @@
 <style>
     .dir-col-num { width: 84px; text-align: right; }
     .dir-col-act { width: 140px; }
+    .dir-susp { display: inline-flex; align-items: center; gap: .25rem; margin-left: .4rem; padding: .05rem .45rem; border-radius: 4px;
+                font-size: .68rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; background: #fff7ed; color: #b45309; vertical-align: 1px; }
     @media (max-width: 991.98px) { .dir-ocultable { display: none; } }
 </style>
 {% endblock %}
@@ -91,6 +93,7 @@
                         <td><span class="inf-num ot">{{ empresa.codigo }}</span></td>
                         <td>
                             <a href="{% url 'detalle_constructora' empresa.pk %}" class="inf-nombre">{{ empresa.nombre }}</a>
+                            {% if empresa.informes_suspendidos or empresa.remisiones_suspendidas %}<span class="dir-susp" title="Acceso al portal suspendido"><i class="bi bi-lock-fill" aria-hidden="true"></i>Suspendida</span>{% endif %}
                             <span class="inf-sub">NIT {{ empresa.nit|default:"sin registrar" }}</span>
                         </td>
                         <td class="dir-col-num"><span class="inf-cifra{% if not empresa.num_obras %} cero{% endif %}">{{ empresa.num_obras }}</span></td>

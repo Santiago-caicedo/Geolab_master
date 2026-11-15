@@ -98,3 +98,40 @@ class RestriccionFacturacionMiddleware:
             return False
         ruta = request.path
         return ruta != '/' and not ruta.startswith(self.PREFIJOS_PERMITIDOS)
+
+
+class SuspensionClienteMiddleware:
+    """
+    Suspensión comercial del acceso de los clientes (la marca el laboratorio en el perfil de la
+    empresa: Constructora.informes_suspendidos / remisiones_suspendidas).
+
+    Las credenciales siguen válidas: el cliente entra y, en vez del portal, ve solo la pantalla
+    "acceso suspendido" (403), sin motivo. Se verifica en CADA petición, así una sesión que ya
+    estaba abierta queda cortada al siguiente clic, y también los PDF por enlace directo.
+    Solo puede cerrar sesión. Al quitar la suspensión vuelve todo como estaba.
+    """
+
+    PREFIJOS_PERMITIDOS = ('/accounts/', '/static/')
+
+    def __init__(self, get_response):
+        self.get_response = get_response
+
+    def __call__(self, request):
+        if self._suspendido(request):
+            from django.http import JsonResponse
+            from django.shortcuts import render
+            if request.headers.get('x-requested-with') == 'XMLHttpRequest' or request.path.startswith('/api/'):
+                return JsonResponse({'error': 'Acceso suspendido'}, status=403)
+            return render(request, 'core/suspendido.html', status=403)
+        return self.get_response(request)
+
+    def _suspendido(self, request):
+        user = getattr(request, 'user', None)
+        if user is None or not user.is_authenticated or not user.es_cliente or user.is_superuser:
+            return False
+        if request.path.startswith(self.PREFIJOS_PERMITIDOS):
+            return False
+        perfil = getattr(user, 'perfil_cliente', None)
+        if perfil is None:
+            return False
+        return perfil.empresa.acceso_suspendido(perfil.rol)

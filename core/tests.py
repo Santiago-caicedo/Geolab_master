@@ -1029,3 +1029,81 @@ class PortalClienteTests(TestCase):
         self.client.force_login(self.res)
         r = self.client.get(reverse('informes_obra_cliente', args=[self.mia.pk]))
         self.assertRedirects(r, reverse('lista_informes_obra', args=[self.mia.pk]))
+
+
+class SuspensionAccesoTests(TestCase):
+    """Suspensión comercial del acceso de los clientes de una empresa (middleware + botón del perfil)."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from users.models import ClienteExterno, FuncionarioGeolab
+        cls.empresa = Constructora.objects.create(codigo='BUC56', nombre='MARVAL SAS', ciudad='Bucaramanga')
+        cls.obra = Obra.objects.create(nombre='MONTE VISTA', codigo_obra='BUC56-6', constructora=cls.empresa)
+        Informe.objects.create(titulo='INF-0001.pdf', obra=cls.obra, fecha_creacion=timezone.now())
+        cls.res = UsuarioBase.objects.create_user('res', password='x', es_cliente=True)
+        ClienteExterno.objects.create(user=cls.res, empresa=cls.empresa, rol='residente').obras_asignadas.add(cls.obra)
+        cls.rem = UsuarioBase.objects.create_user('rem', password='x', es_cliente=True)
+        ClienteExterno.objects.create(user=cls.rem, empresa=cls.empresa, rol='remitente').obras_asignadas.add(cls.obra)
+        cls.admin = UsuarioBase.objects.create_user('admin1', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.admin, area='admin')
+        cls.tecnico = UsuarioBase.objects.create_user('tec1', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.tecnico, area='tecnico')
+
+    def _suspender(self, usuario, **datos):
+        self.client.force_login(usuario)
+        r = self.client.post(reverse('suspender_acceso_constructora', args=[self.empresa.pk]), datos)
+        self.client.logout()
+        self.empresa.refresh_from_db()
+        return r
+
+    def test_residente_suspendido_solo_ve_el_aviso(self):
+        self._suspender(self.admin, informes='1')
+        self.assertTrue(self.empresa.informes_suspendidos)
+        self.assertIsNotNone(self.empresa.suspension_actualizada)
+        self.assertEqual(self.empresa.suspension_por, self.admin)
+        # el residente entra (la contraseña sigue válida) pero no pasa de la pantalla de suspensión
+        self.assertTrue(self.client.login(username='res', password='x'))
+        for url in (reverse('home'), reverse('lista_informes_obra', args=[self.obra.pk]), '/media/informes/x.pdf'):
+            r = self.client.get(url)
+            self.assertEqual(r.status_code, 403, url)
+            self.assertContains(r, 'comuníquese con la oficina de Geolab', status_code=403)
+            self.assertNotContains(r, 'INF-0001', status_code=403)
+        self.assertEqual(self.client.get(reverse('home'), HTTP_X_REQUESTED_WITH='XMLHttpRequest').status_code, 403)
+        # puede cerrar sesión
+        self.assertEqual(self.client.post(reverse('logout')).status_code, 302)
+        # el remitente de la misma empresa NO está suspendido (solo se marcaron informes)
+        self.client.force_login(self.rem)
+        self.assertNotEqual(self.client.get(reverse('home')).status_code, 403)
+
+    def test_remitente_suspendido_y_reactivacion(self):
+        self._suspender(self.admin, remisiones='1')
+        self.client.force_login(self.rem)
+        self.assertEqual(self.client.get(reverse('home')).status_code, 403)
+        self.client.logout()
+        self.client.force_login(self.res)
+        self.assertNotEqual(self.client.get(reverse('home')).status_code, 403)
+        self.client.logout()
+        # reactivar: ningún check marcado
+        self._suspender(self.admin)
+        self.assertFalse(self.empresa.informes_suspendidos or self.empresa.remisiones_suspendidas)
+        self.client.force_login(self.rem)
+        self.assertNotEqual(self.client.get(reverse('home')).status_code, 403)
+
+    def test_solo_staff_administrativo_suspende(self):
+        self._suspender(self.tecnico, informes='1')
+        self.assertFalse(self.empresa.informes_suspendidos)
+        self._suspender(self.res, informes='1')
+        self.assertFalse(self.empresa.informes_suspendidos)
+        # el técnico no ve el botón; el administrativo sí
+        self.client.force_login(self.tecnico)
+        self.assertNotContains(self.client.get(reverse('detalle_constructora', args=[self.empresa.pk])), 'id="empAcceso"')
+        self.client.logout()
+        self.client.force_login(self.admin)
+        self.assertContains(self.client.get(reverse('detalle_constructora', args=[self.empresa.pk])), 'id="empAcceso"')
+
+    def test_staff_no_se_bloquea(self):
+        self._suspender(self.admin, informes='1', remisiones='1')
+        self.client.force_login(self.admin)
+        r = self.client.get(reverse('detalle_constructora', args=[self.empresa.pk]))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'Acceso suspendido')

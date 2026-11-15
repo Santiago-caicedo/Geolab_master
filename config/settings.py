@@ -70,6 +70,7 @@ MIDDLEWARE = [
     # Debe ir despues de Authentication y Message: usa request.user y messages
     'users.middleware.RestriccionCalidadMiddleware',
     'users.middleware.RestriccionFacturacionMiddleware',
+    'users.middleware.SuspensionClienteMiddleware',
 ]
 
 ROOT_URLCONF = 'config.urls'

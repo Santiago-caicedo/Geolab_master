@@ -19,8 +19,28 @@ class Constructora(models.Model):
     # Campo para migración
     id_wp_original = models.IntegerField(unique=True, null=True, blank=True)
 
+    # Suspensión comercial del acceso al portal (la decide el laboratorio desde el perfil de la
+    # empresa). Aplica a todos los usuarios de la empresa según su rol; las credenciales siguen
+    # válidas y SuspensionClienteMiddleware les muestra solo la pantalla de "acceso suspendido".
+    informes_suspendidos = models.BooleanField(
+        default=False, verbose_name='Informes suspendidos',
+        help_text='Residentes y directores no pueden ver los informes')
+    remisiones_suspendidas = models.BooleanField(
+        default=False, verbose_name='Remisiones suspendidas',
+        help_text='Los remitentes no pueden enviar remisiones')
+    suspension_actualizada = models.DateTimeField(null=True, blank=True)
+    suspension_por = models.ForeignKey(
+        'users.UsuarioBase', on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='+', verbose_name='Último cambio de suspensión por')
+
     def __str__(self):
         return f"{self.nombre} ({self.codigo})"
+
+    def acceso_suspendido(self, rol):
+        """¿Está suspendido el acceso de un usuario con este rol de ClienteExterno?"""
+        if rol == 'remitente':
+            return self.remisiones_suspendidas
+        return self.informes_suspendidos   # director y residente ven informes
 
     def save(self, *args, **kwargs):
         self.ciudad = normalizar_ciudad(self.ciudad)

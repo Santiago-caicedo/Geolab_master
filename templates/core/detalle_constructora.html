@@ -42,6 +42,22 @@
     .emp-empty { padding: 1.5rem 1rem; text-align: center; color: var(--inf-muted); }
     .emp-empty p { margin: 0 0 .75rem; }
 
+    /* Suspensión de acceso */
+    .inf-hero .emp-btn-susp { background: #b45309; border-color: #b45309; font-weight: 600; }
+    .inf-hero .emp-btn-susp:hover { background: #92400e; border-color: #92400e; }
+    .emp-aviso-susp { display: flex; align-items: flex-start; gap: .75rem; margin-bottom: 1rem; padding: .75rem 1rem;
+                      border: 1px solid #fcd9a8; border-left: 4px solid #b45309; border-radius: 10px; background: #fff7ed; font-size: .8125rem; }
+    .emp-aviso-susp > i { color: #b45309; font-size: 1.1rem; margin-top: .05rem; }
+    .emp-aviso-susp > div { flex: 1; min-width: 0; }
+    .emp-aviso-susp strong { color: #7c2d12; }
+    .emp-aviso-susp .quien { display: block; color: var(--inf-muted); margin-top: .15rem; }
+    .emp-opcion { display: flex; align-items: center; gap: .75rem; padding: .7rem .85rem; margin-bottom: .5rem; border: 1px solid var(--inf-line); border-radius: 10px; cursor: pointer; }
+    .emp-opcion:hover { background: #f8fafc; }
+    .emp-opcion:has(:checked) { border-color: #b45309; background: #fff7ed; }
+    .emp-opcion input { margin: 0; width: 1.1rem; height: 1.1rem; flex: none; }
+    .emp-opcion span { display: flex; flex-direction: column; line-height: 1.3; }
+    .emp-opcion small { color: var(--inf-muted); }
+
     @media (max-width: 991.98px) { .emp-grid { grid-template-columns: minmax(0, 1fr); } }
     @media (max-width: 767.98px) { .emp-ocultable { display: none; } }
 </style>
@@ -66,6 +82,11 @@
             </div>
             {% if user.es_geolab %}
             <div class="inf-actions">
+                {% if puede_suspender %}
+                <button type="button" class="btn btn-sm btn-hero{% if suspendida %} emp-btn-susp{% endif %}" data-bs-toggle="modal" data-bs-target="#empAcceso">
+                    <i class="bi {% if suspendida %}bi-lock-fill{% else %}bi-shield-lock{% endif %} me-1"></i>{% if suspendida %}Acceso suspendido{% else %}Acceso al portal{% endif %}
+                </button>
+                {% endif %}
                 <a href="{% url 'editar_constructora' empresa.pk %}" class="btn btn-sm btn-hero">
                     <i class="bi bi-pencil me-1"></i>Editar datos
                 </a>
@@ -98,6 +119,44 @@
             </div>
         </div>
     </section>
+
+    {% if suspendida %}
+    <div class="emp-aviso-susp" role="status">
+        <i class="bi bi-lock-fill" aria-hidden="true"></i>
+        <div>
+            <strong>Acceso suspendido:</strong>
+            {% if empresa.informes_suspendidos %}residentes y directores no pueden ver informes{% endif %}{% if empresa.informes_suspendidos and empresa.remisiones_suspendidas %}; {% endif %}{% if empresa.remisiones_suspendidas %}los remitentes no pueden enviar remisiones{% endif %}.
+            <span class="quien">Desde el {{ empresa.suspension_actualizada|date:"j M Y, g:i a" }}{% if empresa.suspension_por %} por {{ empresa.suspension_por.get_full_name|default:empresa.suspension_por.username }}{% endif %}. Al entrar, sus usuarios solo ven el aviso de comunicarse con Geolab.</span>
+        </div>
+        {% if puede_suspender %}<button type="button" class="btn btn-sm btn-light border" data-bs-toggle="modal" data-bs-target="#empAcceso">Cambiar</button>{% endif %}
+    </div>
+    {% endif %}
+
+    {% if puede_suspender %}
+    <div class="modal fade inf-modal" id="empAcceso" tabindex="-1" aria-labelledby="empAccesoTitulo" aria-hidden="true">
+        <div class="modal-dialog modal-dialog-centered">
+            <form method="post" action="{% url 'suspender_acceso_constructora' empresa.pk %}" class="modal-content">
+                {% csrf_token %}
+                <div class="modal-body p-4">
+                    <h2 class="modal-title" id="empAccesoTitulo">Acceso al portal de {{ empresa.nombre }}</h2>
+                    <p class="nota mt-2 mb-3">Marque lo que quiere <strong>suspender</strong>. Los usuarios siguen existiendo con su contraseña; al entrar solo verán el aviso de comunicarse con la oficina de Geolab, sin ningún motivo. Desmarque para reactivar.</p>
+                    <label class="emp-opcion">
+                        <input type="checkbox" name="informes" value="1" class="form-check-input" {% if empresa.informes_suspendidos %}checked{% endif %}>
+                        <span><strong>Residentes y directores</strong><small>Ver informes</small></span>
+                    </label>
+                    <label class="emp-opcion">
+                        <input type="checkbox" name="remisiones" value="1" class="form-check-input" {% if empresa.remisiones_suspendidas %}checked{% endif %}>
+                        <span><strong>Remitentes</strong><small>Enviar remisiones de muestras</small></span>
+                    </label>
+                </div>
+                <div class="modal-footer border-0 pt-0 px-4 pb-4">
+                    <button type="button" class="btn btn-sm btn-light border" data-bs-dismiss="modal">Cancelar</button>
+                    <button type="submit" class="btn btn-sm btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+    {% endif %}
 
     <div class="emp-grid">
         <section class="inf-panel" aria-labelledby="empObras">

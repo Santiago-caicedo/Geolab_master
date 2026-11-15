@@ -14,6 +14,7 @@ urlpatterns = [
     path('empresas/nueva/', views.crear_constructora, name='crear_constructora'),
     path('empresas/<int:pk>/', views.detalle_constructora, name='detalle_constructora'),
     path('empresas/<int:pk>/editar/', views.editar_constructora, name='editar_constructora'),
+    path('empresas/<int:pk>/acceso/', views.suspender_acceso_constructora, name='suspender_acceso_constructora'),
     path('empresas/<int:pk>/nueva-obra/', views.crear_obra, name='crear_obra'),
 
 

@@ -168,6 +168,16 @@ página de espera en el portal; el panel lo marca y le propone el rol Administra
 staff administrativo, ahora con `es_admin_geolab` o superusuario (antes bastaba `es_geolab` y un técnico podía
 crear o desactivar clientes). Pruebas: `python manage.py test users.tests_panel`.
 
+### Suspensión comercial del acceso de clientes
+
+Se marca por EMPRESA en su perfil (`detalle_constructora`, botón "Acceso al portal", solo `es_admin_geolab` o superusuario;
+POST a `suspender_acceso_constructora`): `Constructora.informes_suspendidos` (residentes y directores) y
+`remisiones_suspendidas` (remitentes), con `suspension_actualizada`/`suspension_por`. Las credenciales siguen válidas:
+`users.middleware.SuspensionClienteMiddleware` (último del MIDDLEWARE) muestra en CADA petición `core/suspendido.html` (403,
+mensaje neutro "comuníquese con la oficina de Geolab", sin motivo), también para `/media/` y AJAX (403 JSON); solo deja
+`/accounts/` y `/static/`. Así las sesiones abiertas se cortan al siguiente clic y al reactivar no hay que tocar usuarios.
+Migración `users.0008`. Pruebas: `core.tests.SuspensionAccesoTests`.
+
 ### Roles confinados al SGC (coordinador y usuarios de calidad)
 
 Ambos necesitan `es_geolab=True` porque el módulo de calidad lo exige, pero ese

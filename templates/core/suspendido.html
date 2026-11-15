@@ -1,0 +1,58 @@
+{% load static %}<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Acceso suspendido · Portal Geolab</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    <style>
+        * { box-sizing: border-box; }
+        html, body { height: 100%; }
+        body {
+            margin: 0; font-family: 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif; color: #334155;
+            background: linear-gradient(135deg, #1c2e4a 0%, #0f172a 100%);
+            display: flex; align-items: center; justify-content: center; padding: 24px 16px;
+            -webkit-font-smoothing: antialiased;
+        }
+        .ficha { width: 100%; max-width: 520px; background: #fff; border-radius: 16px; box-shadow: 0 25px 50px -12px rgba(0, 0, 0, .35); overflow: hidden; }
+        .cab { display: flex; align-items: center; justify-content: space-between; padding: 18px 28px; border-bottom: 1px solid #e2e8f0; }
+        .cab img { width: 130px; height: auto; }
+        .cab span { font-size: .78rem; color: #64748b; }
+        .cuerpo { padding: 32px 28px 28px; text-align: center; }
+        .icono { width: 64px; height: 64px; border-radius: 50%; margin: 0 auto 18px; display: flex; align-items: center; justify-content: center;
+                 background: #fff4e5; color: #b45309; font-size: 1.7rem; }
+        h1 { font-size: 1.25rem; font-weight: 600; color: #1c2e4a; margin: 0 0 10px; }
+        p { margin: 0 0 8px; line-height: 1.55; }
+        .nota { font-size: .875rem; color: #64748b; }
+        .empresa { display: inline-block; margin-top: 14px; padding: 4px 12px; border-radius: 999px; background: #f1f5f9; font-size: .8rem; color: #475569; }
+        .pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; padding: 16px 28px; border-top: 1px solid #e2e8f0; background: #f8fafc; font-size: .8rem; color: #64748b; }
+        .pie button { display: inline-flex; align-items: center; gap: 6px; height: 36px; padding: 0 14px; border-radius: 8px; border: 1px solid #cbd5e1; background: #fff; color: #334155; font: inherit; font-size: .85rem; font-weight: 500; cursor: pointer; }
+        .pie button:hover { background: #f1f5f9; }
+        .pie button:focus-visible { outline: 2px solid #008ed6; outline-offset: 2px; }
+    </style>
+</head>
+<body>
+    <main class="ficha" role="main">
+        <div class="cab">
+            <img src="{% static 'img/geolab-logo.png' %}" alt="Geolab">
+            <span>Portal de clientes</span>
+        </div>
+        <div class="cuerpo">
+            <div class="icono" aria-hidden="true"><i class="bi bi-lock"></i></div>
+            <h1>Su acceso al portal está suspendido</h1>
+            <p>Por favor comuníquese con la oficina de Geolab para reactivarlo.</p>
+            <p class="nota">Su usuario y su información siguen guardados; apenas se reactive el acceso podrá entrar con normalidad.</p>
+            <span class="empresa">{{ user.perfil_cliente.empresa.nombre }}</span>
+        </div>
+        <div class="pie">
+            <span>Sesión de <strong>{{ user.get_full_name|default:user.username }}</strong></span>
+            <form action="{% url 'logout' %}" method="post">
+                {% csrf_token %}
+                <button type="submit"><i class="bi bi-box-arrow-left" aria-hidden="true"></i> Cerrar sesión</button>
+            </form>
+        </div>
+    </main>
+</body>
+</html>
