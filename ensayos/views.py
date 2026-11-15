@@ -66,44 +66,68 @@ def lista_hojas_trabajo(request):
 @login_required
 def muestras_para_hoy(request):
     """
-    Dashboard del técnico: muestra las muestras que deben fallarse hoy.
+    Ensayos del día: muestras con resultado pendiente cuya fecha de falla (toma + edad) ya pasó,
+    es hoy o llega en los próximos días. Agrupadas por obra, que es como se trabaja en la
+    hoja de trabajo de cada obra.
     """
     if not request.user.es_geolab:
         messages.error(request, "No tienes permiso para acceder a esta sección.")
         return redirect('home')
 
     hoy = timezone.localdate()
+    DIAS_ADELANTE = 3
 
-    # Obtener todos los resultados pendientes
-    resultados_pendientes = ResultadoMuestra.objects.filter(
-        estado='pendiente'
-    ).select_related(
-        'hoja_trabajo',
-        'hoja_trabajo__remision',
-        'hoja_trabajo__remision__obra',
-        'muestra'
-    )
+    pendientes = (ResultadoMuestra.objects.filter(estado='pendiente')
+                  .exclude(muestra__fecha_toma__isnull=True).exclude(muestra__edad_ensayo_dias__isnull=True)
+                  .select_related('muestra', 'hoja_trabajo__remision__obra__constructora'))
 
-    # Filtrar los que deben fallarse hoy (en Python porque es una property)
-    muestras_hoy = []
-    muestras_vencidas = []
-    muestras_proximas = []
+    vencidas, de_hoy, proximas = [], [], []
+    for r in pendientes:
+        r.fecha_falla = r.muestra.fecha_toma + timedelta(days=r.muestra.edad_ensayo_dias)
+        r.dias = (r.fecha_falla - hoy).days
+        r.obra = r.hoja_trabajo.remision.obra
+        r.ot = r.hoja_trabajo.remision.orden_trabajo
+        r.atraso = -r.dias
+        if r.dias < 0:
+            vencidas.append(r)
+        elif r.dias == 0:
+            de_hoy.append(r)
+        elif r.dias <= DIAS_ADELANTE:
+            proximas.append(r)
 
-    for resultado in resultados_pendientes:
-        fecha_falla = resultado.fecha_falla_programada
-        if fecha_falla:
-            if fecha_falla == hoy:
-                muestras_hoy.append(resultado)
-            elif fecha_falla < hoy:
-                muestras_vencidas.append(resultado)
-            elif (fecha_falla - hoy).days <= 3:
-                muestras_proximas.append(resultado)
+    def por_obra(lista, clave_extra=lambda r: 0):
+        """[(obra, [resultados])] ordenado por obra y, dentro, por fecha y número de muestra."""
+        lista.sort(key=lambda r: (clave_extra(r), r.obra.codigo_obra or '', r.obra.pk, r.ot or 0, r.muestra.numero_muestra))
+        grupos = []
+        for r in lista:
+            if grupos and grupos[-1]['obra'].pk == r.obra.pk and grupos[-1]['clave'] == clave_extra(r):
+                grupos[-1]['muestras'].append(r)
+            else:
+                grupos.append({'obra': r.obra, 'clave': clave_extra(r), 'muestras': [r]})
+        for g in grupos:
+            g['probetas'] = sum(r.muestra.cantidad or 0 for r in g['muestras'])
+        return grupos
+
+    # Próximos días: un bloque por fecha, y dentro por obra
+    dias = []
+    for i in range(1, DIAS_ADELANTE + 1):
+        fecha = hoy + timedelta(days=i)
+        del_dia = [r for r in proximas if r.dias == i]
+        dias.append({'fecha': fecha, 'manana': i == 1, 'grupos': por_obra(del_dia), 'n': len(del_dia),
+                     'probetas': sum(r.muestra.cantidad or 0 for r in del_dia)})
 
     context = {
-        'muestras_hoy': muestras_hoy,
-        'muestras_vencidas': muestras_vencidas,
-        'muestras_proximas': muestras_proximas,
         'fecha_hoy': hoy,
+        'hoy_grupos': por_obra(de_hoy),
+        'n_hoy': len(de_hoy),
+        'probetas_hoy': sum(r.muestra.cantidad or 0 for r in de_hoy),
+        'obras_hoy': len({r.obra.pk for r in de_hoy}),
+        'vencidas_grupos': por_obra(vencidas),
+        'n_vencidas': len(vencidas),
+        'mas_atrasada': max((-r.dias for r in vencidas), default=0),
+        'dias': dias,
+        'n_proximas': len(proximas),
+        'dias_adelante': DIAS_ADELANTE,
     }
     return render(request, 'ensayos/muestras_para_hoy.html', context)
 

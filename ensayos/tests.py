@@ -26,7 +26,8 @@ from datetime import date
 from decimal import Decimal, ROUND_HALF_UP
 from types import SimpleNamespace
 
-from django.test import SimpleTestCase
+from django.urls import reverse
+from django.test import SimpleTestCase, TestCase
 
 from ensayos.macros import (
     CORRECCION_CARGA_COEFS,
@@ -234,3 +235,50 @@ class OtrasGeometriasSinCambiosTests(SimpleTestCase):
         esperado = round((Decimal('30') * Decimal('101.96') * Decimal('450'))
                          / (Decimal('150') * Decimal('150') ** 2) * Decimal('10'), 4)
         self.assertEqual(r, esperado)
+
+
+class EnsayosDelDiaTests(TestCase):
+    """Ensayos del día: vencidas, hoy y próximos días, agrupadas por obra."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+        from django.utils import timezone
+        from core.models import Obra
+        from solicitudes.models import Muestra, RemisionMuestras
+        from solicitudes.views import crear_hoja_trabajo_y_resultados
+        from users.models import Constructora, FuncionarioGeolab, UsuarioBase
+
+        hoy = timezone.localdate()
+        empresa = Constructora.objects.create(codigo='BUC90', nombre='CONSTRUCTORA PRUEBA', ciudad='Bucaramanga')
+        cls.obra = Obra.objects.create(nombre='OBRA DEL DIA', codigo_obra='BUC90-1', constructora=empresa)
+        cls.staff = UsuarioBase.objects.create_user('lab1', password='x', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.staff, area='admin')
+        rem = RemisionMuestras.objects.create(obra=cls.obra, orden_trabajo=77, solicitado_por=cls.staff, estado='completada')
+        # (número, días hasta la falla): -2 vencida, 0 hoy, 1 mañana, 3 dentro de 3 días, 9 fuera de la ventana
+        for n, dias in ((1, -2), (2, 0), (3, 0), (4, 1), (5, 3), (6, 9)):
+            Muestra.objects.create(remision=rem, numero_muestra=n, cantidad=2, tipo_muestra='concreto',
+                                   dimension_especimen='6_pulg', localizacion=f'Columna {n}',
+                                   fecha_toma=hoy + timedelta(days=dias - 7), edad_ensayo_dias=7, fc_resistencia='21')
+        crear_hoja_trabajo_y_resultados(rem)
+
+    def test_clasifica_y_agrupa(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('muestras_para_hoy'))
+        self.assertEqual(r.status_code, 200)
+        c = r.context
+        self.assertEqual((c['n_vencidas'], c['n_hoy'], c['n_proximas']), (1, 2, 2))
+        self.assertEqual(c['probetas_hoy'], 4)
+        self.assertEqual(c['mas_atrasada'], 2)
+        self.assertEqual([m.muestra.numero_muestra for m in c['hoy_grupos'][0]['muestras']], [2, 3])
+        self.assertEqual(c['hoy_grupos'][0]['obra'], self.obra)
+        self.assertEqual([d['n'] for d in c['dias']], [1, 0, 1])
+        self.assertContains(r, 'hace 2 días')
+        self.assertContains(r, reverse('hoja_trabajo_obra', args=[self.obra.pk]) + '#fila-')
+        self.assertNotContains(r, 'Columna 6')   # fuera de la ventana de 3 días
+
+    def test_solo_staff(self):
+        from users.models import UsuarioBase
+        cliente = UsuarioBase.objects.create_user('cli', password='x', es_cliente=True)
+        self.client.force_login(cliente)
+        self.assertEqual(self.client.get(reverse('muestras_para_hoy')).status_code, 302)

@@ -1,186 +1,172 @@
 {% extends 'base.html' %}
 
-{% block title %}Muestras para Hoy{% endblock %}
+{% block title %}Ensayos del día · {{ fecha_hoy|date:"j M" }}{% endblock %}
+
+{% block extra_css %}
+{% include "includes/_registro_estilos.html" %}
+<style>
+    /* Ensayos del día (esquema "registro"): banda con el día, luego vencidas, hoy y próximos días, por obra */
+    .ed-sec { margin-top: 1rem; }
+    .ed-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
+               padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--inf-line); }
+    .ed-head h2 { display: flex; align-items: center; font-size: .9rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .ed-head h2 small { color: var(--inf-muted); font-weight: 500; font-size: .8125rem; margin-left: .4rem; }
+    .ed-head .lado { font-size: .8rem; color: var(--inf-muted); }
+
+    /* Acento por sección */
+    .ed-sec.vencidas .inf-panel { border-color: #f3d6d3; }
+    .ed-sec.vencidas .ed-head { background: #fdf3f2; }
+    .ed-sec.vencidas .ed-head h2 { color: #9b1c13; }
+    .ed-sec.hoy .inf-panel { border-color: #9ccbea; box-shadow: 0 0 0 1px #9ccbea, 0 6px 18px -12px rgba(0, 119, 182, .45); }
+    .ed-sec.hoy .ed-head { background: #f2f8fd; }
+    .inf-ico.rojo { background: #fdecea; color: #b42318; }
+
+    /* Fila de obra (encabezado de grupo) */
+    .ed-obra td { background: #fafbfd; padding: .55rem .75rem; border-bottom: 1px solid var(--inf-line); }
+    .ed-obra .nombre { font-weight: 600; color: var(--inf-ink); }
+    .ed-obra .emp { color: var(--inf-muted); font-size: .78rem; margin-left: .4rem; }
+    .ed-obra .cuenta { font-size: .78rem; color: var(--inf-muted); white-space: nowrap; }
+    .ed-obra .cuenta strong { color: var(--inf-text); }
+    .ed-obra .abrir { display: inline-flex; align-items: center; gap: .3rem; height: 28px; padding: 0 .65rem; border-radius: 6px;
+                      font-size: .8rem; font-weight: 600; color: #fff; background: #0077b6; text-decoration: none; white-space: nowrap; }
+    .ed-obra .abrir:hover { background: #00669c; color: #fff; }
+    .ed-obra-fila { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+
+    /* Muestra */
+    .ed-m td { padding-top: .5rem; padding-bottom: .5rem; }
+    .ed-m .loc { color: var(--inf-text); }
+    .ed-m .loc small { display: block; color: var(--inf-muted); font-size: .75rem; }
+    .ed-edad { font-family: var(--inf-mono); font-size: .8rem; color: var(--inf-ink); white-space: nowrap; }
+    .ed-fc { font-family: var(--inf-mono); font-size: .78rem; color: var(--inf-muted); white-space: nowrap; }
+    .ed-prob { font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .ed-prob i { color: #94a3b8; margin-right: .2rem; }
+    .ed-atraso { display: inline-block; font-size: .72rem; font-weight: 600; color: #b42318; background: #fdecea; border-radius: 999px; padding: .08rem .5rem; white-space: nowrap; }
+    .ed-ir { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; color: var(--inf-link); text-decoration: none; }
+    .ed-ir:hover { background: #e6f1fa; }
+
+    /* Próximos días: un bloque por fecha */
+    .ed-dia + .ed-dia { border-top: 1px solid var(--inf-line); }
+    .ed-dia-cab { display: flex; align-items: baseline; gap: .6rem; padding: .75rem .9rem .35rem; }
+    .ed-dia-cab .d { font-size: .8125rem; font-weight: 600; color: #0b6ea8; }
+    .ed-dia-cab .n { font-size: .78rem; color: var(--inf-muted); }
+    .ed-dia-vacio { padding: 0 .9rem .75rem; font-size: .8rem; color: #94a3b8; }
+
+    .ed-solo-movil { display: none; }
+    .ed-vacio { padding: 2.25rem 1rem; text-align: center; color: var(--inf-muted); }
+    .ed-vacio i { display: block; font-size: 1.6rem; color: #16a34a; margin-bottom: .4rem; }
+    .ed-vacio.gris i { color: #cbd5e1; }
+
+    /* Atajos de la banda */
+    .ed-atajos { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; padding-top: .85rem; border-top: 1px solid rgba(255, 255, 255, .13); }
+    .ed-atajos a { display: inline-flex; align-items: center; gap: .45rem; height: 30px; padding: 0 .75rem; border-radius: 999px; font-size: .8125rem; font-weight: 500;
+                   color: rgba(255, 255, 255, .88); text-decoration: none; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); }
+    .ed-atajos a:hover { background: rgba(255, 255, 255, .14); color: #fff; }
+    .ed-atajos a .n { font-family: var(--inf-mono); font-size: .75rem; padding: 0 .4rem; border-radius: 999px; background: rgba(255, 255, 255, .14); }
+    .ed-atajos a.rojo .n { background: #d6453a; color: #fff; }
+    .ed-atajos a.azul .n { background: #38b6f5; color: #0b2540; }
+
+    @media (max-width: 767.98px) {
+        .ed-col-ocultable { display: none; }
+        .ed-solo-movil { display: inline; }
+        .ed-obra .emp { display: block; margin-left: 0; }
+        .inf-table td, .inf-table th { padding-left: .5rem; padding-right: .5rem; }
+    }
+</style>
+{% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4">
-    <!-- Encabezado -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <div>
-            <h2 class="mb-1">
-                <i class="bi bi-calendar-check me-2"></i>
-                Dashboard de Ensayos
-            </h2>
-            <p class="text-muted mb-0">{{ fecha_hoy|date:"l, d F Y" }}</p>
-        </div>
-        <a href="{% url 'lista_hojas_trabajo' %}" class="btn btn-outline-secondary">
-            <i class="bi bi-list-ul me-2"></i>
-            Ver Todas las Hojas
-        </a>
-    </div>
+<div class="inf">
+    {% include "includes/_mensajes.html" %}
 
-    <div class="row">
-        <!-- Muestras para HOY -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-danger h-100">
-                <div class="card-header bg-danger text-white d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-exclamation-triangle me-2"></i>
-                        Fallar HOY
-                    </h5>
-                    <span class="badge bg-white text-danger fs-6">{{ muestras_hoy|length }}</span>
+    <section class="inf-hero">
+        <header class="inf-head">
+            <div>
+                <div class="inf-eyebrow">Ensayos del día</div>
+                <h1 class="inf-title">{{ fecha_hoy|date:"l j \d\e F"|lower|capfirst }}</h1>
+                <div class="inf-meta">
+                    {% if n_hoy %}<strong>{{ n_hoy }}</strong> muestra{{ n_hoy|pluralize }} por fallar hoy en {{ obras_hoy }} obra{{ obras_hoy|pluralize }}{% else %}Hoy no hay muestras programadas{% endif %}{% if n_vencidas %} · <strong>{{ n_vencidas }}</strong> vencida{{ n_vencidas|pluralize }} sin resultado{% endif %}
                 </div>
-                <div class="card-body p-0">
-                    {% if muestras_hoy %}
-                    <div class="list-group list-group-flush">
-                        {% for resultado in muestras_hoy %}
-                        <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
-                           class="list-group-item list-group-item-action">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <strong>Muestra #{{ resultado.muestra.numero_muestra }}</strong>
-                                    - {{ resultado.muestra.edad_ensayo_dias }} días
-                                    <br>
-                                    <small class="text-muted">
-                                        {{ resultado.muestra.localizacion|truncatechars:40 }}
-                                    </small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-secondary">
-                                        F'c: {{ resultado.muestra.fc_resistencia }}
-                                    </span>
-                                    <br>
-                                    <small class="text-muted">
-                                        {{ resultado.hoja_trabajo.obra.codigo_obra }}
-                                    </small>
-                                </div>
-                            </div>
-                        </a>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
-                        No hay muestras para fallar hoy
-                    </div>
-                    {% endif %}
-                </div>
+            </div>
+            <div class="inf-actions">
+                <a href="{% url 'lista_obras_hojas_trabajo' %}" class="btn btn-sm btn-hero">
+                    <i class="bi bi-clipboard2-data me-1"></i>Hojas de trabajo
+                </a>
+            </div>
+        </header>
+
+        <div class="inf-hero-facts">
+            <div class="dato">
+                <div class="eti">Para hoy</div>
+                <div class="val">{{ n_hoy }} <small>muestra{{ n_hoy|pluralize }}</small></div>
+                <div class="sub">{{ probetas_hoy }} probeta{{ probetas_hoy|pluralize }} en {{ obras_hoy }} obra{{ obras_hoy|pluralize }}</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Vencidas</div>
+                <div class="val">{{ n_vencidas }}</div>
+                <div class="sub">{% if n_vencidas %}la más atrasada, hace {{ mas_atrasada }} día{{ mas_atrasada|pluralize }}{% else %}todo al día{% endif %}</div>
+            </div>
+            <div class="dato">
+                <div class="eti">Próximos {{ dias_adelante }} días</div>
+                <div class="val">{{ n_proximas }}</div>
+                <div class="sub">{% for d in dias %}{% if d.manana %}mañana{% else %}{{ d.fecha|date:"D" }}{% endif %} {{ d.n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
             </div>
         </div>
 
-        <!-- Muestras VENCIDAS -->
-        <div class="col-lg-6 mb-4">
-            <div class="card border-warning h-100">
-                <div class="card-header bg-warning text-dark d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">
-                        <i class="bi bi-clock-history me-2"></i>
-                        Vencidas (Pendientes)
-                    </h5>
-                    <span class="badge bg-dark">{{ muestras_vencidas|length }}</span>
-                </div>
-                <div class="card-body p-0">
-                    {% if muestras_vencidas %}
-                    <div class="list-group list-group-flush" style="max-height: 400px; overflow-y: auto;">
-                        {% for resultado in muestras_vencidas %}
-                        <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
-                           class="list-group-item list-group-item-action list-group-item-warning">
-                            <div class="d-flex justify-content-between align-items-start">
-                                <div>
-                                    <strong>Muestra #{{ resultado.muestra.numero_muestra }}</strong>
-                                    - {{ resultado.muestra.edad_ensayo_dias }} días
-                                    <br>
-                                    <small>
-                                        {{ resultado.muestra.localizacion|truncatechars:40 }}
-                                    </small>
-                                </div>
-                                <div class="text-end">
-                                    <span class="badge bg-danger">
-                                        Hace {{ resultado.dias_para_falla|slice:"1:" }} días
-                                    </span>
-                                    <br>
-                                    <small class="text-muted">
-                                        {{ resultado.hoja_trabajo.obra.codigo_obra }}
-                                    </small>
-                                </div>
-                            </div>
-                        </a>
-                        {% endfor %}
-                    </div>
-                    {% else %}
-                    <div class="text-center py-5 text-muted">
-                        <i class="bi bi-check-circle fs-1 text-success d-block mb-2"></i>
-                        No hay muestras vencidas
-                    </div>
-                    {% endif %}
-                </div>
-            </div>
-        </div>
-    </div>
+        <nav class="ed-atajos" aria-label="Ir a">
+            {% if n_vencidas %}<a href="#vencidas" class="rojo">Vencidas <span class="n">{{ n_vencidas }}</span></a>{% endif %}
+            <a href="#hoy" class="azul">Hoy <span class="n">{{ n_hoy }}</span></a>
+            {% for d in dias %}<a href="#dia-{{ forloop.counter }}">{% if d.manana %}Mañana{% else %}{{ d.fecha|date:"l j"|capfirst }}{% endif %} <span class="n">{{ d.n }}</span></a>{% endfor %}
+        </nav>
+    </section>
 
-    <!-- Muestras próximas (3 días) -->
-    <div class="card">
-        <div class="card-header bg-info text-white d-flex justify-content-between align-items-center">
-            <h5 class="mb-0">
-                <i class="bi bi-calendar-week me-2"></i>
-                Próximos 3 Días
-            </h5>
-            <span class="badge bg-white text-info">{{ muestras_proximas|length }}</span>
-        </div>
-        <div class="card-body p-0">
-            {% if muestras_proximas %}
-            <div class="table-responsive">
-                <table class="table table-hover mb-0">
-                    <thead class="table-light">
-                        <tr>
-                            <th>Muestra</th>
-                            <th>Localización</th>
-                            <th>Obra</th>
-                            <th class="text-center">Edad</th>
-                            <th class="text-center">F'c</th>
-                            <th class="text-center">Fecha Falla</th>
-                            <th class="text-center">Días</th>
-                            <th></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        {% for resultado in muestras_proximas %}
-                        <tr>
-                            <td><strong>#{{ resultado.muestra.numero_muestra }}</strong></td>
-                            <td>{{ resultado.muestra.localizacion|truncatechars:30 }}</td>
-                            <td>
-                                <small>{{ resultado.hoja_trabajo.obra.nombre }}</small>
-                                <br>
-                                <span class="badge bg-light text-dark">
-                                    {{ resultado.hoja_trabajo.obra.codigo_obra }}
-                                </span>
-                            </td>
-                            <td class="text-center">{{ resultado.muestra.edad_ensayo_dias }}d</td>
-                            <td class="text-center">{{ resultado.muestra.fc_resistencia }}</td>
-                            <td class="text-center">
-                                {{ resultado.fecha_falla_programada|date:"d/m/Y" }}
-                            </td>
-                            <td class="text-center">
-                                <span class="badge bg-info">
-                                    En {{ resultado.dias_para_falla }} días
-                                </span>
-                            </td>
-                            <td>
-                                <a href="{% url 'detalle_hoja_trabajo' resultado.hoja_trabajo.pk %}"
-                                   class="btn btn-sm btn-outline-primary">
-                                    Ver
-                                </a>
-                            </td>
-                        </tr>
-                        {% endfor %}
-                    </tbody>
-                </table>
+    {% if n_vencidas %}
+    <section class="ed-sec vencidas" id="vencidas" aria-labelledby="edVencidas">
+        <div class="inf-panel">
+            <div class="ed-head">
+                <h2 id="edVencidas"><span class="inf-ico rojo" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>Vencidas sin resultado<small>{{ n_vencidas }}</small></h2>
+                <span class="lado">Su fecha de falla ya pasó y siguen pendientes</span>
             </div>
+            {% include "ensayos/_tabla_ensayos_dia.html" with grupos=vencidas_grupos atraso=True %}
+        </div>
+    </section>
+    {% endif %}
+
+    <section class="ed-sec hoy" id="hoy" aria-labelledby="edHoy">
+        <div class="inf-panel">
+            <div class="ed-head">
+                <h2 id="edHoy"><span class="inf-ico" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>Para fallar hoy<small>{{ n_hoy }}</small></h2>
+                {% if n_hoy %}<span class="lado">{{ probetas_hoy }} probeta{{ probetas_hoy|pluralize }} · {{ obras_hoy }} obra{{ obras_hoy|pluralize }}</span>{% endif %}
+            </div>
+            {% if hoy_grupos %}
+            {% include "ensayos/_tabla_ensayos_dia.html" with grupos=hoy_grupos %}
             {% else %}
-            <div class="text-center py-4 text-muted">
-                No hay muestras programadas para los próximos 3 días
-            </div>
+            <div class="ed-vacio"><i class="bi bi-check-circle" aria-hidden="true"></i>No hay muestras programadas para hoy.</div>
             {% endif %}
         </div>
-    </div>
+    </section>
+
+    <section class="ed-sec" aria-labelledby="edProximos">
+        <div class="inf-panel">
+            <div class="ed-head">
+                <h2 id="edProximos"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>Próximos {{ dias_adelante }} días<small>{{ n_proximas }}</small></h2>
+                <span class="lado">Para preparar el trabajo</span>
+            </div>
+            {% for d in dias %}
+            <div class="ed-dia" id="dia-{{ forloop.counter }}">
+                <div class="ed-dia-cab">
+                    <span class="d">{% if d.manana %}Mañana, {{ d.fecha|date:"l j \d\e F"|lower }}{% else %}{{ d.fecha|date:"l j \d\e F"|lower|capfirst }}{% endif %}</span>
+                    <span class="n">{% if d.n %}{{ d.n }} muestra{{ d.n|pluralize }} · {{ d.probetas }} probeta{{ d.probetas|pluralize }}{% endif %}</span>
+                </div>
+                {% if d.grupos %}
+                {% include "ensayos/_tabla_ensayos_dia.html" with grupos=d.grupos %}
+                {% else %}
+                <div class="ed-dia-vacio">Sin muestras programadas.</div>
+                {% endif %}
+            </div>
+            {% endfor %}
+        </div>
+    </section>
+
+    <p class="mt-3 mb-0 small text-muted">Fecha de falla = fecha de toma + edad de ensayo. Solo aparecen muestras con resultado pendiente; al registrar el resultado en la hoja de trabajo salen de aquí.</p>
 </div>
 {% endblock %}
