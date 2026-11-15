@@ -66,68 +66,97 @@ def lista_hojas_trabajo(request):
 @login_required
 def muestras_para_hoy(request):
     """
-    Ensayos del día: muestras con resultado pendiente cuya fecha de falla (toma + edad) ya pasó,
-    es hoy o llega en los próximos días. Agrupadas por obra, que es como se trabaja en la
-    hoja de trabajo de cada obra.
+    Centro de control de ensayos: muestras con resultado pendiente según su fecha de falla
+    (toma + edad), en cuatro grupos (vencidas, hoy, mañana, resto de la semana). Cada grupo
+    trae su cola de obras; la pantalla muestra un grupo y una obra a la vez.
     """
     if not request.user.es_geolab:
         messages.error(request, "No tienes permiso para acceder a esta sección.")
         return redirect('home')
 
     hoy = timezone.localdate()
-    DIAS_ADELANTE = 3
+    SEMANA = 7
 
     pendientes = (ResultadoMuestra.objects.filter(estado='pendiente')
                   .exclude(muestra__fecha_toma__isnull=True).exclude(muestra__edad_ensayo_dias__isnull=True)
                   .select_related('muestra', 'hoja_trabajo__remision__obra__constructora'))
 
-    vencidas, de_hoy, proximas = [], [], []
+    grupos = {'vencidas': [], 'hoy': [], 'manana': [], 'semana': []}
+    por_dia = {i: 0 for i in range(SEMANA + 1)}
     for r in pendientes:
         r.fecha_falla = r.muestra.fecha_toma + timedelta(days=r.muestra.edad_ensayo_dias)
         r.dias = (r.fecha_falla - hoy).days
+        r.atraso = -r.dias
         r.obra = r.hoja_trabajo.remision.obra
         r.ot = r.hoja_trabajo.remision.orden_trabajo
-        r.atraso = -r.dias
         if r.dias < 0:
-            vencidas.append(r)
+            grupos['vencidas'].append(r)
         elif r.dias == 0:
-            de_hoy.append(r)
-        elif r.dias <= DIAS_ADELANTE:
-            proximas.append(r)
+            grupos['hoy'].append(r)
+        elif r.dias == 1:
+            grupos['manana'].append(r)
+        elif r.dias <= SEMANA:
+            grupos['semana'].append(r)
+        if 0 <= r.dias <= SEMANA:
+            por_dia[r.dias] += 1
 
-    def por_obra(lista, clave_extra=lambda r: 0):
-        """[(obra, [resultados])] ordenado por obra y, dentro, por fecha y número de muestra."""
-        lista.sort(key=lambda r: (clave_extra(r), r.obra.codigo_obra or '', r.obra.pk, r.ot or 0, r.muestra.numero_muestra))
-        grupos = []
+    def cola(lista, clave):
+        """Obras del grupo, de la más cargada (o más atrasada) a la menos."""
+        obras = {}
         for r in lista:
-            if grupos and grupos[-1]['obra'].pk == r.obra.pk and grupos[-1]['clave'] == clave_extra(r):
-                grupos[-1]['muestras'].append(r)
-            else:
-                grupos.append({'obra': r.obra, 'clave': clave_extra(r), 'muestras': [r]})
-        for g in grupos:
+            g = obras.setdefault(r.obra.pk, {'obra': r.obra, 'muestras': [], 'id': f'{clave}-{r.obra.pk}'})
+            g['muestras'].append(r)
+        cola = list(obras.values())
+        for g in cola:
+            g['muestras'].sort(key=lambda r: (r.fecha_falla, r.ot or 0, r.muestra.numero_muestra))
             g['probetas'] = sum(r.muestra.cantidad or 0 for r in g['muestras'])
-        return grupos
+            g['atraso'] = max((r.atraso for r in g['muestras']), default=0)
+            edades = sorted({r.muestra.edad_ensayo_dias for r in g['muestras']})
+            g['edades'] = edades
+        if clave == 'vencidas':
+            cola.sort(key=lambda g: (-g['atraso'], g['obra'].codigo_obra or ''))
+        else:
+            cola.sort(key=lambda g: (-len(g['muestras']), g['obra'].codigo_obra or ''))
+        return cola
 
-    # Próximos días: un bloque por fecha, y dentro por obra
-    dias = []
-    for i in range(1, DIAS_ADELANTE + 1):
-        fecha = hoy + timedelta(days=i)
-        del_dia = [r for r in proximas if r.dias == i]
-        dias.append({'fecha': fecha, 'manana': i == 1, 'grupos': por_obra(del_dia), 'n': len(del_dia),
-                     'probetas': sum(r.muestra.cantidad or 0 for r in del_dia)})
+    DEF = [
+        ('vencidas', 'Vencidas', 'bi-exclamation-triangle-fill', 'sin resultado'),
+        ('hoy', 'Hoy', 'bi-bullseye', 'por fallar'),
+        ('manana', 'Mañana', 'bi-sunrise', (hoy + timedelta(days=1))),
+        ('semana', 'Esta semana', 'bi-calendar-week', f'del {(hoy + timedelta(days=2)).day} al {(hoy + timedelta(days=SEMANA)).day}'),
+    ]
+    pico = max([len(v) for v in grupos.values()] + [1])
+    tableros = []
+    for clave, nombre, icono, sub in DEF:
+        lista = grupos[clave]
+        c = cola(lista, clave)
+        tableros.append({
+            'clave': clave, 'nombre': nombre, 'icono': icono, 'sub': sub,
+            'n': len(lista), 'probetas': sum(r.muestra.cantidad or 0 for r in lista), 'n_obras': len(c),
+            'cola': c, 'llenado': round(len(lista) * 100 / pico),
+        })
+
+    # Grupo que se abre primero: hoy si hay; si no, vencidas; si no, el primero con algo
+    inicial = next((t['clave'] for t in tableros if t['clave'] == 'hoy' and t['n']), None) \
+        or next((t['clave'] for t in tableros if t['n']), 'hoy')
+
+    hechas_hoy = ResultadoMuestra.objects.filter(estado='completado', fecha_ensayo=hoy).count()
+    n_hoy = len(grupos['hoy'])
+    total_dia = hechas_hoy + n_hoy
+    pico_dia = max(list(por_dia.values()) + [len(grupos['vencidas']), 1])
+    agenda = [{'fecha': hoy + timedelta(days=i), 'n': por_dia[i], 'hoy': i == 0, 'manana': i == 1,
+               'alto': round(por_dia[i] * 100 / pico_dia)} for i in range(SEMANA + 1)]
 
     context = {
         'fecha_hoy': hoy,
-        'hoy_grupos': por_obra(de_hoy),
-        'n_hoy': len(de_hoy),
-        'probetas_hoy': sum(r.muestra.cantidad or 0 for r in de_hoy),
-        'obras_hoy': len({r.obra.pk for r in de_hoy}),
-        'vencidas_grupos': por_obra(vencidas),
-        'n_vencidas': len(vencidas),
-        'mas_atrasada': max((-r.dias for r in vencidas), default=0),
-        'dias': dias,
-        'n_proximas': len(proximas),
-        'dias_adelante': DIAS_ADELANTE,
+        'tableros': tableros,
+        'inicial': inicial,
+        'hechas_hoy': hechas_hoy,
+        'total_dia': total_dia,
+        'avance': round(hechas_hoy * 100 / total_dia) if total_dia else 0,
+        'agenda': agenda,
+        'n_vencidas': len(grupos['vencidas']),
+        'alto_vencidas': round(len(grupos['vencidas']) * 100 / pico_dia),
     }
     return render(request, 'ensayos/muestras_para_hoy.html', context)
 

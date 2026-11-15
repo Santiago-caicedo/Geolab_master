@@ -266,16 +266,18 @@ class EnsayosDelDiaTests(TestCase):
         self.client.force_login(self.staff)
         r = self.client.get(reverse('muestras_para_hoy'))
         self.assertEqual(r.status_code, 200)
-        c = r.context
-        self.assertEqual((c['n_vencidas'], c['n_hoy'], c['n_proximas']), (1, 2, 2))
-        self.assertEqual(c['probetas_hoy'], 4)
-        self.assertEqual(c['mas_atrasada'], 2)
-        self.assertEqual([m.muestra.numero_muestra for m in c['hoy_grupos'][0]['muestras']], [2, 3])
-        self.assertEqual(c['hoy_grupos'][0]['obra'], self.obra)
-        self.assertEqual([d['n'] for d in c['dias']], [1, 0, 1])
+        t = {x['clave']: x for x in r.context['tableros']}
+        self.assertEqual([t[k]['n'] for k in ('vencidas', 'hoy', 'manana', 'semana')], [1, 2, 1, 1])
+        self.assertEqual(t['hoy']['probetas'], 4)
+        self.assertEqual(r.context['inicial'], 'hoy')
+        g = t['hoy']['cola'][0]
+        self.assertEqual(g['obra'], self.obra)
+        self.assertEqual([m.muestra.numero_muestra for m in g['muestras']], [2, 3])
+        self.assertEqual(t['vencidas']['cola'][0]['atraso'], 2)
+        self.assertEqual(r.context['total_dia'], 2)      # 0 hechas + 2 pendientes de hoy
         self.assertContains(r, 'hace 2 días')
         self.assertContains(r, reverse('hoja_trabajo_obra', args=[self.obra.pk]) + '#fila-')
-        self.assertNotContains(r, 'Columna 6')   # fuera de la ventana de 3 días
+        self.assertNotContains(r, 'Columna 6')   # fuera de la semana
 
     def test_solo_staff(self):
         from users.models import UsuarioBase

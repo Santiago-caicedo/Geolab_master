@@ -5,168 +5,348 @@
 {% block extra_css %}
 {% include "includes/_registro_estilos.html" %}
 <style>
-    /* Ensayos del día (esquema "registro"): banda con el día, luego vencidas, hoy y próximos días, por obra */
-    .ed-sec { margin-top: 1rem; }
-    .ed-head { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap;
-               padding: .7rem .9rem .6rem; border-bottom: 1px solid var(--inf-line); }
-    .ed-head h2 { display: flex; align-items: center; font-size: .9rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
-    .ed-head h2 small { color: var(--inf-muted); font-weight: 500; font-size: .8125rem; margin-left: .4rem; }
-    .ed-head .lado { font-size: .8rem; color: var(--inf-muted); }
+    /* ===== Centro de control de ensayos =====
+       Banda (día + avance + semana) · 4 mandos que eligen el grupo · cola de obras | detalle de la obra.
+       Se ve UN grupo y UNA obra a la vez. Todo bajo .cc (y .inf para heredar el esquema registro). */
+    .cc {
+        --cc-rojo: #b42318;   --cc-rojo-suave: #fdecea;  --cc-rojo-linea: #f3c9c4;
+        --cc-azul: #0077b6;   --cc-azul-suave: #e6f1fa;  --cc-azul-linea: #9ccbea;
+        --cc-verde: #0e7a5f;  --cc-verde-suave: #def4ec; --cc-verde-linea: #a7dcc9;
+        --cc-pizarra: #3d4a5c; --cc-pizarra-suave: #eef1f5; --cc-pizarra-linea: #cfd6e0;
+    }
 
-    /* Acento por sección */
-    .ed-sec.vencidas .inf-panel { border-color: #f3d6d3; }
-    .ed-sec.vencidas .ed-head { background: #fdf3f2; }
-    .ed-sec.vencidas .ed-head h2 { color: #9b1c13; }
-    .ed-sec.hoy .inf-panel { border-color: #9ccbea; box-shadow: 0 0 0 1px #9ccbea, 0 6px 18px -12px rgba(0, 119, 182, .45); }
-    .ed-sec.hoy .ed-head { background: #f2f8fd; }
-    .inf-ico.rojo { background: #fdecea; color: #b42318; }
+    /* ---------- Banda ---------- */
+    .cc-banda { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 1.5rem; align-items: center; }
+    .cc-dia { display: flex; align-items: center; gap: 1.1rem; }
+    .cc-anillo { --p: 0; width: 76px; height: 76px; border-radius: 50%; flex: none; display: grid; place-items: center;
+                 background: conic-gradient(#7ee0b5 calc(var(--p) * 1%), rgba(255, 255, 255, .14) 0); }
+    .cc-anillo > span { width: 60px; height: 60px; border-radius: 50%; background: #17304f; display: flex; flex-direction: column;
+                        align-items: center; justify-content: center; line-height: 1; }
+    .cc-anillo b { font-size: 1.05rem; color: #fff; font-variant-numeric: tabular-nums; }
+    .cc-anillo small { font-size: .62rem; color: #9fcbea; margin-top: .2rem; letter-spacing: .04em; }
+    .cc-avance { color: rgba(255, 255, 255, .8); font-size: .875rem; margin-top: .25rem; }
+    .cc-avance strong { color: #fff; }
 
-    /* Fila de obra (encabezado de grupo) */
-    .ed-obra td { background: #fafbfd; padding: .55rem .75rem; border-bottom: 1px solid var(--inf-line); }
-    .ed-obra .nombre { font-weight: 600; color: var(--inf-ink); }
-    .ed-obra .emp { color: var(--inf-muted); font-size: .78rem; margin-left: .4rem; }
-    .ed-obra .cuenta { font-size: .78rem; color: var(--inf-muted); white-space: nowrap; }
-    .ed-obra .cuenta strong { color: var(--inf-text); }
-    .ed-obra .abrir { display: inline-flex; align-items: center; gap: .3rem; height: 28px; padding: 0 .65rem; border-radius: 6px;
-                      font-size: .8rem; font-weight: 600; color: #fff; background: #0077b6; text-decoration: none; white-space: nowrap; }
-    .ed-obra .abrir:hover { background: #00669c; color: #fff; }
-    .ed-obra-fila { display: flex; align-items: center; justify-content: space-between; gap: .75rem; flex-wrap: wrap; }
+    /* La semana en barras (vencidas + hoy + 7 días) */
+    .cc-semana { display: flex; align-items: flex-end; gap: .4rem; height: 92px; }
+    .cc-semana .col { display: flex; flex-direction: column; align-items: center; gap: .25rem; width: 34px; }
+    .cc-semana .barra { position: relative; width: 14px; height: 52px; border-radius: 4px; background: rgba(255, 255, 255, .1); overflow: hidden; }
+    .cc-semana .barra i { position: absolute; left: 0; right: 0; bottom: 0; background: #38b6f5; border-radius: 3px 3px 0 0; }
+    .cc-semana .col.venc .barra i { background: #f08a7f; }
+    .cc-semana .col.hoy .barra { box-shadow: 0 0 0 2px #fff; }
+    .cc-semana .n { font-family: var(--inf-mono); font-size: .72rem; color: #fff; line-height: 1; }
+    .cc-semana .d { font-size: .64rem; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: #9fcbea; line-height: 1; }
+    .cc-semana .col.hoy .d { color: #fff; }
+    .cc-semana .col.cero .n { color: rgba(255, 255, 255, .35); }
 
-    /* Muestra */
-    .ed-m td { padding-top: .5rem; padding-bottom: .5rem; }
-    .ed-m .loc { color: var(--inf-text); }
-    .ed-m .loc small { display: block; color: var(--inf-muted); font-size: .75rem; }
-    .ed-edad { font-family: var(--inf-mono); font-size: .8rem; color: var(--inf-ink); white-space: nowrap; }
-    .ed-fc { font-family: var(--inf-mono); font-size: .78rem; color: var(--inf-muted); white-space: nowrap; }
-    .ed-prob { font-variant-numeric: tabular-nums; white-space: nowrap; }
-    .ed-prob i { color: #94a3b8; margin-right: .2rem; }
-    .ed-atraso { display: inline-block; font-size: .72rem; font-weight: 600; color: #b42318; background: #fdecea; border-radius: 999px; padding: .08rem .5rem; white-space: nowrap; }
-    .ed-ir { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 6px; color: var(--inf-link); text-decoration: none; }
-    .ed-ir:hover { background: #e6f1fa; }
+    /* ---------- Mandos ---------- */
+    .cc-mandos { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+    .cc-mando {
+        --c: var(--cc-pizarra); --c-suave: var(--cc-pizarra-suave); --c-linea: var(--cc-pizarra-linea);
+        position: relative; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .25rem .75rem; align-items: end;
+        padding: .9rem 1rem .85rem; border-radius: 14px; border: 1px solid var(--inf-line); background: #fff;
+        text-align: left; color: var(--inf-text); cursor: pointer; font: inherit;
+        box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: border-color .15s ease, box-shadow .15s ease, background-color .15s ease;
+    }
+    .cc-mando.vencidas { --c: var(--cc-rojo); --c-suave: var(--cc-rojo-suave); --c-linea: var(--cc-rojo-linea); }
+    .cc-mando.hoy      { --c: var(--cc-azul); --c-suave: var(--cc-azul-suave); --c-linea: var(--cc-azul-linea); }
+    .cc-mando.manana   { --c: var(--cc-verde); --c-suave: var(--cc-verde-suave); --c-linea: var(--cc-verde-linea); }
+    .cc-mando:hover { border-color: var(--c-linea); }
+    .cc-mando[aria-pressed="true"] { border-color: var(--c); background: var(--c-suave); box-shadow: 0 0 0 1px var(--c), 0 10px 24px -16px var(--c); }
+    .cc-mando[aria-pressed="true"]::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
+                                           background: var(--c-suave); border-right: 1px solid var(--c); border-bottom: 1px solid var(--c); }
+    .cc-mando:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+    .cc-mando .eti { display: flex; align-items: center; gap: .4rem; font-size: .78rem; font-weight: 600; color: var(--c); }
+    .cc-mando .num { font-size: 2.4rem; font-weight: 700; line-height: 1; color: var(--inf-ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    .cc-mando.vencidas .num { color: var(--cc-rojo); }
+    .cc-mando.cero .num { color: #cbd5e1; }
+    .cc-mando .sub { font-size: .78rem; color: var(--inf-muted); }
+    .cc-mando .sub b { color: var(--inf-text); font-weight: 600; }
+    /* Probeta de concreto: el relleno es la carga del grupo frente al más cargado */
+    .cc-probeta { grid-row: 1 / span 3; grid-column: 2; align-self: center; position: relative; width: 30px; height: 62px;
+                  border-radius: 8px / 5px; background: var(--c-suave); border: 1px solid var(--c-linea); overflow: hidden; }
+    .cc-probeta i { position: absolute; left: 0; right: 0; bottom: 0; background: var(--c); opacity: .85; }
+    .cc-probeta::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 6px; border-radius: 50%; background: rgba(255, 255, 255, .55); z-index: 1; }
 
-    /* Próximos días: un bloque por fecha */
-    .ed-dia + .ed-dia { border-top: 1px solid var(--inf-line); }
-    .ed-dia-cab { display: flex; align-items: baseline; gap: .6rem; padding: .75rem .9rem .35rem; }
-    .ed-dia-cab .d { font-size: .8125rem; font-weight: 600; color: #0b6ea8; }
-    .ed-dia-cab .n { font-size: .78rem; color: var(--inf-muted); }
-    .ed-dia-vacio { padding: 0 .9rem .75rem; font-size: .8rem; color: #94a3b8; }
+    /* ---------- Tablero: cola | detalle ---------- */
+    .cc-tablero { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 1rem; align-items: start; }
+    .cc-cola { background: #fff; border: 1px solid var(--inf-line); border-radius: 14px; overflow: hidden; position: sticky; top: 1rem; }
+    .cc-cola-cab { padding: .8rem 1rem .65rem; border-bottom: 1px solid var(--inf-line); }
+    .cc-cola-cab h2 { font-size: .9rem; font-weight: 600; color: var(--inf-ink); margin: 0; }
+    .cc-cola-cab p { margin: .15rem 0 0; font-size: .78rem; color: var(--inf-muted); }
+    .cc-cola ol { list-style: none; margin: 0; padding: .35rem; max-height: 62vh; overflow-y: auto; }
+    .cc-obra-btn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .6rem; align-items: center;
+                   padding: .6rem .7rem; border: 0; border-radius: 10px; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+    .cc-obra-btn:hover { background: #f5f8fc; }
+    .cc-obra-btn[aria-current="true"] { background: var(--cc-sel-suave, #e6f1fa); box-shadow: inset 3px 0 0 var(--cc-sel, #0077b6); }
+    .cc-obra-btn:focus-visible { outline: 2px solid #0077b6; outline-offset: -2px; }
+    .cc-obra-btn .nom { font-weight: 600; color: var(--inf-ink); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cc-obra-btn .cod { font-family: var(--inf-mono); font-size: .7rem; color: var(--inf-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .cc-obra-btn .cuenta { grid-row: 1 / span 2; grid-column: 2; text-align: right; line-height: 1.1; }
+    .cc-obra-btn .cuenta b { display: block; font-size: 1.15rem; color: var(--inf-ink); font-variant-numeric: tabular-nums; }
+    .cc-obra-btn .cuenta small { font-size: .68rem; color: var(--inf-muted); }
+    .cc-obra-btn .atraso { color: var(--cc-rojo); font-weight: 600; }
 
-    .ed-solo-movil { display: none; }
-    .ed-vacio { padding: 2.25rem 1rem; text-align: center; color: var(--inf-muted); }
-    .ed-vacio i { display: block; font-size: 1.6rem; color: #16a34a; margin-bottom: .4rem; }
-    .ed-vacio.gris i { color: #cbd5e1; }
+    .cc-det { background: #fff; border: 1px solid var(--inf-line); border-radius: 14px; overflow: hidden;
+              box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -18px rgba(15, 23, 42, .3); }
+    .cc-det + .cc-det { margin-top: 1rem; }
+    .cc-det-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+                  padding: 1rem 1.15rem; border-bottom: 1px solid var(--inf-line); border-top: 4px solid var(--cc-sel, #0077b6); }
+    .cc-det-cab .grupo { font-size: .75rem; font-weight: 600; color: var(--cc-sel, #0077b6); }
+    .cc-det-cab h3 { font-size: 1.2rem; font-weight: 700; color: var(--inf-ink); margin: .15rem 0 .2rem; line-height: 1.25; }
+    .cc-det-cab .emp { font-size: .8125rem; color: var(--inf-muted); }
+    .cc-det-datos { display: flex; gap: 1.25rem; margin-top: .7rem; flex-wrap: wrap; }
+    .cc-det-datos div { line-height: 1.15; }
+    .cc-det-datos b { display: block; font-size: 1.15rem; color: var(--inf-ink); font-variant-numeric: tabular-nums; }
+    .cc-det-datos span { font-size: .72rem; color: var(--inf-muted); }
+    .cc-abrir { display: inline-flex; align-items: center; gap: .5rem; height: 44px; padding: 0 1.1rem; border-radius: 10px;
+                background: #0077b6; color: #fff; font-weight: 600; font-size: .9rem; text-decoration: none; white-space: nowrap; }
+    .cc-abrir:hover { background: #00669c; color: #fff; }
+    .cc-abrir:focus-visible { outline: 2px solid #0077b6; outline-offset: 3px; }
 
-    /* Atajos de la banda */
-    .ed-atajos { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: 1rem; padding-top: .85rem; border-top: 1px solid rgba(255, 255, 255, .13); }
-    .ed-atajos a { display: inline-flex; align-items: center; gap: .45rem; height: 30px; padding: 0 .75rem; border-radius: 999px; font-size: .8125rem; font-weight: 500;
-                   color: rgba(255, 255, 255, .88); text-decoration: none; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .14); }
-    .ed-atajos a:hover { background: rgba(255, 255, 255, .14); color: #fff; }
-    .ed-atajos a .n { font-family: var(--inf-mono); font-size: .75rem; padding: 0 .4rem; border-radius: 999px; background: rgba(255, 255, 255, .14); }
-    .ed-atajos a.rojo .n { background: #d6453a; color: #fff; }
-    .ed-atajos a.azul .n { background: #38b6f5; color: #0b2540; }
+    .cc-tabla td { padding-top: .6rem; padding-bottom: .6rem; }
+    .cc-tabla .loc { color: var(--inf-text); }
+    .cc-tabla .loc small { display: block; color: var(--inf-muted); font-size: .75rem; }
+    .cc-edad { display: inline-block; min-width: 44px; text-align: center; font-family: var(--inf-mono); font-size: .8rem; font-weight: 600;
+               color: var(--inf-ink); background: #eef3f8; border-radius: 6px; padding: .15rem .4rem; }
+    .cc-dato { font-family: var(--inf-mono); font-size: .78rem; color: var(--inf-muted); white-space: nowrap; }
+    .cc-cuando { font-size: .78rem; white-space: nowrap; color: var(--inf-muted); }
+    .cc-cuando.rojo { color: var(--cc-rojo); font-weight: 600; }
+    .cc-ir { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; border-radius: 8px; color: var(--inf-link); text-decoration: none; }
+    .cc-ir:hover { background: #e6f1fa; }
+    .cc-ir:focus-visible { outline: 2px solid #0077b6; outline-offset: 1px; }
 
+    .cc-vacio { grid-column: 1 / -1; background: #fff; border: 1px dashed var(--inf-line); border-radius: 14px; padding: 2.75rem 1rem; text-align: center; color: var(--inf-muted); }
+    .cc-vacio i { display: block; font-size: 1.8rem; color: #16a34a; margin-bottom: .4rem; }
+    .cc-nota { margin: 1rem 0 0; font-size: .78rem; color: var(--inf-muted); }
+
+    /* Color del grupo elegido (lo pone el JS en .cc-tablero) */
+    .cc-tablero[data-grupo="vencidas"] { --cc-sel: var(--cc-rojo); --cc-sel-suave: var(--cc-rojo-suave); }
+    .cc-tablero[data-grupo="hoy"]      { --cc-sel: var(--cc-azul); --cc-sel-suave: var(--cc-azul-suave); }
+    .cc-tablero[data-grupo="manana"]   { --cc-sel: var(--cc-verde); --cc-sel-suave: var(--cc-verde-suave); }
+    .cc-tablero[data-grupo="semana"]   { --cc-sel: var(--cc-pizarra); --cc-sel-suave: var(--cc-pizarra-suave); }
+
+    /* Sin JS se ve todo; con JS, un grupo y una obra */
+    .js .cc-grupo:not(.activo), .js .cc-det:not(.activo) { display: none; }
+    .js .cc-det + .cc-det { margin-top: 0; }
+
+    .cc-solo-movil { display: none; }
+    @media (max-width: 1199.98px) {
+        .cc-banda { grid-template-columns: minmax(0, 1fr); }
+        .cc-tablero { grid-template-columns: minmax(0, 1fr); }
+        .cc-cola { position: static; }
+        .cc-cola ol { max-height: none; }
+    }
     @media (max-width: 767.98px) {
-        .ed-col-ocultable { display: none; }
-        .ed-solo-movil { display: inline; }
-        .ed-obra .emp { display: block; margin-left: 0; }
+        .cc-mandos { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; }
+        .cc-mando { padding: .75rem .8rem; }
+        .cc-mando .num { font-size: 1.9rem; }
+        .cc-probeta { width: 22px; height: 48px; }
+        .cc-mando[aria-pressed="true"]::after { display: none; }
+        .cc-semana { gap: .2rem; }
+        .cc-semana .col { width: 28px; }
+        .cc-col-ocultable { display: none; }
+        .cc-solo-movil { display: inline; }
+        .cc-abrir { width: 100%; justify-content: center; }
         .inf-table td, .inf-table th { padding-left: .5rem; padding-right: .5rem; }
     }
+    @media (prefers-reduced-motion: reduce) { .cc-mando { transition: none; } }
 </style>
 {% endblock %}
 
 {% block content %}
-<div class="inf">
+<div class="inf cc" id="cc">
     {% include "includes/_mensajes.html" %}
 
+    <!-- Banda: el día y la semana -->
     <section class="inf-hero">
-        <header class="inf-head">
+        <div class="cc-banda">
             <div>
-                <div class="inf-eyebrow">Ensayos del día</div>
-                <h1 class="inf-title">{{ fecha_hoy|date:"l j \d\e F"|lower|capfirst }}</h1>
-                <div class="inf-meta">
-                    {% if n_hoy %}<strong>{{ n_hoy }}</strong> muestra{{ n_hoy|pluralize }} por fallar hoy en {{ obras_hoy }} obra{{ obras_hoy|pluralize }}{% else %}Hoy no hay muestras programadas{% endif %}{% if n_vencidas %} · <strong>{{ n_vencidas }}</strong> vencida{{ n_vencidas|pluralize }} sin resultado{% endif %}
+                <div class="inf-eyebrow">Centro de control de ensayos</div>
+                <div class="cc-dia mt-1">
+                    <div class="cc-anillo" style="--p: {{ avance }};" role="img" aria-label="Avance del día: {{ hechas_hoy }} de {{ total_dia }} muestras con resultado">
+                        <span><b>{{ avance }}%</b><small>del día</small></span>
+                    </div>
+                    <div>
+                        <h1 class="inf-title mb-0">{{ fecha_hoy|date:"l j \d\e F"|lower|capfirst }}</h1>
+                        <div class="cc-avance">
+                            {% if total_dia %}<strong>{{ hechas_hoy }}</strong> de <strong>{{ total_dia }}</strong> muestras del día con resultado{% else %}Hoy no hay muestras programadas{% endif %}{% if n_vencidas %} · <strong>{{ n_vencidas }}</strong> vencida{{ n_vencidas|pluralize }}{% endif %}
+                        </div>
+                        <a href="{% url 'lista_obras_hojas_trabajo' %}" class="btn btn-sm btn-hero mt-2"><i class="bi bi-clipboard2-data me-1"></i>Todas las hojas de trabajo</a>
+                    </div>
                 </div>
             </div>
-            <div class="inf-actions">
-                <a href="{% url 'lista_obras_hojas_trabajo' %}" class="btn btn-sm btn-hero">
-                    <i class="bi bi-clipboard2-data me-1"></i>Hojas de trabajo
-                </a>
-            </div>
-        </header>
-
-        <div class="inf-hero-facts">
-            <div class="dato">
-                <div class="eti">Para hoy</div>
-                <div class="val">{{ n_hoy }} <small>muestra{{ n_hoy|pluralize }}</small></div>
-                <div class="sub">{{ probetas_hoy }} probeta{{ probetas_hoy|pluralize }} en {{ obras_hoy }} obra{{ obras_hoy|pluralize }}</div>
-            </div>
-            <div class="dato">
-                <div class="eti">Vencidas</div>
-                <div class="val">{{ n_vencidas }}</div>
-                <div class="sub">{% if n_vencidas %}la más atrasada, hace {{ mas_atrasada }} día{{ mas_atrasada|pluralize }}{% else %}todo al día{% endif %}</div>
-            </div>
-            <div class="dato">
-                <div class="eti">Próximos {{ dias_adelante }} días</div>
-                <div class="val">{{ n_proximas }}</div>
-                <div class="sub">{% for d in dias %}{% if d.manana %}mañana{% else %}{{ d.fecha|date:"D" }}{% endif %} {{ d.n }}{% if not forloop.last %} · {% endif %}{% endfor %}</div>
-            </div>
-        </div>
-
-        <nav class="ed-atajos" aria-label="Ir a">
-            {% if n_vencidas %}<a href="#vencidas" class="rojo">Vencidas <span class="n">{{ n_vencidas }}</span></a>{% endif %}
-            <a href="#hoy" class="azul">Hoy <span class="n">{{ n_hoy }}</span></a>
-            {% for d in dias %}<a href="#dia-{{ forloop.counter }}">{% if d.manana %}Mañana{% else %}{{ d.fecha|date:"l j"|capfirst }}{% endif %} <span class="n">{{ d.n }}</span></a>{% endfor %}
-        </nav>
-    </section>
-
-    {% if n_vencidas %}
-    <section class="ed-sec vencidas" id="vencidas" aria-labelledby="edVencidas">
-        <div class="inf-panel">
-            <div class="ed-head">
-                <h2 id="edVencidas"><span class="inf-ico rojo" aria-hidden="true"><i class="bi bi-exclamation-triangle"></i></span>Vencidas sin resultado<small>{{ n_vencidas }}</small></h2>
-                <span class="lado">Su fecha de falla ya pasó y siguen pendientes</span>
-            </div>
-            {% include "ensayos/_tabla_ensayos_dia.html" with grupos=vencidas_grupos atraso=True %}
-        </div>
-    </section>
-    {% endif %}
-
-    <section class="ed-sec hoy" id="hoy" aria-labelledby="edHoy">
-        <div class="inf-panel">
-            <div class="ed-head">
-                <h2 id="edHoy"><span class="inf-ico" aria-hidden="true"><i class="bi bi-calendar-check"></i></span>Para fallar hoy<small>{{ n_hoy }}</small></h2>
-                {% if n_hoy %}<span class="lado">{{ probetas_hoy }} probeta{{ probetas_hoy|pluralize }} · {{ obras_hoy }} obra{{ obras_hoy|pluralize }}</span>{% endif %}
-            </div>
-            {% if hoy_grupos %}
-            {% include "ensayos/_tabla_ensayos_dia.html" with grupos=hoy_grupos %}
-            {% else %}
-            <div class="ed-vacio"><i class="bi bi-check-circle" aria-hidden="true"></i>No hay muestras programadas para hoy.</div>
-            {% endif %}
-        </div>
-    </section>
-
-    <section class="ed-sec" aria-labelledby="edProximos">
-        <div class="inf-panel">
-            <div class="ed-head">
-                <h2 id="edProximos"><span class="inf-ico navy" aria-hidden="true"><i class="bi bi-calendar-week"></i></span>Próximos {{ dias_adelante }} días<small>{{ n_proximas }}</small></h2>
-                <span class="lado">Para preparar el trabajo</span>
-            </div>
-            {% for d in dias %}
-            <div class="ed-dia" id="dia-{{ forloop.counter }}">
-                <div class="ed-dia-cab">
-                    <span class="d">{% if d.manana %}Mañana, {{ d.fecha|date:"l j \d\e F"|lower }}{% else %}{{ d.fecha|date:"l j \d\e F"|lower|capfirst }}{% endif %}</span>
-                    <span class="n">{% if d.n %}{{ d.n }} muestra{{ d.n|pluralize }} · {{ d.probetas }} probeta{{ d.probetas|pluralize }}{% endif %}</span>
+            <div class="cc-semana" role="img" aria-label="Muestras por día: vencidas {{ n_vencidas }}{% for d in agenda %}, {% if d.hoy %}hoy{% elif d.manana %}mañana{% else %}{{ d.fecha|date:'l j' }}{% endif %} {{ d.n }}{% endfor %}">
+                <div class="col venc{% if not n_vencidas %} cero{% endif %}">
+                    <span class="n">{{ n_vencidas }}</span>
+                    <span class="barra"><i style="height: {{ alto_vencidas }}%"></i></span>
+                    <span class="d">Venc</span>
                 </div>
-                {% if d.grupos %}
-                {% include "ensayos/_tabla_ensayos_dia.html" with grupos=d.grupos %}
-                {% else %}
-                <div class="ed-dia-vacio">Sin muestras programadas.</div>
-                {% endif %}
+                {% for d in agenda %}
+                <div class="col{% if d.hoy %} hoy{% endif %}{% if not d.n %} cero{% endif %}">
+                    <span class="n">{{ d.n }}</span>
+                    <span class="barra"><i style="height: {{ d.alto }}%"></i></span>
+                    <span class="d">{% if d.hoy %}Hoy{% else %}{{ d.fecha|date:"D"|slice:":3" }}{% endif %}</span>
+                </div>
+                {% endfor %}
             </div>
+        </div>
+    </section>
+
+    <!-- Mandos: eligen el grupo -->
+    <div class="cc-mandos" role="group" aria-label="Elegir grupo de muestras">
+        {% for t in tableros %}
+        <button type="button" class="cc-mando {{ t.clave }}{% if not t.n %} cero{% endif %}" data-grupo="{{ t.clave }}"
+                aria-pressed="{% if t.clave == inicial %}true{% else %}false{% endif %}" aria-controls="ccTablero">
+            <span class="eti"><i class="bi {{ t.icono }}" aria-hidden="true"></i>{{ t.nombre }}</span>
+            <span class="num">{{ t.n }}</span>
+            <span class="sub">{% if t.n %}<b>{{ t.probetas }}</b> probeta{{ t.probetas|pluralize }} · <b>{{ t.n_obras }}</b> obra{{ t.n_obras|pluralize }}{% elif t.clave == 'manana' %}{{ t.sub|date:"l j"|lower }}{% else %}{{ t.sub }}{% endif %}</span>
+            <span class="cc-probeta" aria-hidden="true"><i style="height: {{ t.llenado }}%"></i></span>
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Tablero: cola de obras | detalle de la obra -->
+    <div class="cc-tablero" id="ccTablero" data-grupo="{{ inicial }}">
+        {% for t in tableros %}
+        {% if t.n %}
+        <aside class="cc-cola cc-grupo{% if t.clave == inicial %} activo{% endif %}" data-grupo="{{ t.clave }}" aria-label="Obras: {{ t.nombre }}">
+            <div class="cc-cola-cab">
+                <h2>{{ t.nombre }} · {{ t.n_obras }} obra{{ t.n_obras|pluralize }}</h2>
+                <p>{% if t.clave == 'vencidas' %}Primero la más atrasada{% else %}Primero la que más muestras tiene{% endif %}</p>
+            </div>
+            <ol>
+                {% for g in t.cola %}
+                <li>
+                    <button type="button" class="cc-obra-btn" data-det="{{ g.id }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}">
+                        <span class="nom">{{ g.obra.nombre }}</span>
+                        <span class="cod">{{ g.obra.codigo_obra }} · {{ g.obra.constructora.nombre }}</span>
+                        <span class="cuenta">
+                            <b>{{ g.muestras|length }}</b>
+                            <small>{% if t.clave == 'vencidas' %}<span class="atraso">hasta {{ g.atraso }} d</span>{% else %}{{ g.probetas }} prob.{% endif %}</small>
+                        </span>
+                    </button>
+                </li>
+                {% endfor %}
+            </ol>
+        </aside>
+        <div class="cc-grupo{% if t.clave == inicial %} activo{% endif %}" data-grupo="{{ t.clave }}">
+            {% for g in t.cola %}
+            <section class="cc-det{% if forloop.first %} activo{% endif %}" id="{{ g.id }}" aria-labelledby="{{ g.id }}-t">
+                <div class="cc-det-cab">
+                    <div>
+                        <div class="grupo"><i class="bi {{ t.icono }} me-1" aria-hidden="true"></i>{{ t.nombre }}</div>
+                        <h3 id="{{ g.id }}-t">{{ g.obra.nombre }}</h3>
+                        <div class="emp"><span class="inf-num ot me-1">{{ g.obra.codigo_obra }}</span>{{ g.obra.constructora.nombre }}</div>
+                        <div class="cc-det-datos">
+                            <div><b>{{ g.muestras|length }}</b><span>muestra{{ g.muestras|length|pluralize }}</span></div>
+                            <div><b>{{ g.probetas }}</b><span>probeta{{ g.probetas|pluralize }}</span></div>
+                            <div><b>{% for e in g.edades %}{{ e }}{% if not forloop.last %} · {% endif %}{% endfor %}</b><span>edad{{ g.edades|length|pluralize:"es" }} (días)</span></div>
+                            {% if t.clave == 'vencidas' %}<div><b style="color: var(--cc-rojo);">{{ g.atraso }} d</b><span>la más atrasada</span></div>{% endif %}
+                        </div>
+                    </div>
+                    <a class="cc-abrir" href="{% url 'hoja_trabajo_obra' g.obra.pk %}"><i class="bi bi-clipboard2-data" aria-hidden="true"></i>Abrir hoja de trabajo</a>
+                </div>
+                <div class="table-responsive">
+                    <table class="inf-table cc-tabla">
+                        <thead>
+                            <tr>
+                                <th scope="col">Muestra</th>
+                                <th scope="col">Localización</th>
+                                <th scope="col" class="text-center">Edad</th>
+                                <th scope="col" class="cc-col-ocultable">F'c</th>
+                                <th scope="col" class="cc-col-ocultable text-center">Prob.</th>
+                                <th scope="col" class="cc-col-ocultable">{% if t.clave == 'vencidas' %}Atraso{% elif t.clave == 'semana' %}Día{% else %}Toma{% endif %}</th>
+                                <th scope="col" class="inf-acc"><span class="visually-hidden">Ir a la fila</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for r in g.muestras %}
+                            <tr class="inf-row">
+                                <td style="white-space: nowrap; width: 1%;">
+                                    <span class="inf-num cil">M{{ r.muestra.numero_muestra }}</span>
+                                    <span class="inf-sub">OT {{ r.ot }}</span>
+                                </td>
+                                <td class="loc">
+                                    {{ r.muestra.localizacion|truncatechars:80|default:"—" }}
+                                    <small>{{ r.muestra.get_tipo_muestra_display }}{% if r.muestra.dimension_especimen %} · {{ r.muestra.get_dimension_especimen_display }}{% endif %}{% if t.clave == 'vencidas' %}<span class="cc-solo-movil"> · <span class="cc-cuando rojo">hace {{ r.atraso }} día{{ r.atraso|pluralize }}</span></span>{% elif t.clave == 'semana' %}<span class="cc-solo-movil"> · {{ r.fecha_falla|date:"D j"|lower }}</span>{% endif %}</small>
+                                </td>
+                                <td class="text-center" style="width: 1%;"><span class="cc-edad">{{ r.muestra.edad_ensayo_dias }} d</span></td>
+                                <td class="cc-col-ocultable" style="width: 1%;"><span class="cc-dato">{{ r.muestra.fc_resistencia|default:"—" }}</span></td>
+                                <td class="cc-col-ocultable text-center" style="width: 1%;"><span class="cc-dato">{{ r.muestra.cantidad|default:"—" }}</span></td>
+                                <td class="cc-col-ocultable" style="width: 1%;">
+                                    {% if t.clave == 'vencidas' %}<span class="cc-cuando rojo">hace {{ r.atraso }} día{{ r.atraso|pluralize }}</span>
+                                    {% elif t.clave == 'semana' %}<span class="cc-cuando">{{ r.fecha_falla|date:"D j"|lower }}</span>
+                                    {% else %}<span class="cc-cuando">{{ r.muestra.fecha_toma|date:"j M" }}</span>{% endif %}
+                                </td>
+                                <td class="inf-acc">
+                                    <a class="cc-ir" href="{% url 'hoja_trabajo_obra' g.obra.pk %}#fila-{{ r.pk }}" title="Ir a esta muestra en la hoja"
+                                       aria-label="Ir a la muestra {{ r.muestra.numero_muestra }} en la hoja de trabajo"><i class="bi bi-box-arrow-in-right" aria-hidden="true"></i></a>
+                                </td>
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                </div>
+            </section>
             {% endfor %}
         </div>
-    </section>
+        {% else %}
+        <div class="cc-vacio cc-grupo{% if t.clave == inicial %} activo{% endif %}" data-grupo="{{ t.clave }}">
+            <i class="bi bi-check-circle" aria-hidden="true"></i>
+            {% if t.clave == 'vencidas' %}No hay muestras vencidas: todo al día.{% elif t.clave == 'hoy' %}No hay muestras para fallar hoy.{% elif t.clave == 'manana' %}Mañana no hay muestras programadas.{% else %}No hay más muestras programadas esta semana.{% endif %}
+        </div>
+        {% endif %}
+        {% endfor %}
+    </div>
 
-    <p class="mt-3 mb-0 small text-muted">Fecha de falla = fecha de toma + edad de ensayo. Solo aparecen muestras con resultado pendiente; al registrar el resultado en la hoja de trabajo salen de aquí.</p>
+    <p class="cc-nota">Fecha de falla = fecha de toma + edad de ensayo. Solo aparecen muestras con resultado pendiente; al registrar el resultado en la hoja de trabajo salen de aquí y suben al avance del día.</p>
 </div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const raiz = document.getElementById('cc');
+    const tablero = document.getElementById('ccTablero');
+    raiz.classList.add('js');
+
+    function elegirGrupo(clave) {
+        tablero.dataset.grupo = clave;
+        raiz.querySelectorAll('.cc-mando').forEach(b => b.setAttribute('aria-pressed', b.dataset.grupo === clave ? 'true' : 'false'));
+        tablero.querySelectorAll('.cc-grupo').forEach(g => g.classList.toggle('activo', g.dataset.grupo === clave));
+        try { sessionStorage.setItem('cc-grupo', clave); } catch (e) { /* sin almacenamiento */ }
+    }
+    function elegirObra(btn, mover) {
+        const cola = btn.closest('.cc-cola');
+        cola.querySelectorAll('.cc-obra-btn').forEach(b => b.setAttribute('aria-current', b === btn ? 'true' : 'false'));
+        const det = document.getElementById(btn.dataset.det);
+        det.parentElement.querySelectorAll('.cc-det').forEach(d => d.classList.toggle('activo', d === det));
+        // En pantallas angostas el detalle queda debajo de la cola: llevarlo a la vista
+        if (mover && window.matchMedia('(max-width: 1199.98px)').matches) {
+            det.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        }
+    }
+
+    raiz.querySelectorAll('.cc-mando').forEach(b => b.addEventListener('click', () => elegirGrupo(b.dataset.grupo)));
+    raiz.querySelectorAll('.cc-obra-btn').forEach(b => b.addEventListener('click', () => elegirObra(b, true)));
+
+    // Flechas arriba/abajo recorren la cola de obras
+    raiz.querySelectorAll('.cc-cola ol').forEach(ol => ol.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        const botones = Array.from(ol.querySelectorAll('.cc-obra-btn'));
+        const i = botones.indexOf(document.activeElement);
+        if (i < 0) return;
+        e.preventDefault();
+        const sig = botones[Math.min(botones.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))];
+        sig.focus(); elegirObra(sig, false);
+    }));
+
+    // Al volver a la página se conserva el grupo que estaba abierto
+    try {
+        const guardado = sessionStorage.getItem('cc-grupo');
+        if (guardado && raiz.querySelector('.cc-mando[data-grupo="' + guardado + '"]')) elegirGrupo(guardado);
+    } catch (e) { /* sin almacenamiento */ }
+})();
+</script>
 {% endblock %}
