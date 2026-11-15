@@ -1,4 +1,5 @@
 {% extends 'base.html' %}
+{% load humanize %}
 
 {% block title %}Ensayos del día · {{ fecha_hoy|date:"j M" }}{% endblock %}
 
@@ -164,27 +165,27 @@
             <div>
                 <div class="inf-eyebrow">Centro de control de ensayos</div>
                 <div class="cc-dia mt-1">
-                    <div class="cc-anillo" style="--p: {{ avance }};" role="img" aria-label="Avance del día: {{ hechas_hoy }} de {{ total_dia }} muestras con resultado">
+                    <div class="cc-anillo" style="--p: {{ avance }};" role="img" aria-label="Avance del día: {{ hechas_hoy|intcomma }} de {{ total_dia|intcomma }} muestras con resultado">
                         <span><b>{{ avance }}%</b><small>del día</small></span>
                     </div>
                     <div>
                         <h1 class="inf-title mb-0">{{ fecha_hoy|date:"l j \d\e F"|lower|capfirst }}</h1>
                         <div class="cc-avance">
-                            {% if total_dia %}<strong>{{ hechas_hoy }}</strong> de <strong>{{ total_dia }}</strong> muestras del día con resultado{% else %}Hoy no hay muestras programadas{% endif %}{% if n_vencidas %} · <strong>{{ n_vencidas }}</strong> vencida{{ n_vencidas|pluralize }}{% endif %}
+                            {% if total_dia %}<strong>{{ hechas_hoy|intcomma }}</strong> de <strong>{{ total_dia|intcomma }}</strong> muestras del día con resultado{% else %}Hoy no hay muestras programadas{% endif %}{% if n_vencidas %} · <strong>{{ n_vencidas|intcomma }}</strong> vencida{{ n_vencidas|pluralize }}{% endif %}
                         </div>
                         <a href="{% url 'lista_obras_hojas_trabajo' %}" class="btn btn-sm btn-hero mt-2"><i class="bi bi-clipboard2-data me-1"></i>Todas las hojas de trabajo</a>
                     </div>
                 </div>
             </div>
-            <div class="cc-semana" role="img" aria-label="Muestras por día: vencidas {{ n_vencidas }}{% for d in agenda %}, {% if d.hoy %}hoy{% elif d.manana %}mañana{% else %}{{ d.fecha|date:'l j' }}{% endif %} {{ d.n }}{% endfor %}">
+            <div class="cc-semana" role="img" aria-label="Muestras por día: vencidas {{ n_vencidas|intcomma }}{% for d in agenda %}, {% if d.hoy %}hoy{% elif d.manana %}mañana{% else %}{{ d.fecha|date:'l j' }}{% endif %} {{ d.n|intcomma }}{% endfor %}">
                 <div class="col venc{% if not n_vencidas %} cero{% endif %}">
-                    <span class="n">{{ n_vencidas }}</span>
+                    <span class="n">{{ n_vencidas|intcomma }}</span>
                     <span class="barra"><i style="height: {{ alto_vencidas }}%"></i></span>
                     <span class="d">Venc</span>
                 </div>
                 {% for d in agenda %}
                 <div class="col{% if d.hoy %} hoy{% endif %}{% if not d.n %} cero{% endif %}">
-                    <span class="n">{{ d.n }}</span>
+                    <span class="n">{{ d.n|intcomma }}</span>
                     <span class="barra"><i style="height: {{ d.alto }}%"></i></span>
                     <span class="d">{% if d.hoy %}Hoy{% else %}{{ d.fecha|date:"D"|slice:":3" }}{% endif %}</span>
                 </div>
@@ -199,8 +200,8 @@
         <button type="button" class="cc-mando {{ t.clave }}{% if not t.n %} cero{% endif %}" data-grupo="{{ t.clave }}"
                 aria-pressed="{% if t.clave == inicial %}true{% else %}false{% endif %}" aria-controls="ccTablero">
             <span class="eti"><i class="bi {{ t.icono }}" aria-hidden="true"></i>{{ t.nombre }}</span>
-            <span class="num">{{ t.n }}</span>
-            <span class="sub">{% if t.n %}<b>{{ t.probetas }}</b> probeta{{ t.probetas|pluralize }} · <b>{{ t.n_obras }}</b> obra{{ t.n_obras|pluralize }}{% elif t.clave == 'manana' %}{{ t.sub|date:"l j"|lower }}{% else %}{{ t.sub }}{% endif %}</span>
+            <span class="num">{{ t.n|intcomma }}</span>
+            <span class="sub">{% if t.n %}<b>{{ t.probetas|intcomma }}</b> probeta{{ t.probetas|pluralize }} · <b>{{ t.n_obras|intcomma }}</b> obra{{ t.n_obras|pluralize }}{% elif t.clave == 'manana' %}{{ t.sub|date:"l j"|lower }}{% else %}{{ t.sub }}{% endif %}</span>
             <span class="cc-probeta" aria-hidden="true"><i style="height: {{ t.llenado }}%"></i></span>
         </button>
         {% endfor %}
@@ -212,7 +213,7 @@
         {% if t.n %}
         <aside class="cc-cola cc-grupo{% if t.clave == inicial %} activo{% endif %}" data-grupo="{{ t.clave }}" aria-label="Obras: {{ t.nombre }}">
             <div class="cc-cola-cab">
-                <h2>{{ t.nombre }} · {{ t.n_obras }} obra{{ t.n_obras|pluralize }}</h2>
+                <h2>{{ t.nombre }} · {{ t.n_obras|intcomma }} obra{{ t.n_obras|pluralize }}</h2>
                 <p>{% if t.clave == 'vencidas' %}Primero la más atrasada{% else %}Primero la que más muestras tiene{% endif %}</p>
             </div>
             <ol>
@@ -222,8 +223,8 @@
                         <span class="nom">{{ g.obra.nombre }}</span>
                         <span class="cod">{{ g.obra.codigo_obra }} · {{ g.obra.constructora.nombre }}</span>
                         <span class="cuenta">
-                            <b>{{ g.muestras|length }}</b>
-                            <small>{% if t.clave == 'vencidas' %}<span class="atraso">hasta {{ g.atraso }} d</span>{% else %}{{ g.probetas }} prob.{% endif %}</small>
+                            <b>{{ g.muestras|length|intcomma }}</b>
+                            <small>{% if t.clave == 'vencidas' %}<span class="atraso">hasta {{ g.atraso|intcomma }} d</span>{% else %}{{ g.probetas|intcomma }} prob.{% endif %}</small>
                         </span>
                     </button>
                 </li>
@@ -239,10 +240,10 @@
                         <h3 id="{{ g.id }}-t">{{ g.obra.nombre }}</h3>
                         <div class="emp"><span class="inf-num ot me-1">{{ g.obra.codigo_obra }}</span>{{ g.obra.constructora.nombre }}</div>
                         <div class="cc-det-datos">
-                            <div><b>{{ g.muestras|length }}</b><span>muestra{{ g.muestras|length|pluralize }}</span></div>
-                            <div><b>{{ g.probetas }}</b><span>probeta{{ g.probetas|pluralize }}</span></div>
-                            <div><b>{% for e in g.edades %}{{ e }}{% if not forloop.last %} · {% endif %}{% endfor %}</b><span>edad{{ g.edades|length|pluralize:"es" }} (días)</span></div>
-                            {% if t.clave == 'vencidas' %}<div><b style="color: var(--cc-rojo);">{{ g.atraso }} d</b><span>la más atrasada</span></div>{% endif %}
+                            <div><b>{{ g.muestras|length|intcomma }}</b><span>muestra{{ g.muestras|length|pluralize }}</span></div>
+                            <div><b>{{ g.probetas|intcomma }}</b><span>probeta{{ g.probetas|pluralize }}</span></div>
+                            <div><b>{% for e in g.edades %}{{ e|intcomma }}{% if not forloop.last %} · {% endif %}{% endfor %}</b><span>edad{{ g.edades|length|pluralize:"es" }} (días)</span></div>
+                            {% if t.clave == 'vencidas' %}<div><b style="color: var(--cc-rojo);">{{ g.atraso|intcomma }} d</b><span>la más atrasada</span></div>{% endif %}
                         </div>
                     </div>
                     <a class="cc-abrir" href="{% url 'hoja_trabajo_obra' g.obra.pk %}"><i class="bi bi-clipboard2-data" aria-hidden="true"></i>Abrir hoja de trabajo</a>
@@ -269,13 +270,13 @@
                                 </td>
                                 <td class="loc">
                                     {{ r.muestra.localizacion|truncatechars:80|default:"—" }}
-                                    <small>{{ r.muestra.get_tipo_muestra_display }}{% if r.muestra.dimension_especimen %} · {{ r.muestra.get_dimension_especimen_display }}{% endif %}{% if t.clave == 'vencidas' %}<span class="cc-solo-movil"> · <span class="cc-cuando rojo">hace {{ r.atraso }} día{{ r.atraso|pluralize }}</span></span>{% elif t.clave == 'semana' %}<span class="cc-solo-movil"> · {{ r.fecha_falla|date:"D j"|lower }}</span>{% endif %}</small>
+                                    <small>{{ r.muestra.get_tipo_muestra_display }}{% if r.muestra.dimension_especimen %} · {{ r.muestra.get_dimension_especimen_display }}{% endif %}{% if t.clave == 'vencidas' %}<span class="cc-solo-movil"> · <span class="cc-cuando rojo">hace {{ r.atraso|intcomma }} día{{ r.atraso|pluralize }}</span></span>{% elif t.clave == 'semana' %}<span class="cc-solo-movil"> · {{ r.fecha_falla|date:"D j"|lower }}</span>{% endif %}</small>
                                 </td>
                                 <td class="text-center" style="width: 1%;"><span class="cc-edad">{{ r.muestra.edad_ensayo_dias }} d</span></td>
-                                <td class="cc-col-ocultable" style="width: 1%;"><span class="cc-dato">{{ r.muestra.fc_resistencia|default:"—" }}</span></td>
-                                <td class="cc-col-ocultable text-center" style="width: 1%;"><span class="cc-dato">{{ r.muestra.cantidad|default:"—" }}</span></td>
+                                <td class="cc-col-ocultable" style="width: 1%;"><span class="cc-dato">{{ r.muestra.fc_resistencia|default:"—"|intcomma }}</span></td>
+                                <td class="cc-col-ocultable text-center" style="width: 1%;"><span class="cc-dato">{{ r.muestra.cantidad|default:"—"|intcomma }}</span></td>
                                 <td class="cc-col-ocultable" style="width: 1%;">
-                                    {% if t.clave == 'vencidas' %}<span class="cc-cuando rojo">hace {{ r.atraso }} día{{ r.atraso|pluralize }}</span>
+                                    {% if t.clave == 'vencidas' %}<span class="cc-cuando rojo">hace {{ r.atraso|intcomma }} día{{ r.atraso|pluralize }}</span>
                                     {% elif t.clave == 'semana' %}<span class="cc-cuando">{{ r.fecha_falla|date:"D j"|lower }}</span>
                                     {% else %}<span class="cc-cuando">{{ r.muestra.fecha_toma|date:"j M" }}</span>{% endif %}
                                 </td>
