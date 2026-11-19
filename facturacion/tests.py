@@ -1218,3 +1218,57 @@ class FormatoCifrasTests(SimpleTestCase):
         for texto in ('$ 6.750,50', '$ 8.100.600', '$ 1.539.114,25', '$ 9.639.714,25', '1.200'):
             self.assertIn(texto, html)
         self.assertNotIn('8100600', html)
+
+
+class PreciosPorObraTests(TestCase):
+    """Centro de control de listas de precios: grupos por configurar / con lista / sin actividad."""
+
+    @classmethod
+    def setUpTestData(cls):
+        from datetime import timedelta
+        from django.utils import timezone
+        from core.models import Informe
+        cls.staff = UsuarioBase.objects.create_user('po_staff', password='clave-de-prueba', es_geolab=True)
+        FuncionarioGeolab.objects.create(user=cls.staff, area='admin')
+        c = Constructora.objects.create(nombre='Marval', codigo='BUC56', ciudad='Bucaramanga')
+        cat = CategoriaServicio.objects.create(ciudad='Bucaramanga', codigo='1', nombre='CONCRETOS')
+        srv = TipoServicio.objects.create(categoria=cat, codigo='1-1', nombre='Cilindros')
+        TipoServicio.objects.create(categoria=cat, codigo='1-2', nombre='Vigas')
+        cls.con = Obra.objects.create(nombre='Con lista', codigo_obra='BUC56-1', constructora=c)
+        PrecioServicio.objects.create(obra=cls.con, tipo_servicio=srv, precio=18500)
+        cls.activa = Obra.objects.create(nombre='Activa sin lista', codigo_obra='BUC56-2', constructora=c)
+        cls.vieja = Obra.objects.create(nombre='Vieja', codigo_obra='BUC56-3', constructora=c)
+        ahora = timezone.now()
+        Informe.objects.create(titulo='INF 1', obra=cls.activa, fecha_creacion=ahora - timedelta(days=3))
+        Informe.objects.create(titulo='INF 2', obra=cls.activa, fecha_creacion=ahora - timedelta(days=10))
+        Informe.objects.create(titulo='INF 3', obra=cls.vieja, fecha_creacion=ahora - timedelta(days=400))
+        otra = Constructora.objects.create(nombre='Ibague SAS', codigo='IBA1', ciudad='Ibagué')
+        Obra.objects.create(nombre='Otra sede', codigo_obra='IBA1-1', constructora=otra)
+
+    def setUp(self):
+        self.client.login(username='po_staff', password='clave-de-prueba')
+        s = self.client.session
+        s[SESSION_KEY] = 'Bucaramanga'
+        s.save()
+
+    def test_grupos_y_ficha(self):
+        r = self.client.get(reverse('precios_obras'))
+        self.assertEqual(r.status_code, 200)
+        g = {x['clave']: x for x in r.context['grupos']}
+        self.assertEqual([o.pk for o in g['con']['cola']], [self.con.pk])
+        self.assertEqual([o.pk for o in g['atender']['cola']], [self.activa.pk])
+        self.assertEqual([o.pk for o in g['sin']['cola']], [self.vieja.pk])
+        self.assertEqual(r.context['inicial'], 'atender')          # abre en lo que hay por hacer
+        self.assertEqual(r.context['total_obras'], 3)              # solo la sede activa
+        activa = g['atender']['cola'][0]
+        self.assertEqual(activa.n_recientes, 2)
+        self.assertEqual([h.pk for h in activa.hermanas], [self.con.pk, self.vieja.pk])
+        self.assertEqual(g['con']['cola'][0].cobertura, 50)        # 1 de 2 servicios con precio
+        self.assertContains(r, reverse('gestionar_precios_obra', args=[self.activa.pk]))
+        self.assertNotContains(r, 'Otra sede')
+
+    def test_vuelve_al_grupo_pedido(self):
+        r = self.client.get(reverse('precios_obras'), {'estado': 'con', 'obra': self.con.pk})
+        self.assertEqual(r.context['inicial'], 'con')
+        self.assertEqual(r.context['obra_inicial'], str(self.con.pk))
+        self.assertEqual(self.client.get(reverse('precios_obras'), {'estado': 'raro'}).context['inicial'], 'atender')

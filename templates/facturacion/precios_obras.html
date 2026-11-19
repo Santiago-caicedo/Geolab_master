@@ -3,304 +3,425 @@
 {% block title %}Precios por obra{% endblock %}
 
 {% block content %}
-<div class="tar" id="tarifario" data-estado-inicial="{{ estado_inicial }}">
+<div class="po" id="po" data-inicial="{{ inicial }}" data-obra-inicial="{{ obra_inicial }}">
 
-    <header class="tar-head">
-        <h1 class="tar-title">Precios por obra</h1>
-        <p class="tar-lead">
-            <strong>{{ resumen.con|cifra }} de {{ total_obras|cifra }}</strong> obra{{ total_obras|pluralize }} de {{ request.ciudad_facturacion }}
-            tiene{{ resumen.con|pluralize:"n" }} lista de precios.
-            {% if resumen.atender %}
-            <span class="tar-alerta">{{ resumen.atender }} recibe{{ resumen.atender|pluralize:"n" }} informes y aún no la tiene{{ resumen.atender|pluralize:"n" }}.</span>
+    <!-- Banda: cobertura de la sede -->
+    <section class="po-banda">
+        <div class="po-banda-txt">
+            <div class="po-eyebrow">Precios por obra · {{ request.ciudad_facturacion }}</div>
+            <h1 class="po-titulo"><span class="grande">{{ n_con|cifra }}</span> de {{ total_obras|cifra }} obras con lista de precios</h1>
+            <p class="po-lead">
+                {% if n_atender %}<strong>{{ n_atender|cifra }}</strong> obra{{ n_atender|pluralize }} recibe{{ n_atender|pluralize:"n" }} informes y aún no se le{{ n_atender|pluralize:"s" }} puede facturar.{% else %}Todas las obras activas tienen lista de precios.{% endif %}
+            </p>
+        </div>
+        <div class="po-cobertura">
+            <div class="po-barra" role="img" aria-label="{{ n_con }} con lista, {{ n_atender }} por configurar, {{ n_sin }} sin actividad">
+                {% for t in tramos %}{% if t.pct %}<span class="{{ t.clave }}" style="flex-grow: {{ t.pct|stringformat:'s' }}"></span>{% endif %}{% endfor %}
+            </div>
+            <div class="po-pct"><b>{{ pct_con }}%</b> de cobertura</div>
+        </div>
+        <label class="po-buscar">
+            <span class="visually-hidden">Buscar obra, código o empresa</span>
+            <i class="bi bi-search" aria-hidden="true"></i>
+            <input type="search" id="po-q" value="{{ query }}" autocomplete="off" placeholder="Buscar obra, código o empresa en las {{ total_obras|cifra }} obras">
+        </label>
+    </section>
+
+    <!-- Mandos: eligen el grupo -->
+    <div class="po-mandos" role="group" aria-label="Elegir grupo de obras">
+        {% for g in grupos %}
+        <button type="button" class="po-mando {{ g.clave }}{% if not g.n %} cero{% endif %}" data-grupo="{{ g.clave }}"
+                aria-pressed="{% if g.clave == inicial %}true{% else %}false{% endif %}" aria-controls="poTablero">
+            <span class="eti"><i class="bi {{ g.icono }}" aria-hidden="true"></i>{{ g.nombre }}</span>
+            <span class="num" data-total="{{ g.n }}">{{ g.n|cifra }}</span>
+            <span class="sub">{{ g.sub }}</span>
+            <span class="filtro" hidden></span>
+        </button>
+        {% endfor %}
+    </div>
+
+    <!-- Tablero: cola de obras | ficha de la obra -->
+    <div class="po-tablero" id="poTablero" data-grupo="{{ inicial }}">
+        {% for g in grupos %}
+        <aside class="po-cola po-grupo{% if g.clave == inicial %} activo{% endif %}" data-grupo="{{ g.clave }}" aria-label="Obras: {{ g.nombre }}">
+            <div class="po-cola-cab">
+                <h2>{{ g.nombre }} · <span class="n">{{ g.n|cifra }}</span></h2>
+                <p>{% if g.clave == 'atender' %}Primero la que recibió informe más reciente{% elif g.clave == 'con' %}Por código de obra{% else %}Primero la de actividad más reciente{% endif %}</p>
+            </div>
+            {% if g.cola %}
+            <ol>
+                {% for o in g.cola %}
+                <li data-texto="{{ o.nombre }} {{ o.codigo_obra }} {{ o.constructora.nombre }} {{ o.constructora.codigo }}">
+                    <button type="button" class="po-obra-btn" data-det="obra-{{ o.pk }}" data-obra="{{ o.pk }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}">
+                        <span class="nom">{{ o.nombre }}</span>
+                        <span class="cod">{{ o.codigo_obra }} · {{ o.constructora.nombre }}</span>
+                        <span class="lado">
+                            {% if g.clave == 'con' %}<b>{{ o.n_precios|cifra }}</b><small>precio{{ o.n_precios|pluralize }}</small>
+                            {% else %}<small class="hace{% if g.clave == 'atender' %} ambar{% endif %}">{{ o.hace }}</small>{% endif %}
+                        </span>
+                    </button>
+                </li>
+                {% endfor %}
+            </ol>
+            <p class="po-cola-vacia" hidden>Ninguna obra de este grupo coincide con la búsqueda.</p>
+            {% else %}
+            <p class="po-cola-vacia">{% if g.clave == 'atender' %}Ninguna obra activa está sin lista: todo se puede facturar.{% else %}No hay obras en este grupo.{% endif %}</p>
             {% endif %}
-        </p>
-    </header>
-
-    {# Barra de cobertura: cada tramo es también el filtro #}
-    <section class="tar-cobertura" aria-label="Cobertura de listas de precios">
-        <div class="tar-barra" aria-hidden="true">
-            {% for t in tramos %}{% if t.n %}<span class="tramo {{ t.clave }}" style="flex-grow: {{ t.pct|stringformat:'s' }}"></span>{% endif %}{% endfor %}
-        </div>
-        <div class="tar-filtros" role="group" aria-label="Filtrar obras">
-            <button type="button" class="tar-filtro" data-estado="" aria-pressed="true">
-                <span class="nombre">Todas</span><span class="n">{{ total_obras|cifra }}</span>
-            </button>
-            {% for t in tramos %}
-            <button type="button" class="tar-filtro" data-estado="{{ t.clave }}" aria-pressed="false" {% if not t.n %}disabled{% endif %}>
-                <span class="marca {{ t.clave }}" aria-hidden="true"></span>
-                <span class="nombre">{{ t.nombre }}</span><span class="n">{{ t.n }}</span>
-            </button>
-            {% endfor %}
-        </div>
-        {% if resumen.atender %}
-        <p class="tar-nota">“Activas” son las obras con informes en los últimos {{ dias_activa }} días.</p>
-        {% endif %}
-    </section>
-
-    <section class="tar-panel">
-        <div class="tar-toolbar">
-            <label class="tar-buscar">
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <span class="visually-hidden">Buscar obra o empresa</span>
-                <input type="search" id="tar-q" value="{{ query }}" class="form-control" autocomplete="off"
-                       placeholder="Buscar por obra, código o empresa">
-            </label>
-            <span class="tar-conteo" id="tar-conteo" aria-live="polite"></span>
-        </div>
-
-        <div class="tar-lista" id="tar-lista">
-            {% for g in grupos %}
-            {% with c=g.constructora %}
-            <section class="tar-empresa" data-texto="{{ c.nombre }} {{ c.codigo }}">
-                <header class="tar-empresa-head">
-                    <div class="tar-empresa-nombre">
-                        <span class="tar-codigo">{{ c.codigo }}</span>
-                        <h2>{{ c.nombre }}</h2>
+        </aside>
+        <div class="po-grupo po-fichas{% if g.clave == inicial %} activo{% endif %}" data-grupo="{{ g.clave }}">
+            {% for o in g.cola %}
+            <section class="po-ficha {{ o.estado }}{% if forloop.first %} activo{% endif %}" id="obra-{{ o.pk }}" aria-labelledby="obra-{{ o.pk }}-t">
+                <div class="po-ficha-cab">
+                    <div class="min-w-0">
+                        <div class="po-ficha-estado">
+                            {% if o.estado == 'con' %}<i class="bi bi-check-circle-fill" aria-hidden="true"></i>Con lista de precios
+                            {% elif o.estado == 'atender' %}<i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Recibe informes y no tiene lista
+                            {% else %}<i class="bi bi-moon" aria-hidden="true"></i>Sin lista y sin actividad reciente{% endif %}
+                        </div>
+                        <h3 id="obra-{{ o.pk }}-t">{{ o.nombre }}</h3>
+                        <div class="po-ficha-emp"><span class="po-cod">{{ o.codigo_obra }}</span>{{ o.constructora.nombre }}</div>
                     </div>
-                    <div class="tar-probetas" aria-label="{{ g.con_lista }} de {{ g.obras|length }} obra{{ g.obras|length|pluralize }} con lista de precios">
-                        <span class="puntos" aria-hidden="true">{% for o in g.obras %}<i class="{{ o.estado }}"></i>{% endfor %}</span>
-                        <span class="texto">{{ g.con_lista }}/{{ g.obras|length }} con lista</span>
+                    <a class="po-abrir" href="{% url 'gestionar_precios_obra' o.pk %}">
+                        <i class="bi {% if o.estado == 'con' %}bi-list-check{% else %}bi-plus-circle{% endif %}" aria-hidden="true"></i>{% if o.estado == 'con' %}Ver y editar la lista{% else %}Configurar lista de precios{% endif %}
+                    </a>
+                </div>
+
+                <div class="po-datos">
+                    <div class="dato">
+                        <div class="eti">Servicios con precio</div>
+                        <div class="val">{{ o.n_precios|cifra }} <small>de {{ total_servicios|cifra }}</small></div>
+                        <div class="po-medidor" role="img" aria-label="{{ o.cobertura }}% del catálogo con precio"><i style="width: {{ o.cobertura }}%"></i></div>
                     </div>
-                </header>
-                <ul class="tar-obras">
-                    {% for o in g.obras %}
-                    <li class="tar-obra {{ o.estado }}" data-estado="{{ o.estado }}" data-texto="{{ o.nombre }} {{ o.codigo_obra }}">
-                        <a href="{% url 'gestionar_precios_obra' o.pk %}" class="tar-obra-link">
-                            <span class="tar-codigo obra">{{ o.codigo_obra }}</span>
-                            <span class="tar-obra-nombre">{{ o.nombre }}</span>
-                            <span class="tar-estado {{ o.estado }}">
-                                {% if o.estado == 'con' %}
-                                    <i class="bi bi-check-circle-fill" aria-hidden="true"></i>{{ o.n_precios|cifra }} precio{{ o.n_precios|pluralize }}
-                                {% elif o.estado == 'atender' %}
-                                    <i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Sin lista
-                                {% else %}
-                                    <i class="bi bi-dash-circle" aria-hidden="true"></i>Sin lista
-                                {% endif %}
-                            </span>
-                            <span class="tar-actividad" title="Último informe recibido">
-                                <span class="visually-hidden">Último informe: </span>{{ o.hace }}
-                            </span>
-                            <span class="tar-accion">
-                                {% if o.estado == 'con' %}Ver lista{% else %}Configurar{% endif %}
+                    <div class="dato">
+                        <div class="eti">Último informe</div>
+                        <div class="val">{% if o.ultimo_informe %}{{ o.ultimo_informe|date:"j M Y" }}{% else %}—{% endif %}</div>
+                        <div class="sub{% if o.estado == 'atender' %} ambar{% endif %}">{{ o.hace }}</div>
+                    </div>
+                    <div class="dato">
+                        <div class="eti">Informes en {{ dias_activa }} días</div>
+                        <div class="val">{{ o.n_recientes|cifra }}</div>
+                        <div class="sub">{% if o.n_recientes %}{% if o.estado == 'con' %}se facturan con su lista{% else %}sin precio para facturarlos{% endif %}{% else %}sin informes recientes{% endif %}</div>
+                    </div>
+                </div>
+
+                {% if o.estado == 'atender' %}
+                <div class="po-aviso"><i class="bi bi-info-circle" aria-hidden="true"></i>Mientras no tenga lista, sus servicios no se pueden registrar con precio ni facturar. Ponga precio solo en los servicios que se le cobran.</div>
+                {% endif %}
+
+                <div class="po-hermanas">
+                    <h4>Otras obras de {{ o.constructora.nombre }}{% if o.hermanas %} · {{ o.hermanas|length|cifra }}{% endif %}</h4>
+                    {% if o.hermanas %}
+                    <ul>
+                        {% for h in o.hermanas %}
+                        <li>
+                            <a href="{% url 'gestionar_precios_obra' h.pk %}">
+                                <span class="po-cod">{{ h.codigo_obra }}</span>
+                                <span class="nom">{{ h.nombre }}</span>
+                                <span class="po-chip {{ h.estado }}">{% if h.estado == 'con' %}{{ h.n_precios|cifra }} precio{{ h.n_precios|pluralize }}{% elif h.estado == 'atender' %}Por configurar{% else %}Sin actividad{% endif %}</span>
                                 <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                            </span>
-                        </a>
-                    </li>
-                    {% endfor %}
-                </ul>
+                            </a>
+                        </li>
+                        {% endfor %}
+                    </ul>
+                    {% else %}
+                    <p>Es la única obra de la empresa en {{ request.ciudad_facturacion }}.</p>
+                    {% endif %}
+                </div>
             </section>
-            {% endwith %}
-            {% empty %}
-            <div class="tar-vacio">
-                <i class="bi bi-buildings" aria-hidden="true"></i>
-                <p>{{ request.ciudad_facturacion }} todavía no tiene obras. Se crean al sincronizar con WordPress.</p>
-            </div>
             {% endfor %}
-
-            <div class="tar-vacio" id="tar-sin-resultados" hidden>
-                <i class="bi bi-search" aria-hidden="true"></i>
-                <p>Ninguna obra coincide con la búsqueda.</p>
-                <button type="button" class="btn btn-sm btn-outline-secondary" id="tar-limpiar">Ver todas las obras</button>
-            </div>
+            {% if not g.cola %}
+            <div class="po-vacio"><i class="bi bi-check-circle" aria-hidden="true"></i>{% if g.clave == 'atender' %}No hay obras por configurar.{% else %}No hay obras en este grupo.{% endif %}</div>
+            {% endif %}
         </div>
-    </section>
+        {% endfor %}
+    </div>
 
-    <p class="tar-pie">El catálogo de {{ request.ciudad_facturacion }} tiene {{ total_servicios|cifra }} servicios; cada obra solo lleva precio en los que se le cobran.</p>
+    <p class="po-pie">“Activas” son las obras con informes en los últimos {{ dias_activa }} días. El catálogo de {{ request.ciudad_facturacion }} tiene {{ total_servicios|cifra }} servicios; cada obra solo lleva precio en los que se le cobran.</p>
 </div>
 {% endblock %}
 
 {% block extra_css %}
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-.tar {
-    --ink: #1c2e4a;
-    --text: #334155;
-    --muted: #5b6b80;          /* 5.4:1 sobre blanco */
-    --line: #e6eaf0;
-    --soft: #f6f8fb;
-    --link: #0b6ea8;
-    --con: #12805c;            /* verde tarifa */
-    --con-bg: #e3f4ec;
-    --atender: #b45309;        /* ámbar: trabaja sin lista */
-    --atender-bg: #fdf1e1;
-    --sin: #94a3b8;
-    --sin-bg: #eef1f5;
+/* ===== Precios por obra: centro de control =====
+   Banda (cobertura + buscador) · 3 mandos (grupo) · cola de obras | ficha de la obra. Un grupo y una obra a la vez. */
+.po {
+    --ink: #1c2e4a; --text: #334155; --muted: #5b6b80; --line: #e6eaf0; --soft: #f6f8fb; --link: #0b6ea8;
+    --con: #12805c; --con-bg: #e3f4ec; --con-linea: #a9dcc5;
+    --atender: #b45309; --atender-bg: #fdf1e1; --atender-linea: #f3cf9e; --atender-vivo: #e8930c;
+    --sin: #5b6b80; --sin-bg: #eef1f5; --sin-linea: #cfd6e0;
     --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
     color: var(--text);
-    max-width: 1080px;
 }
 
-/* Encabezado */
-.tar-head { margin-bottom: 1.1rem; }
-.tar-title { font-size: 1.5rem; font-weight: 650; color: var(--ink); letter-spacing: -.01em; margin: 0 0 .3rem; }
-.tar-lead { font-size: 1rem; margin: 0; max-width: 80ch; line-height: 1.5; }
-.tar-lead strong { color: var(--ink); font-variant-numeric: tabular-nums; }
-.tar-alerta { color: var(--atender); font-weight: 600; }
-
-/* Cobertura */
-.tar-cobertura { margin-bottom: 1.25rem; }
-.tar-barra {
-    display: flex; gap: 3px; height: 12px; border-radius: 6px; overflow: hidden;
-    background: var(--sin-bg); margin-bottom: .75rem;
+/* ---------- Banda ---------- */
+.po-banda {
+    position: relative; overflow: hidden; color: #fff; border-radius: 14px; padding: 1.15rem 1.3rem 1.2rem;
+    background: linear-gradient(118deg, #1c2e4a 0%, #18385c 55%, #0e4f7d 100%);
+    box-shadow: 0 6px 18px -10px rgba(16, 42, 72, .55);
+    display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: .9rem 2rem; align-items: end;
 }
-.tar-barra .tramo { min-width: 6px; transition: opacity .15s ease; }
-.tar-barra .tramo.con { background: var(--con); }
-.tar-barra .tramo.atender { background: #e8930c; }
-.tar-barra .tramo.sin { background: #cdd5e0; }
-.tar[data-filtro="con"] .tramo:not(.con),
-.tar[data-filtro="atender"] .tramo:not(.atender),
-.tar[data-filtro="sin"] .tramo:not(.sin) { opacity: .25; }
+.po-eyebrow { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7cc8f0; }
+.po-titulo { font-size: 1.35rem; font-weight: 600; margin: .2rem 0 .25rem; line-height: 1.25; color: #fff; }
+.po-titulo .grande { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.po-lead { margin: 0; color: rgba(255, 255, 255, .8); font-size: .9rem; }
+.po-lead strong { color: #ffd39a; }
+.po-cobertura { align-self: center; }
+.po-barra { display: flex; gap: 3px; height: 14px; border-radius: 7px; overflow: hidden; background: rgba(255, 255, 255, .12); }
+.po-barra span { min-width: 6px; }
+.po-barra .con { background: #4fd19f; }
+.po-barra .atender { background: #f5a524; }
+.po-barra .sin { background: rgba(255, 255, 255, .28); }
+.po-pct { margin-top: .4rem; font-size: .8rem; color: rgba(255, 255, 255, .75); text-align: right; }
+.po-pct b { color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums; }
+.po-buscar { grid-column: 1 / -1; position: relative; margin: .15rem 0 0; max-width: 640px; }
+.po-buscar i { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: #64748b; font-size: .9rem; pointer-events: none; }
+.po-buscar input { width: 100%; height: 42px; padding: 0 .9rem 0 2.2rem; border: 0; border-radius: 10px; font: inherit; font-size: .9rem; color: var(--text); background: #fff; }
+.po-buscar input:focus-visible { outline: 3px solid #7cc8f0; outline-offset: 1px; }
 
-.tar-filtros { display: flex; flex-wrap: wrap; gap: .4rem; }
-.tar-filtro {
-    display: inline-flex; align-items: center; gap: .5rem; min-height: 36px; padding: .3rem .8rem;
-    border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--text);
-    font-size: .875rem; cursor: pointer;
+/* ---------- Mandos ---------- */
+.po-mandos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
+.po-mando {
+    --c: var(--sin); --c-bg: var(--sin-bg); --c-linea: var(--sin-linea);
+    position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .2rem;
+    padding: .85rem 1rem .8rem; border: 1px solid var(--line); border-radius: 14px; background: #fff;
+    text-align: left; font: inherit; color: var(--text); cursor: pointer;
+    box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
 }
-.tar-filtro:hover:not(:disabled) { border-color: #c4ceda; background: var(--soft); }
-.tar-filtro[aria-pressed="true"] { background: var(--ink); border-color: var(--ink); color: #fff; }
-.tar-filtro:disabled { opacity: .5; cursor: default; }
-.tar-filtro .n { font-variant-numeric: tabular-nums; font-weight: 600; }
-.tar-filtro .marca { width: 10px; height: 10px; border-radius: 3px; }
-.tar-filtro .marca.con { background: var(--con); }
-.tar-filtro .marca.atender { background: #e8930c; }
-.tar-filtro .marca.sin { background: #cdd5e0; }
-.tar-nota { font-size: .8125rem; color: var(--muted); margin: .5rem 0 0; }
+.po-mando.atender { --c: var(--atender); --c-bg: var(--atender-bg); --c-linea: var(--atender-linea); }
+.po-mando.con { --c: var(--con); --c-bg: var(--con-bg); --c-linea: var(--con-linea); }
+.po-mando:hover { border-color: var(--c-linea); }
+.po-mando[aria-pressed="true"] { border-color: var(--c); background: var(--c-bg); box-shadow: 0 0 0 1px var(--c), 0 10px 24px -16px var(--c); }
+.po-mando[aria-pressed="true"]::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
+                                       background: var(--c-bg); border-right: 1px solid var(--c); border-bottom: 1px solid var(--c); }
+.po-mando:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
+.po-mando .eti { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 600; color: var(--c); }
+.po-mando .num { font-size: 2.2rem; font-weight: 700; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+.po-mando.atender .num { color: var(--atender); }
+.po-mando.cero .num { color: #cbd5e1; }
+.po-mando .sub { font-size: .78rem; color: var(--muted); }
+.po-mando .filtro { font-size: .72rem; font-weight: 600; color: var(--c); }
 
-/* Panel */
-.tar-panel { background: #fff; border: 1px solid var(--line); border-radius: 12px; overflow: hidden;
-             box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
-.tar-toolbar { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; padding: .75rem 1rem;
-               border-bottom: 1px solid var(--line); background: #fff; position: sticky; top: 0; z-index: 2; }
-.tar-buscar { position: relative; flex: 1 1 280px; max-width: 420px; margin: 0; }
-.tar-buscar i { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
-.tar-buscar input { padding-left: 2rem; height: 38px; font-size: .9rem; }
-.tar-conteo { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* ---------- Tablero ---------- */
+.po-tablero { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 1rem; align-items: start; }
+.po-cola { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; position: sticky; top: 1rem; }
+.po-cola-cab { padding: .8rem 1rem .65rem; border-bottom: 1px solid var(--line); }
+.po-cola-cab h2 { font-size: .9rem; font-weight: 600; color: var(--ink); margin: 0; }
+.po-cola-cab p { margin: .15rem 0 0; font-size: .78rem; color: var(--muted); }
+.po-cola ol { list-style: none; margin: 0; padding: .35rem; max-height: 64vh; overflow-y: auto; }
+.po-cola-vacia { margin: 0; padding: 1.5rem 1rem; font-size: .85rem; color: var(--muted); text-align: center; }
+.po-obra-btn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .6rem; align-items: center;
+               padding: .6rem .7rem; border: 0; border-radius: 10px; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
+.po-obra-btn:hover { background: var(--soft); }
+.po-obra-btn[aria-current="true"] { background: var(--sel-bg, #e6f1fa); box-shadow: inset 3px 0 0 var(--sel, #0b6ea8); }
+.po-obra-btn:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
+.po-obra-btn .nom { font-weight: 600; color: var(--ink); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-obra-btn .cod { font-family: var(--mono); font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-obra-btn .lado { grid-row: 1 / span 2; grid-column: 2; text-align: right; line-height: 1.15; }
+.po-obra-btn .lado b { display: block; font-size: 1.05rem; color: var(--con); font-variant-numeric: tabular-nums; }
+.po-obra-btn .lado small { font-size: .7rem; color: var(--muted); white-space: nowrap; }
+.po-obra-btn .lado .ambar { color: var(--atender); font-weight: 600; }
+.po-tablero[data-grupo="atender"] { --sel: var(--atender); --sel-bg: var(--atender-bg); }
+.po-tablero[data-grupo="con"] { --sel: var(--con); --sel-bg: var(--con-bg); }
+.po-tablero[data-grupo="sin"] { --sel: var(--sin); --sel-bg: var(--sin-bg); }
 
-/* Empresa */
-.tar-empresa + .tar-empresa { border-top: 1px solid var(--line); }
-.tar-empresa-head {
-    display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-    padding: .75rem 1rem .2rem;
+.po-ficha { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
+            box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -18px rgba(15, 23, 42, .3); }
+.po-ficha + .po-ficha { margin-top: 1rem; }
+.po-ficha.con { --f: var(--con); } .po-ficha.atender { --f: var(--atender); } .po-ficha.sin { --f: var(--sin); }
+.po-ficha-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
+                padding: 1rem 1.15rem; border-top: 4px solid var(--f); border-bottom: 1px solid var(--line); }
+.po-ficha-cab .min-w-0 { min-width: 0; }
+.po-ficha-estado { display: flex; align-items: center; gap: .35rem; font-size: .78rem; font-weight: 600; color: var(--f); }
+.po-ficha-cab h3 { font-size: 1.25rem; font-weight: 700; color: var(--ink); margin: .2rem 0 .25rem; line-height: 1.25; }
+.po-ficha-emp { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.po-cod { font-family: var(--mono); font-size: .74rem; font-weight: 500; color: var(--ink); background: #e8edf6; border-radius: 4px; padding: .1rem .45rem; white-space: nowrap; }
+.po-abrir { display: inline-flex; align-items: center; gap: .5rem; height: 46px; padding: 0 1.15rem; border-radius: 10px;
+            background: #0077b6; color: #fff; font-weight: 600; font-size: .9rem; text-decoration: none; white-space: nowrap; }
+.po-ficha.atender .po-abrir { background: #b45309; }
+.po-abrir:hover { filter: brightness(.92); color: #fff; }
+.po-abrir:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+
+.po-datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.po-datos .dato { padding: .9rem 1.15rem; min-width: 0; }
+.po-datos .dato + .dato { border-left: 1px solid var(--line); }
+.po-datos .eti { font-size: .75rem; font-weight: 600; color: var(--muted); }
+.po-datos .val { font-size: 1.35rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.3; }
+.po-datos .val small { font-size: .8rem; font-weight: 500; color: var(--muted); }
+.po-datos .sub { font-size: .78rem; color: var(--muted); }
+.po-datos .sub.ambar { color: var(--atender); font-weight: 600; }
+.po-medidor { height: 6px; border-radius: 3px; background: #eef1f5; margin-top: .45rem; overflow: hidden; max-width: 220px; }
+.po-medidor i { display: block; height: 100%; background: var(--con); border-radius: 3px; }
+
+.po-aviso { display: flex; gap: .6rem; align-items: flex-start; margin: 0 1.15rem .9rem; padding: .65rem .8rem; border-radius: 10px;
+            background: var(--atender-bg); color: #7c3a06; font-size: .82rem; line-height: 1.45; }
+.po-aviso i { margin-top: .1rem; }
+
+.po-hermanas { border-top: 1px solid var(--line); padding: .85rem 1.15rem 1rem; }
+.po-hermanas h4 { font-size: .8rem; font-weight: 600; color: var(--ink); margin: 0 0 .45rem; }
+.po-hermanas p { margin: 0; font-size: .82rem; color: var(--muted); }
+.po-hermanas ul { list-style: none; margin: 0; padding: 0; }
+.po-hermanas li + li { border-top: 1px dashed var(--line); }
+.po-hermanas a { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto auto; gap: .65rem; align-items: center; padding: .45rem .25rem;
+                 color: inherit; text-decoration: none; border-radius: 6px; }
+.po-hermanas a:hover { background: var(--soft); }
+.po-hermanas a:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
+.po-hermanas a .po-cod { justify-self: start; }
+.po-hermanas .nom { font-size: .85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.po-hermanas a i { color: var(--link); font-size: .75rem; }
+.po-chip { font-size: .72rem; font-weight: 600; padding: .1rem .5rem; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.po-chip.con { color: var(--con); background: var(--con-bg); }
+.po-chip.atender { color: var(--atender); background: var(--atender-bg); }
+.po-chip.sin { color: var(--muted); background: var(--sin-bg); }
+
+.po-vacio { background: #fff; border: 1px dashed var(--line); border-radius: 14px; padding: 2.75rem 1rem; text-align: center; color: var(--muted); }
+.po-vacio i { display: block; font-size: 1.8rem; color: var(--con); margin-bottom: .4rem; }
+.po-pie { font-size: .8rem; color: var(--muted); margin: 1rem 0 0; }
+
+/* Sin JS se ve todo; con JS, un grupo y una ficha */
+.js .po-grupo:not(.activo), .js .po-ficha:not(.activo) { display: none; }
+.js .po-ficha + .po-ficha { margin-top: 0; }
+
+@media (max-width: 1199.98px) {
+    .po-banda { grid-template-columns: minmax(0, 1fr); }
+    .po-pct { text-align: left; }
+    .po-tablero { grid-template-columns: minmax(0, 1fr); }
+    .po-cola { position: static; }
+    .po-cola ol { max-height: 50vh; }
 }
-.tar-empresa-nombre { display: flex; align-items: baseline; gap: .6rem; min-width: 0; }
-.tar-empresa-nombre h2 { font-size: .95rem; font-weight: 650; color: var(--ink); margin: 0; }
-.tar-codigo {
-    font-family: var(--mono); font-size: .75rem; font-weight: 500; color: var(--ink);
-    background: #e8edf6; border-radius: 4px; padding: .1rem .45rem; white-space: nowrap;
-}
-.tar-codigo.obra { background: transparent; color: var(--muted); padding: 0; overflow: hidden; text-overflow: ellipsis; }
-
-/* Una probeta por obra: llena = tiene lista */
-.tar-probetas { display: flex; align-items: center; gap: .6rem; font-size: .8125rem; color: var(--muted); }
-.tar-probetas .puntos { display: inline-flex; gap: 3px; flex-wrap: wrap; max-width: 220px; }
-.tar-probetas .puntos i { width: 9px; height: 14px; border-radius: 3px 3px 2px 2px; display: block; }
-.tar-probetas .puntos i.con { background: var(--con); }
-.tar-probetas .puntos i.atender { background: transparent; box-shadow: inset 0 0 0 1.5px #e8930c; }
-.tar-probetas .puntos i.sin { background: transparent; box-shadow: inset 0 0 0 1.5px #cdd5e0; }
-.tar-probetas .texto { font-variant-numeric: tabular-nums; white-space: nowrap; }
-
-/* Obras */
-.tar-obras { list-style: none; margin: 0 0 .35rem; padding: 0; }
-.tar-obra-link {
-    display: grid; grid-template-columns: 6.75rem minmax(0, 1fr) 7.5rem 7.5rem 5.75rem; align-items: center; column-gap: 1rem;
-    padding: .42rem 1rem; color: inherit; text-decoration: none; border-left: 3px solid transparent;
-}
-.tar-obra-link:hover { background: var(--soft); border-left-color: var(--link); color: inherit; }
-.tar-obra-link:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
-.tar-obra-nombre { color: var(--text); font-size: .9rem; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.tar-obra.con .tar-obra-nombre { color: var(--ink); font-weight: 500; }
-
-.tar-estado {
-    display: inline-flex; align-items: center; gap: .35rem; justify-self: start;
-    font-size: .8125rem; font-weight: 600; padding: .15rem .55rem; border-radius: 999px; white-space: nowrap;
-    font-variant-numeric: tabular-nums;
-}
-.tar-estado.con { color: var(--con); background: var(--con-bg); }
-.tar-estado.atender { color: var(--atender); background: var(--atender-bg); }
-.tar-estado.sin { color: var(--muted); background: transparent; font-weight: 500; }
-.tar-actividad { font-size: .8125rem; color: var(--muted); white-space: nowrap; }
-.tar-obra.atender .tar-actividad { color: var(--atender); }
-.tar-accion { font-size: .8125rem; font-weight: 500; color: var(--link); white-space: nowrap; display: inline-flex; align-items: center; gap: .2rem; justify-self: end; }
-.tar-obra-link:hover .tar-accion { text-decoration: underline; }
-.tar-accion i { font-size: .7rem; }
-
-.tar-vacio { text-align: center; padding: 3rem 1rem; color: var(--muted); }
-.tar-vacio i { font-size: 1.6rem; color: #cbd5e1; }
-.tar-vacio p { margin: .5rem 0 1rem; }
-.tar-pie { font-size: .8125rem; color: var(--muted); margin: .75rem 0 0; }
-
-.tar .tar-filtro:focus-visible, .tar input:focus-visible, .tar button:focus-visible {
-    outline: 2px solid var(--link); outline-offset: 2px; box-shadow: none;
-}
-
 @media (max-width: 767.98px) {
-    .tar-obra-link { grid-template-columns: 1fr auto; row-gap: .25rem; }
-    .tar-codigo.obra { grid-column: 1; min-width: 0; }
-    .tar-obra-nombre { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
-    .tar-estado { grid-column: 1; grid-row: 3; }
-    .tar-actividad { grid-column: 2; grid-row: 3; justify-self: end; }
-    .tar-accion { grid-column: 2; grid-row: 1; justify-self: end; }
-    .tar-probetas .puntos { display: none; }
+    .po-banda { padding: 1rem; }
+    .po-titulo { font-size: 1.1rem; }
+    .po-titulo .grande { font-size: 1.6rem; }
+    .po-mandos { gap: .4rem; }
+    .po-mando { padding: .65rem .6rem; }
+    .po-mando .num { font-size: 1.6rem; }
+    .po-mando .sub { display: none; }
+    .po-mando[aria-pressed="true"]::after { display: none; }
+    .po-datos { grid-template-columns: minmax(0, 1fr); }
+    .po-datos .dato + .dato { border-left: 0; border-top: 1px solid var(--line); }
+    .po-abrir { width: 100%; justify-content: center; }
+    .po-hermanas a { grid-template-columns: minmax(0, 1fr) auto; }
+    .po-hermanas a .po-cod { grid-column: 1; justify-self: start; }
+    .po-hermanas a .nom { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
+    .po-hermanas a i { display: none; }
 }
-@media (prefers-reduced-motion: reduce) {
-    .tar-barra .tramo { transition: none; }
-}
+@media (prefers-reduced-motion: reduce) { .po-mando { transition: none; } }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
-    const raiz = document.getElementById('tarifario');
+    const raiz = document.getElementById('po');
     if (!raiz) return;
-    const entrada = document.getElementById('tar-q');
-    const conteo = document.getElementById('tar-conteo');
-    const sinResultados = document.getElementById('tar-sin-resultados');
-    const filtros = raiz.querySelectorAll('.tar-filtro');
-    const empresas = raiz.querySelectorAll('.tar-empresa');
-    let estado = raiz.dataset.estadoInicial || '';
+    const tablero = document.getElementById('poTablero');
+    const entrada = document.getElementById('po-q');
+    const mandos = Array.from(raiz.querySelectorAll('.po-mando'));
+    raiz.classList.add('js');
+    let grupo = raiz.dataset.inicial;
 
     // Sin tildes ni mayúsculas: "ibague" encuentra "Ibagué"
-    const normal = (s) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    empresas.forEach((e) => {
-        e._texto = normal(e.dataset.texto);
-        e._obras = Array.from(e.querySelectorAll('.tar-obra'));
-        e._obras.forEach((o) => { o._texto = normal(o.dataset.texto); });
-    });
+    const normal = (s) => (s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
+    const items = Array.from(raiz.querySelectorAll('.po-cola li[data-texto]'));
+    items.forEach((li) => { li._texto = normal(li.dataset.texto); });
+    const miles = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
 
-    function aplicar() {
-        const palabras = normal(entrada.value).split(/\s+/).filter(Boolean);
-        let visibles = 0;
-        empresas.forEach((e) => {
-            let enEmpresa = 0;
-            e._obras.forEach((o) => {
-                const texto = e._texto + ' ' + o._texto;
-                const ok = (!estado || o.dataset.estado === estado) && palabras.every((p) => texto.includes(p));
-                o.hidden = !ok;
-                if (ok) enEmpresa++;
-            });
-            e.hidden = enEmpresa === 0;
-            visibles += enEmpresa;
-        });
-        const total = empresas.length ? raiz.querySelectorAll('.tar-obra').length : 0;
-        conteo.textContent = visibles === total ? `${total} obras` : `${visibles} de ${total} obras`;
-        if (sinResultados) sinResultados.hidden = visibles !== 0 || total === 0;
-        filtros.forEach((f) => f.setAttribute('aria-pressed', String(f.dataset.estado === estado)));
-        raiz.dataset.filtro = estado;
-        // La URL recuerda el filtro (volver desde una obra deja la lista como estaba)
+    function guardar(obraPk) {
         const url = new URL(window.location);
-        estado ? url.searchParams.set('estado', estado) : url.searchParams.delete('estado');
+        url.searchParams.set('estado', grupo);
+        obraPk ? url.searchParams.set('obra', obraPk) : url.searchParams.delete('obra');
         entrada.value.trim() ? url.searchParams.set('q', entrada.value.trim()) : url.searchParams.delete('q');
-        history.replaceState(null, '', url);
+        history.replaceState(null, '', url);   // volver desde una lista de precios deja todo como estaba
     }
 
-    filtros.forEach((f) => f.addEventListener('click', () => { estado = f.dataset.estado; aplicar(); }));
-    entrada.addEventListener('input', aplicar);
-    entrada.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { entrada.value = ''; aplicar(); } });
-    const limpiar = document.getElementById('tar-limpiar');
-    if (limpiar) limpiar.addEventListener('click', () => { entrada.value = ''; estado = ''; aplicar(); entrada.focus(); });
-    aplicar();
+    function cola(clave) { return tablero.querySelector('.po-cola[data-grupo="' + clave + '"]'); }
+
+    function elegirObra(btn, mover) {
+        const c = btn.closest('.po-cola');
+        c.querySelectorAll('.po-obra-btn').forEach((b) => b.setAttribute('aria-current', b === btn ? 'true' : 'false'));
+        const ficha = document.getElementById(btn.dataset.det);
+        ficha.parentElement.querySelectorAll('.po-ficha').forEach((f) => f.classList.toggle('activo', f === ficha));
+        guardar(btn.dataset.obra);
+        if (mover && window.matchMedia('(max-width: 1199.98px)').matches) {
+            ficha.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
+        }
+    }
+
+    // Si la obra elegida quedó oculta por la búsqueda, se pasa a la primera visible
+    function asegurarElegida(clave) {
+        const c = cola(clave);
+        const actual = c.querySelector('.po-obra-btn[aria-current="true"]');
+        if (actual && !actual.closest('li').hidden) return;
+        const primera = Array.from(c.querySelectorAll('li[data-texto]')).find((li) => !li.hidden);
+        if (primera) elegirObra(primera.querySelector('.po-obra-btn'), false);
+    }
+
+    function elegirGrupo(clave) {
+        grupo = clave;
+        tablero.dataset.grupo = clave;
+        mandos.forEach((m) => m.setAttribute('aria-pressed', m.dataset.grupo === clave ? 'true' : 'false'));
+        tablero.querySelectorAll('.po-grupo').forEach((g) => g.classList.toggle('activo', g.dataset.grupo === clave));
+        asegurarElegida(clave);
+        const sel = cola(clave).querySelector('.po-obra-btn[aria-current="true"]');
+        guardar(sel ? sel.dataset.obra : '');
+    }
+
+    function buscar() {
+        const palabras = normal(entrada.value).split(/\s+/).filter(Boolean);
+        const porGrupo = {};
+        items.forEach((li) => {
+            const ok = palabras.every((p) => li._texto.includes(p));
+            li.hidden = !ok;
+            const g = li.closest('.po-cola').dataset.grupo;
+            porGrupo[g] = (porGrupo[g] || 0) + (ok ? 1 : 0);
+        });
+        mandos.forEach((m) => {
+            const total = Number(m.querySelector('.num').dataset.total);
+            const n = porGrupo[m.dataset.grupo] || 0;
+            const filtro = m.querySelector('.filtro');
+            filtro.hidden = !palabras.length;
+            filtro.textContent = palabras.length ? miles(n) + ' coinciden con la búsqueda' : '';
+            m.classList.toggle('cero', palabras.length ? n === 0 : total === 0);
+        });
+        tablero.querySelectorAll('.po-cola').forEach((c) => {
+            const vacia = c.querySelector('.po-cola-vacia');
+            const n = porGrupo[c.dataset.grupo] || 0;
+            const cab = c.querySelector('.po-cola-cab .n');
+            if (cab) cab.textContent = miles(n);
+            if (vacia && c.querySelector('ol')) vacia.hidden = n > 0;
+        });
+        // Si el grupo abierto no tiene coincidencias, se abre el primero que sí
+        if (palabras.length && !(porGrupo[grupo] > 0)) {
+            const otro = ['atender', 'con', 'sin'].find((g) => porGrupo[g] > 0);
+            if (otro) { elegirGrupo(otro); return; }
+        }
+        asegurarElegida(grupo);
+        guardar((cola(grupo).querySelector('.po-obra-btn[aria-current="true"]') || {}).dataset?.obra);
+    }
+
+    mandos.forEach((m) => m.addEventListener('click', () => elegirGrupo(m.dataset.grupo)));
+    raiz.querySelectorAll('.po-obra-btn').forEach((b) => b.addEventListener('click', () => elegirObra(b, true)));
+    raiz.querySelectorAll('.po-cola ol').forEach((ol) => ol.addEventListener('keydown', (e) => {
+        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+        const botones = Array.from(ol.querySelectorAll('li:not([hidden]) .po-obra-btn'));
+        const i = botones.indexOf(document.activeElement);
+        if (i < 0) return;
+        e.preventDefault();
+        const sig = botones[Math.min(botones.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))];
+        sig.focus(); elegirObra(sig, false);
+    }));
+    entrada.addEventListener('input', buscar);
+    entrada.addEventListener('keydown', (e) => { if (e.key === 'Escape') { entrada.value = ''; buscar(); } });
+
+    // Estado inicial: grupo y obra que traía la URL (al volver de una lista de precios)
+    elegirGrupo(grupo);
+    const pk = raiz.dataset.obraInicial;
+    if (pk) {
+        const btn = raiz.querySelector('.po-obra-btn[data-obra="' + pk + '"]');
+        if (btn) { elegirGrupo(btn.closest('.po-cola').dataset.grupo); elegirObra(btn, false); }
+    }
+    if (entrada.value) buscar();
 })();
 </script>
 {% endblock %}
