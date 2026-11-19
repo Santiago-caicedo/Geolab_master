@@ -1,0 +1,20 @@
+# Carga aparte, solo para las obras de MARVAL (56, 57 y 58) en Bucaramanga, pedida el 2026-11-18.
+# No estaban en bucaramanga.csv (lista de activos de oct-2026), así que quedaron sin precios.
+# Cada obra toma los precios de SU columna en la hoja LISTA DE PRECIO, tal cual el Excel:
+#   56-1=DT 56-2=DU 56-6=DY 56-8=EA 56-9=EB 57-1=ED 57-5=EH 57-10=EM 57-11=EN 57-12=EO 57-14=EQ 58-1=ER 58-2=ES
+# Uso: python manage.py importar_catalogo_excel "BASE DATOS BUCARAMANGA.xlsm" --ciudad Bucaramanga \
+#        --activos facturacion/clientes_activos/bucaramanga_marval.csv [--dry-run]
+codigo;empresa;proyecto
+56-1;MARVAL SAS;
+56-2;MARVAL SAS;
+56-6;MARVAL SAS;
+56-8;MARVAL SAS;
+56-9;MARVAL SAS;
+57-1;URBANIZADORA MARVAL SAS;
+57-5;URBANIZADORA MARVAL SAS;
+57-10;URBANIZADORA MARVAL SAS;
+57-11;URBANIZADORA MARVAL SAS;
+57-12;URBANIZADORA MARVAL SAS;
+57-14;URBANIZADORA MARVAL SAS;
+58-1;CONSTRUCCIONES MARVAL SAS;
+58-2;CONSTRUCCIONES MARVAL SAS;
