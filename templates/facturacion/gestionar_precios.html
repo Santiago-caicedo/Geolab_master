@@ -8,7 +8,7 @@
      data-csrf="{{ csrf_token }}">
 
     <nav class="lp-migas" aria-label="Ruta">
-        <a href="{% url 'precios_obras' %}?obra={{ obra.pk }}">Precios por obra</a>
+        <a href="{% url 'precios_obras' %}#obra-{{ obra.pk }}">Precios por obra</a>
         <span aria-hidden="true">/</span>
         <span>{{ obra.constructora.nombre }}</span>
     </nav>
@@ -22,7 +22,7 @@
             </p>
         </div>
         <div class="lp-head-acciones">
-            <a href="{% url 'precios_obras' %}?obra={{ obra.pk }}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i> Todas las obras</a>
+            <a href="{% url 'precios_obras' %}#obra-{{ obra.pk }}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-arrow-left" aria-hidden="true"></i> Todas las obras</a>
             {% if fx_puede.portal %}<a href="{% url 'detalle_obra' obra.pk %}" class="btn btn-sm btn-light lp-btn"><i class="bi bi-building" aria-hidden="true"></i> Ver obra</a>{% endif %}
         </div>
     </header>

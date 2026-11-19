@@ -1251,24 +1251,15 @@ class PreciosPorObraTests(TestCase):
         s[SESSION_KEY] = 'Bucaramanga'
         s.save()
 
-    def test_grupos_y_ficha(self):
+    def test_constructora_y_sus_obras(self):
         r = self.client.get(reverse('precios_obras'))
         self.assertEqual(r.status_code, 200)
-        g = {x['clave']: x for x in r.context['grupos']}
-        self.assertEqual([o.pk for o in g['con']['cola']], [self.con.pk])
-        self.assertEqual([o.pk for o in g['atender']['cola']], [self.activa.pk])
-        self.assertEqual([o.pk for o in g['sin']['cola']], [self.vieja.pk])
-        self.assertEqual(r.context['inicial'], 'atender')          # abre en lo que hay por hacer
-        self.assertEqual(r.context['total_obras'], 3)              # solo la sede activa
-        activa = g['atender']['cola'][0]
-        self.assertEqual(activa.n_recientes, 2)
-        self.assertEqual([h.pk for h in activa.hermanas], [self.con.pk, self.vieja.pk])
-        self.assertEqual(g['con']['cola'][0].cobertura, 50)        # 1 de 2 servicios con precio
+        self.assertEqual(len(r.context['grupos']), 1)              # solo la sede activa
+        g = r.context['grupos'][0]
+        self.assertEqual([o.pk for o in g['obras']], [self.con.pk, self.activa.pk, self.vieja.pk])
+        self.assertEqual([o.n_precios for o in g['obras']], [1, 0, 0])
+        self.assertEqual((r.context['con_precios'], r.context['total_obras']), (1, 3))
+        self.assertContains(r, 'Con precios · 1')
+        self.assertContains(r, 'Sin precios', count=2)
         self.assertContains(r, reverse('gestionar_precios_obra', args=[self.activa.pk]))
         self.assertNotContains(r, 'Otra sede')
-
-    def test_vuelve_al_grupo_pedido(self):
-        r = self.client.get(reverse('precios_obras'), {'estado': 'con', 'obra': self.con.pk})
-        self.assertEqual(r.context['inicial'], 'con')
-        self.assertEqual(r.context['obra_inicial'], str(self.con.pk))
-        self.assertEqual(self.client.get(reverse('precios_obras'), {'estado': 'raro'}).context['inicial'], 'atender')

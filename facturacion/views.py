@@ -443,106 +443,36 @@ def eliminar_servicio(request, pk):
 @staff_required
 def precios_obras(request):
     """
-    Centro de control de las listas de precios de la sede: tres grupos de obras (por configurar =
-    reciben informes y no tienen lista; con lista; sin actividad), cola de obras del grupo y ficha
-    de la obra elegida. Es la puerta de entrada a gestionar_precios_obra.
+    Obras de la sede agrupadas por constructora, con una etiqueta de si tienen o no lista de
+    precios. Mismo diseño que el catálogo de servicios. Puerta de entrada a gestionar_precios_obra.
     """
-    from datetime import timedelta
     from django.db.models import OuterRef, Subquery
-    from core.models import Informe
     from core.views import _orden_natural
 
     ciudad = request.ciudad_facturacion
-    ahora = timezone.now()
-    desde = ahora - timedelta(days=DIAS_OBRA_ACTIVA)
-    # Subconsultas (no Count/Max sobre joins: precios x informes se multiplicarían)
+    # Subconsulta (no Count sobre el join: no multiplica filas)
     n_precios = (PrecioServicio.objects.filter(obra=OuterRef('pk'), precio__isnull=False)
                  .values('obra').annotate(n=Count('pk')).values('n'))
-    ultimo = (Informe.objects.filter(obra=OuterRef('pk'), fecha_creacion__isnull=False)
-              .order_by('-fecha_creacion').values('fecha_creacion')[:1])
-    recientes = (Informe.objects.filter(obra=OuterRef('pk'), fecha_creacion__gte=desde)
-                 .values('obra').annotate(n=Count('pk')).values('n'))
-    obras = list(sede.obras_de(ciudad).select_related('constructora').annotate(
-        n_precios=Subquery(n_precios), ultimo_informe=Subquery(ultimo), n_recientes=Subquery(recientes),
-    ))
-    total_servicios = sede.servicios_de(ciudad).count()
+    obras = sede.obras_de(ciudad).select_related('constructora').annotate(n_precios=Subquery(n_precios))
 
     por_empresa = {}
     for obra in obras:
         obra.n_precios = obra.n_precios or 0
-        obra.n_recientes = obra.n_recientes or 0
-        dias = (ahora - obra.ultimo_informe).days if obra.ultimo_informe else None
-        obra.dias_informe = dias
-        obra.hace = _hace(dias)
-        if obra.n_precios:
-            obra.estado = 'con'
-        elif dias is not None and dias <= DIAS_OBRA_ACTIVA:
-            obra.estado = 'atender'          # recibe informes y no tiene lista: no se le puede facturar
-        else:
-            obra.estado = 'sin'
-        obra.cobertura = round(100 * obra.n_precios / total_servicios) if total_servicios else 0
-        por_empresa.setdefault(obra.constructora_id, []).append(obra)
-    for hermanas in por_empresa.values():
-        hermanas.sort(key=lambda o: _orden_natural(o.codigo_obra))
-        for o in hermanas:
-            o.hermanas = [h for h in hermanas if h.pk != o.pk]
+        por_empresa.setdefault(obra.constructora_id, {'constructora': obra.constructora, 'obras': []})['obras'].append(obra)
+    grupos = sorted(por_empresa.values(), key=lambda g: _orden_natural(g['constructora'].codigo))
+    for g in grupos:
+        g['obras'].sort(key=lambda o: _orden_natural(o.codigo_obra))
+        g['con_precios'] = sum(1 for o in g['obras'] if o.n_precios)
 
-    nunca = 10 ** 6
-    ORDEN = {
-        # Por configurar: primero la que recibió informe más reciente (la que ya se está quedando sin facturar)
-        'atender': lambda o: (o.dias_informe if o.dias_informe is not None else nunca, _orden_natural(o.codigo_obra)),
-        'con': lambda o: _orden_natural(o.codigo_obra),
-        'sin': lambda o: (o.dias_informe if o.dias_informe is not None else nunca, _orden_natural(o.codigo_obra)),
-    }
-    DEF = [
-        ('atender', 'Por configurar', 'bi-exclamation-circle-fill', 'reciben informes y no tienen lista'),
-        ('con', 'Con lista', 'bi-check-circle-fill', 'ya se les puede facturar'),
-        ('sin', 'Sin actividad', 'bi-moon', f'sin lista y sin informes en {DIAS_OBRA_ACTIVA} días'),
-    ]
-    grupos = []
-    for clave, nombre, icono, sub in DEF:
-        cola = sorted((o for o in obras if o.estado == clave), key=ORDEN[clave])
-        grupos.append({'clave': clave, 'nombre': nombre, 'icono': icono, 'sub': sub, 'cola': cola, 'n': len(cola)})
-    n = {g['clave']: g['n'] for g in grupos}
-    total = len(obras)
-
-    pedido = request.GET.get('estado', '')
-    inicial = pedido if pedido in n else ('atender' if n['atender'] else 'con')
-
+    total = sum(len(g['obras']) for g in grupos)
     context = {
         'grupos': grupos,
-        'inicial': inicial,
         'total_obras': total,
-        'n_con': n['con'], 'n_atender': n['atender'], 'n_sin': n['sin'],
-        'pct_con': round(100 * n['con'] / total) if total else 0,
-        'tramos': [{'clave': c, 'pct': round(100 * n[c] / total, 2) if total else 0} for c in ('con', 'atender', 'sin')],
-        'total_servicios': total_servicios,
-        'dias_activa': DIAS_OBRA_ACTIVA,
-        'query': request.GET.get('q', '').strip(),
-        'obra_inicial': request.GET.get('obra', ''),
+        'con_precios': sum(g['con_precios'] for g in grupos),
+        'total_servicios': sede.servicios_de(ciudad).count(),
+        'q': request.GET.get('q', '').strip(),
     }
     return render(request, 'facturacion/precios_obras.html', context)
-
-
-def _hace(dias):
-    """Antigüedad del último informe en palabras: 'hoy', 'hace 3 días', 'hace 4 meses'."""
-    if dias is None:
-        return 'Sin informes'
-    if dias < 1:
-        return 'Hoy'
-    if dias < 2:
-        return 'Ayer'
-    if dias < 45:
-        return f'Hace {dias} días'
-    if dias < 365:
-        return f'Hace {round(dias / 30)} meses'
-    anios = round(dias / 365)
-    return 'Hace 1 año' if anios == 1 else f'Hace {anios} años'
-
-
-# Una obra sin lista de precios que recibió informes en este plazo está trabajando:
-# es la que hay que configurar primero (mismo umbral que el punto "media" del directorio).
-DIAS_OBRA_ACTIVA = 180
 
 
 @staff_required

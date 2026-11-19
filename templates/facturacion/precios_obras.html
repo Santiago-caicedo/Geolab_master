@@ -3,425 +3,212 @@
 {% block title %}Precios por obra{% endblock %}
 
 {% block content %}
-<div class="po" id="po" data-inicial="{{ inicial }}" data-obra-inicial="{{ obra_inicial }}">
-
-    <!-- Banda: cobertura de la sede -->
-    <section class="po-banda">
-        <div class="po-banda-txt">
-            <div class="po-eyebrow">Precios por obra · {{ request.ciudad_facturacion }}</div>
-            <h1 class="po-titulo"><span class="grande">{{ n_con|cifra }}</span> de {{ total_obras|cifra }} obras con lista de precios</h1>
-            <p class="po-lead">
-                {% if n_atender %}<strong>{{ n_atender|cifra }}</strong> obra{{ n_atender|pluralize }} recibe{{ n_atender|pluralize:"n" }} informes y aún no se le{{ n_atender|pluralize:"s" }} puede facturar.{% else %}Todas las obras activas tienen lista de precios.{% endif %}
+<div class="lp" id="precios-obras">
+    <header class="lp-head">
+        <div class="lp-head-texto">
+            <h1 class="lp-titulo">Precios por obra</h1>
+            <p class="lp-resumen">
+                <strong>{{ con_precios|cifra }}</strong> de <strong>{{ total_obras|cifra }}</strong> obra{{ total_obras|pluralize }} de {{ request.ciudad_facturacion }}
+                tiene{{ con_precios|pluralize:"n" }} lista de precios. Abra una obra para poner o cambiar sus precios.
             </p>
         </div>
-        <div class="po-cobertura">
-            <div class="po-barra" role="img" aria-label="{{ n_con }} con lista, {{ n_atender }} por configurar, {{ n_sin }} sin actividad">
-                {% for t in tramos %}{% if t.pct %}<span class="{{ t.clave }}" style="flex-grow: {{ t.pct|stringformat:'s' }}"></span>{% endif %}{% endfor %}
-            </div>
-            <div class="po-pct"><b>{{ pct_con }}%</b> de cobertura</div>
-        </div>
-        <label class="po-buscar">
-            <span class="visually-hidden">Buscar obra, código o empresa</span>
+    </header>
+
+    {% if grupos %}
+    <div class="lp-barra" role="search">
+        <label class="lp-buscar">
             <i class="bi bi-search" aria-hidden="true"></i>
-            <input type="search" id="po-q" value="{{ query }}" autocomplete="off" placeholder="Buscar obra, código o empresa en las {{ total_obras|cifra }} obras">
+            <span class="visually-hidden">Buscar obra o constructora</span>
+            <input type="search" id="po-q" class="form-control" value="{{ q }}" placeholder="Buscar por obra, código o constructora" autocomplete="off">
         </label>
-    </section>
-
-    <!-- Mandos: eligen el grupo -->
-    <div class="po-mandos" role="group" aria-label="Elegir grupo de obras">
-        {% for g in grupos %}
-        <button type="button" class="po-mando {{ g.clave }}{% if not g.n %} cero{% endif %}" data-grupo="{{ g.clave }}"
-                aria-pressed="{% if g.clave == inicial %}true{% else %}false{% endif %}" aria-controls="poTablero">
-            <span class="eti"><i class="bi {{ g.icono }}" aria-hidden="true"></i>{{ g.nombre }}</span>
-            <span class="num" data-total="{{ g.n }}">{{ g.n|cifra }}</span>
-            <span class="sub">{{ g.sub }}</span>
-            <span class="filtro" hidden></span>
-        </button>
-        {% endfor %}
+        <span class="lp-ayuda" id="po-conteo" aria-live="polite"></span>
     </div>
+    {% endif %}
 
-    <!-- Tablero: cola de obras | ficha de la obra -->
-    <div class="po-tablero" id="poTablero" data-grupo="{{ inicial }}">
-        {% for g in grupos %}
-        <aside class="po-cola po-grupo{% if g.clave == inicial %} activo{% endif %}" data-grupo="{{ g.clave }}" aria-label="Obras: {{ g.nombre }}">
-            <div class="po-cola-cab">
-                <h2>{{ g.nombre }} · <span class="n">{{ g.n|cifra }}</span></h2>
-                <p>{% if g.clave == 'atender' %}Primero la que recibió informe más reciente{% elif g.clave == 'con' %}Por código de obra{% else %}Primero la de actividad más reciente{% endif %}</p>
-            </div>
-            {% if g.cola %}
-            <ol>
-                {% for o in g.cola %}
-                <li data-texto="{{ o.nombre }} {{ o.codigo_obra }} {{ o.constructora.nombre }} {{ o.constructora.codigo }}">
-                    <button type="button" class="po-obra-btn" data-det="obra-{{ o.pk }}" data-obra="{{ o.pk }}" aria-current="{% if forloop.first %}true{% else %}false{% endif %}">
-                        <span class="nom">{{ o.nombre }}</span>
-                        <span class="cod">{{ o.codigo_obra }} · {{ o.constructora.nombre }}</span>
-                        <span class="lado">
-                            {% if g.clave == 'con' %}<b>{{ o.n_precios|cifra }}</b><small>precio{{ o.n_precios|pluralize }}</small>
-                            {% else %}<small class="hace{% if g.clave == 'atender' %} ambar{% endif %}">{{ o.hace }}</small>{% endif %}
-                        </span>
-                    </button>
-                </li>
+    {% if grupos %}
+    <section class="card lp-cat">
+        <div class="table-responsive">
+            <table class="table lp-tabla mb-0">
+                <thead>
+                    <tr>
+                        <th scope="col" class="c-cod">Código</th>
+                        <th scope="col">Obra</th>
+                        <th scope="col" class="c-uso">Lista de precios</th>
+                        <th scope="col" class="c-acc"><span class="visually-hidden">Abrir</span></th>
+                    </tr>
+                </thead>
+                {% for g in grupos %}
+                {% with c=g.constructora %}
+                <tbody data-grupo data-texto="{{ c.codigo }} {{ c.nombre }}">
+                    <tr class="po-emp">
+                        <th scope="rowgroup" colspan="4">
+                            <span class="po-emp-fila">
+                                <span class="lp-cod po-emp-cod">{{ c.codigo }}</span>
+                                <span class="po-emp-nom">{{ c.nombre }}</span>
+                                <span class="po-emp-conteo">{{ g.con_precios|cifra }} de {{ g.obras|length|cifra }} con precios</span>
+                            </span>
+                        </th>
+                    </tr>
+                    {% for o in g.obras %}
+                    <tr class="lp-fila{% if o.n_precios %} con-precio{% endif %}" id="obra-{{ o.pk }}" data-texto="{{ o.codigo_obra }} {{ o.nombre }}">
+                        <td class="c-cod"><span class="lp-cod">{{ o.codigo_obra }}</span></td>
+                        <td class="c-serv">
+                            <span class="lp-cod lp-cod-m" aria-hidden="true">{{ o.codigo_obra }}</span>
+                            <a href="{% url 'gestionar_precios_obra' o.pk %}" class="po-obra">{{ o.nombre }}</a>
+                        </td>
+                        <td class="c-uso">
+                            {% if o.n_precios %}<span class="po-etiqueta si">Con precios · {{ o.n_precios|cifra }}</span>
+                            {% else %}<span class="po-etiqueta">Sin precios</span>{% endif %}
+                        </td>
+                        <td class="c-acc">
+                            <a href="{% url 'gestionar_precios_obra' o.pk %}" class="cat-icono" title="Abrir lista de precios" aria-label="Abrir la lista de precios de {{ o.nombre }}"><i class="bi bi-pencil" aria-hidden="true"></i></a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+                {% endwith %}
                 {% endfor %}
-            </ol>
-            <p class="po-cola-vacia" hidden>Ninguna obra de este grupo coincide con la búsqueda.</p>
-            {% else %}
-            <p class="po-cola-vacia">{% if g.clave == 'atender' %}Ninguna obra activa está sin lista: todo se puede facturar.{% else %}No hay obras en este grupo.{% endif %}</p>
-            {% endif %}
-        </aside>
-        <div class="po-grupo po-fichas{% if g.clave == inicial %} activo{% endif %}" data-grupo="{{ g.clave }}">
-            {% for o in g.cola %}
-            <section class="po-ficha {{ o.estado }}{% if forloop.first %} activo{% endif %}" id="obra-{{ o.pk }}" aria-labelledby="obra-{{ o.pk }}-t">
-                <div class="po-ficha-cab">
-                    <div class="min-w-0">
-                        <div class="po-ficha-estado">
-                            {% if o.estado == 'con' %}<i class="bi bi-check-circle-fill" aria-hidden="true"></i>Con lista de precios
-                            {% elif o.estado == 'atender' %}<i class="bi bi-exclamation-circle-fill" aria-hidden="true"></i>Recibe informes y no tiene lista
-                            {% else %}<i class="bi bi-moon" aria-hidden="true"></i>Sin lista y sin actividad reciente{% endif %}
-                        </div>
-                        <h3 id="obra-{{ o.pk }}-t">{{ o.nombre }}</h3>
-                        <div class="po-ficha-emp"><span class="po-cod">{{ o.codigo_obra }}</span>{{ o.constructora.nombre }}</div>
-                    </div>
-                    <a class="po-abrir" href="{% url 'gestionar_precios_obra' o.pk %}">
-                        <i class="bi {% if o.estado == 'con' %}bi-list-check{% else %}bi-plus-circle{% endif %}" aria-hidden="true"></i>{% if o.estado == 'con' %}Ver y editar la lista{% else %}Configurar lista de precios{% endif %}
-                    </a>
-                </div>
-
-                <div class="po-datos">
-                    <div class="dato">
-                        <div class="eti">Servicios con precio</div>
-                        <div class="val">{{ o.n_precios|cifra }} <small>de {{ total_servicios|cifra }}</small></div>
-                        <div class="po-medidor" role="img" aria-label="{{ o.cobertura }}% del catálogo con precio"><i style="width: {{ o.cobertura }}%"></i></div>
-                    </div>
-                    <div class="dato">
-                        <div class="eti">Último informe</div>
-                        <div class="val">{% if o.ultimo_informe %}{{ o.ultimo_informe|date:"j M Y" }}{% else %}—{% endif %}</div>
-                        <div class="sub{% if o.estado == 'atender' %} ambar{% endif %}">{{ o.hace }}</div>
-                    </div>
-                    <div class="dato">
-                        <div class="eti">Informes en {{ dias_activa }} días</div>
-                        <div class="val">{{ o.n_recientes|cifra }}</div>
-                        <div class="sub">{% if o.n_recientes %}{% if o.estado == 'con' %}se facturan con su lista{% else %}sin precio para facturarlos{% endif %}{% else %}sin informes recientes{% endif %}</div>
-                    </div>
-                </div>
-
-                {% if o.estado == 'atender' %}
-                <div class="po-aviso"><i class="bi bi-info-circle" aria-hidden="true"></i>Mientras no tenga lista, sus servicios no se pueden registrar con precio ni facturar. Ponga precio solo en los servicios que se le cobran.</div>
-                {% endif %}
-
-                <div class="po-hermanas">
-                    <h4>Otras obras de {{ o.constructora.nombre }}{% if o.hermanas %} · {{ o.hermanas|length|cifra }}{% endif %}</h4>
-                    {% if o.hermanas %}
-                    <ul>
-                        {% for h in o.hermanas %}
-                        <li>
-                            <a href="{% url 'gestionar_precios_obra' h.pk %}">
-                                <span class="po-cod">{{ h.codigo_obra }}</span>
-                                <span class="nom">{{ h.nombre }}</span>
-                                <span class="po-chip {{ h.estado }}">{% if h.estado == 'con' %}{{ h.n_precios|cifra }} precio{{ h.n_precios|pluralize }}{% elif h.estado == 'atender' %}Por configurar{% else %}Sin actividad{% endif %}</span>
-                                <i class="bi bi-chevron-right" aria-hidden="true"></i>
-                            </a>
-                        </li>
-                        {% endfor %}
-                    </ul>
-                    {% else %}
-                    <p>Es la única obra de la empresa en {{ request.ciudad_facturacion }}.</p>
-                    {% endif %}
-                </div>
-            </section>
-            {% endfor %}
-            {% if not g.cola %}
-            <div class="po-vacio"><i class="bi bi-check-circle" aria-hidden="true"></i>{% if g.clave == 'atender' %}No hay obras por configurar.{% else %}No hay obras en este grupo.{% endif %}</div>
-            {% endif %}
+            </table>
         </div>
-        {% endfor %}
+    </section>
+    {% else %}
+    <div class="card lp-vacio">
+        <i class="bi bi-buildings" aria-hidden="true"></i>
+        <p>{{ request.ciudad_facturacion }} todavía no tiene obras. Se crean al sincronizar con WordPress.</p>
     </div>
+    {% endif %}
 
-    <p class="po-pie">“Activas” son las obras con informes en los últimos {{ dias_activa }} días. El catálogo de {{ request.ciudad_facturacion }} tiene {{ total_servicios|cifra }} servicios; cada obra solo lleva precio en los que se le cobran.</p>
+    <div class="lp-sin-resultados card" id="po-sin-resultados" hidden>
+        <p>Ninguna obra coincide con la búsqueda.</p>
+    </div>
 </div>
 {% endblock %}
 
 {% block extra_css %}
 <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@500&display=swap" rel="stylesheet">
 <style>
-/* ===== Precios por obra: centro de control =====
-   Banda (cobertura + buscador) · 3 mandos (grupo) · cola de obras | ficha de la obra. Un grupo y una obra a la vez. */
-.po {
-    --ink: #1c2e4a; --text: #334155; --muted: #5b6b80; --line: #e6eaf0; --soft: #f6f8fb; --link: #0b6ea8;
-    --con: #12805c; --con-bg: #e3f4ec; --con-linea: #a9dcc5;
-    --atender: #b45309; --atender-bg: #fdf1e1; --atender-linea: #f3cf9e; --atender-vivo: #e8930c;
-    --sin: #5b6b80; --sin-bg: #eef1f5; --sin-linea: #cfd6e0;
+/* Mismo sistema que el catálogo de servicios y la lista de precios de la obra */
+.lp {
+    --ink: #1c2e4a; --text: #334155; --muted: #5b6b80; --line: #e6eaf0; --soft: #f6f8fb;
+    --link: #0b6ea8; --verde: #12805c; --verde-bg: #f1f9f5;
     --mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
-    color: var(--text);
+    color: var(--text); padding-bottom: 2rem;
 }
+.lp-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.lp-titulo { font-size: 1.45rem; font-weight: 650; color: var(--ink); letter-spacing: -.01em; margin: 0 0 .25rem; }
+.lp-resumen { margin: 0; font-size: .9375rem; max-width: 80ch; }
+.lp-resumen strong { color: var(--ink); font-variant-numeric: tabular-nums; }
 
-/* ---------- Banda ---------- */
-.po-banda {
-    position: relative; overflow: hidden; color: #fff; border-radius: 14px; padding: 1.15rem 1.3rem 1.2rem;
-    background: linear-gradient(118deg, #1c2e4a 0%, #18385c 55%, #0e4f7d 100%);
-    box-shadow: 0 6px 18px -10px rgba(16, 42, 72, .55);
-    display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: .9rem 2rem; align-items: end;
+.lp-barra {
+    position: sticky; top: 0; z-index: 5; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap;
+    background: rgba(248, 250, 252, .94); backdrop-filter: blur(6px);
+    padding: .6rem 0; margin-bottom: .75rem; border-bottom: 1px solid var(--line);
 }
-.po-eyebrow { font-size: .72rem; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: #7cc8f0; }
-.po-titulo { font-size: 1.35rem; font-weight: 600; margin: .2rem 0 .25rem; line-height: 1.25; color: #fff; }
-.po-titulo .grande { font-size: 2rem; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.po-lead { margin: 0; color: rgba(255, 255, 255, .8); font-size: .9rem; }
-.po-lead strong { color: #ffd39a; }
-.po-cobertura { align-self: center; }
-.po-barra { display: flex; gap: 3px; height: 14px; border-radius: 7px; overflow: hidden; background: rgba(255, 255, 255, .12); }
-.po-barra span { min-width: 6px; }
-.po-barra .con { background: #4fd19f; }
-.po-barra .atender { background: #f5a524; }
-.po-barra .sin { background: rgba(255, 255, 255, .28); }
-.po-pct { margin-top: .4rem; font-size: .8rem; color: rgba(255, 255, 255, .75); text-align: right; }
-.po-pct b { color: #fff; font-size: 1rem; font-variant-numeric: tabular-nums; }
-.po-buscar { grid-column: 1 / -1; position: relative; margin: .15rem 0 0; max-width: 640px; }
-.po-buscar i { position: absolute; left: .8rem; top: 50%; transform: translateY(-50%); color: #64748b; font-size: .9rem; pointer-events: none; }
-.po-buscar input { width: 100%; height: 42px; padding: 0 .9rem 0 2.2rem; border: 0; border-radius: 10px; font: inherit; font-size: .9rem; color: var(--text); background: #fff; }
-.po-buscar input:focus-visible { outline: 3px solid #7cc8f0; outline-offset: 1px; }
+.lp-buscar { position: relative; flex: 1 1 260px; max-width: 380px; margin: 0; }
+.lp-buscar i { position: absolute; left: .7rem; top: 50%; transform: translateY(-50%); color: var(--muted); font-size: .85rem; pointer-events: none; }
+.lp-buscar input { padding-left: 2rem; height: 36px; font-size: .875rem; }
+.lp-ayuda { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
 
-/* ---------- Mandos ---------- */
-.po-mandos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; margin: 1rem 0; }
-.po-mando {
-    --c: var(--sin); --c-bg: var(--sin-bg); --c-linea: var(--sin-linea);
-    position: relative; display: flex; flex-direction: column; align-items: flex-start; gap: .2rem;
-    padding: .85rem 1rem .8rem; border: 1px solid var(--line); border-radius: 14px; background: #fff;
-    text-align: left; font: inherit; color: var(--text); cursor: pointer;
-    box-shadow: 0 1px 2px rgba(15, 23, 42, .04); transition: border-color .15s ease, background-color .15s ease, box-shadow .15s ease;
-}
-.po-mando.atender { --c: var(--atender); --c-bg: var(--atender-bg); --c-linea: var(--atender-linea); }
-.po-mando.con { --c: var(--con); --c-bg: var(--con-bg); --c-linea: var(--con-linea); }
-.po-mando:hover { border-color: var(--c-linea); }
-.po-mando[aria-pressed="true"] { border-color: var(--c); background: var(--c-bg); box-shadow: 0 0 0 1px var(--c), 0 10px 24px -16px var(--c); }
-.po-mando[aria-pressed="true"]::after { content: ''; position: absolute; left: 50%; bottom: -9px; width: 14px; height: 14px; transform: translateX(-50%) rotate(45deg);
-                                       background: var(--c-bg); border-right: 1px solid var(--c); border-bottom: 1px solid var(--c); }
-.po-mando:focus-visible { outline: 2px solid var(--c); outline-offset: 2px; }
-.po-mando .eti { display: flex; align-items: center; gap: .4rem; font-size: .8rem; font-weight: 600; color: var(--c); }
-.po-mando .num { font-size: 2.2rem; font-weight: 700; line-height: 1; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
-.po-mando.atender .num { color: var(--atender); }
-.po-mando.cero .num { color: #cbd5e1; }
-.po-mando .sub { font-size: .78rem; color: var(--muted); }
-.po-mando .filtro { font-size: .72rem; font-weight: 600; color: var(--c); }
+.lp-cat { border: 1px solid var(--line); border-radius: 12px; overflow: hidden; margin-bottom: 1rem; box-shadow: 0 1px 2px rgba(15, 23, 42, .04); }
 
-/* ---------- Tablero ---------- */
-.po-tablero { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 1rem; align-items: start; }
-.po-cola { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden; position: sticky; top: 1rem; }
-.po-cola-cab { padding: .8rem 1rem .65rem; border-bottom: 1px solid var(--line); }
-.po-cola-cab h2 { font-size: .9rem; font-weight: 600; color: var(--ink); margin: 0; }
-.po-cola-cab p { margin: .15rem 0 0; font-size: .78rem; color: var(--muted); }
-.po-cola ol { list-style: none; margin: 0; padding: .35rem; max-height: 64vh; overflow-y: auto; }
-.po-cola-vacia { margin: 0; padding: 1.5rem 1rem; font-size: .85rem; color: var(--muted); text-align: center; }
-.po-obra-btn { width: 100%; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .1rem .6rem; align-items: center;
-               padding: .6rem .7rem; border: 0; border-radius: 10px; background: transparent; text-align: left; font: inherit; color: inherit; cursor: pointer; }
-.po-obra-btn:hover { background: var(--soft); }
-.po-obra-btn[aria-current="true"] { background: var(--sel-bg, #e6f1fa); box-shadow: inset 3px 0 0 var(--sel, #0b6ea8); }
-.po-obra-btn:focus-visible { outline: 2px solid var(--link); outline-offset: -2px; }
-.po-obra-btn .nom { font-weight: 600; color: var(--ink); font-size: .85rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.po-obra-btn .cod { font-family: var(--mono); font-size: .7rem; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.po-obra-btn .lado { grid-row: 1 / span 2; grid-column: 2; text-align: right; line-height: 1.15; }
-.po-obra-btn .lado b { display: block; font-size: 1.05rem; color: var(--con); font-variant-numeric: tabular-nums; }
-.po-obra-btn .lado small { font-size: .7rem; color: var(--muted); white-space: nowrap; }
-.po-obra-btn .lado .ambar { color: var(--atender); font-weight: 600; }
-.po-tablero[data-grupo="atender"] { --sel: var(--atender); --sel-bg: var(--atender-bg); }
-.po-tablero[data-grupo="con"] { --sel: var(--con); --sel-bg: var(--con-bg); }
-.po-tablero[data-grupo="sin"] { --sel: var(--sin); --sel-bg: var(--sin-bg); }
+.lp-tabla { font-size: .875rem; }
+.lp-tabla thead th { background: #fafbfd; color: var(--muted); font-size: .75rem; font-weight: 600; border-bottom: 1px solid var(--line); padding: .45rem 1rem; white-space: nowrap; }
+.lp-tabla td { padding: .5rem 1rem; vertical-align: middle; border-color: var(--line); color: var(--text); }
+.lp-tabla tbody tr:last-child td { border-bottom: 0; }
+.lp-tabla .c-cod { width: 130px; }
+.lp-tabla .c-uso { width: 170px; white-space: nowrap; }
+.lp-tabla .c-acc { width: 1%; white-space: nowrap; text-align: right; }
+.lp-cod { font-family: var(--mono); font-size: .78rem; color: var(--ink); white-space: nowrap; }
+.lp-cod-m { display: none; }
+.lp-fila:hover td { background: var(--soft); }
+/* Obra con lista de precios: verde suave, como en el catálogo */
+.lp-fila.con-precio td { background: var(--verde-bg); }
+.lp-fila.con-precio:hover td { background: #e8f5ee; }
+.lp-fila.con-precio td:first-child { box-shadow: inset 3px 0 0 var(--verde); }
+.lp-fila { scroll-margin-top: 80px; }
+.lp-fila:target td { background: #e1f0fb; }
 
-.po-ficha { background: #fff; border: 1px solid var(--line); border-radius: 14px; overflow: hidden;
-            box-shadow: 0 1px 2px rgba(15, 23, 42, .04), 0 8px 24px -18px rgba(15, 23, 42, .3); }
-.po-ficha + .po-ficha { margin-top: 1rem; }
-.po-ficha.con { --f: var(--con); } .po-ficha.atender { --f: var(--atender); } .po-ficha.sin { --f: var(--sin); }
-.po-ficha-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; flex-wrap: wrap;
-                padding: 1rem 1.15rem; border-top: 4px solid var(--f); border-bottom: 1px solid var(--line); }
-.po-ficha-cab .min-w-0 { min-width: 0; }
-.po-ficha-estado { display: flex; align-items: center; gap: .35rem; font-size: .78rem; font-weight: 600; color: var(--f); }
-.po-ficha-cab h3 { font-size: 1.25rem; font-weight: 700; color: var(--ink); margin: .2rem 0 .25rem; line-height: 1.25; }
-.po-ficha-emp { font-size: .85rem; color: var(--muted); display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
-.po-cod { font-family: var(--mono); font-size: .74rem; font-weight: 500; color: var(--ink); background: #e8edf6; border-radius: 4px; padding: .1rem .45rem; white-space: nowrap; }
-.po-abrir { display: inline-flex; align-items: center; gap: .5rem; height: 46px; padding: 0 1.15rem; border-radius: 10px;
-            background: #0077b6; color: #fff; font-weight: 600; font-size: .9rem; text-decoration: none; white-space: nowrap; }
-.po-ficha.atender .po-abrir { background: #b45309; }
-.po-abrir:hover { filter: brightness(.92); color: #fff; }
-.po-abrir:focus-visible { outline: 2px solid var(--ink); outline-offset: 3px; }
+/* Fila de constructora (encabezado de grupo dentro de la tabla) */
+.lp-tabla .po-emp th { background: #f3f6fa; padding: .55rem 1rem; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); font-weight: 400; }
+.lp-tabla tbody:first-of-type .po-emp th { border-top: 0; }
+.po-emp-fila { display: flex; align-items: center; gap: .65rem; flex-wrap: wrap; }
+.po-emp-cod { color: #0b5c8f; background: #e1f0fb; border-radius: 6px; padding: .12rem .45rem; }
+.po-emp-nom { font-size: .9rem; font-weight: 650; color: var(--ink); }
+.po-emp-conteo { margin-left: auto; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.po-obra { color: var(--text); text-decoration: none; }
+.lp-fila.con-precio .po-obra { color: var(--ink); }
+.po-obra:hover { color: var(--link); text-decoration: underline; }
+.po-etiqueta { display: inline-block; font-size: .8125rem; color: var(--muted); font-variant-numeric: tabular-nums; }
+.po-etiqueta.si { color: var(--verde); font-weight: 600; }
 
-.po-datos { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
-.po-datos .dato { padding: .9rem 1.15rem; min-width: 0; }
-.po-datos .dato + .dato { border-left: 1px solid var(--line); }
-.po-datos .eti { font-size: .75rem; font-weight: 600; color: var(--muted); }
-.po-datos .val { font-size: 1.35rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; line-height: 1.3; }
-.po-datos .val small { font-size: .8rem; font-weight: 500; color: var(--muted); }
-.po-datos .sub { font-size: .78rem; color: var(--muted); }
-.po-datos .sub.ambar { color: var(--atender); font-weight: 600; }
-.po-medidor { height: 6px; border-radius: 3px; background: #eef1f5; margin-top: .45rem; overflow: hidden; max-width: 220px; }
-.po-medidor i { display: block; height: 100%; background: var(--con); border-radius: 3px; }
+.cat-icono { width: 32px; height: 32px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center;
+             color: var(--muted); text-decoration: none; font-size: .95rem; vertical-align: middle; }
+.cat-icono:hover { background: #e1f0fb; color: #0b5c8f; }
 
-.po-aviso { display: flex; gap: .6rem; align-items: flex-start; margin: 0 1.15rem .9rem; padding: .65rem .8rem; border-radius: 10px;
-            background: var(--atender-bg); color: #7c3a06; font-size: .82rem; line-height: 1.45; }
-.po-aviso i { margin-top: .1rem; }
+.lp-vacio, .lp-sin-resultados { text-align: center; padding: 2.5rem 1rem; color: var(--muted); border: 1px dashed var(--line); }
+.lp-vacio i { font-size: 1.6rem; color: #cbd5e1; }
+.lp-vacio p { margin: .5rem auto 0; max-width: 56ch; }
+.lp-sin-resultados p { margin: 0; }
+.lp a:focus-visible, .lp input:focus-visible { outline: 2px solid var(--link); outline-offset: 2px; box-shadow: none; }
 
-.po-hermanas { border-top: 1px solid var(--line); padding: .85rem 1.15rem 1rem; }
-.po-hermanas h4 { font-size: .8rem; font-weight: 600; color: var(--ink); margin: 0 0 .45rem; }
-.po-hermanas p { margin: 0; font-size: .82rem; color: var(--muted); }
-.po-hermanas ul { list-style: none; margin: 0; padding: 0; }
-.po-hermanas li + li { border-top: 1px dashed var(--line); }
-.po-hermanas a { display: grid; grid-template-columns: 6.5rem minmax(0, 1fr) auto auto; gap: .65rem; align-items: center; padding: .45rem .25rem;
-                 color: inherit; text-decoration: none; border-radius: 6px; }
-.po-hermanas a:hover { background: var(--soft); }
-.po-hermanas a:focus-visible { outline: 2px solid var(--link); outline-offset: 1px; }
-.po-hermanas a .po-cod { justify-self: start; }
-.po-hermanas .nom { font-size: .85rem; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.po-hermanas a i { color: var(--link); font-size: .75rem; }
-.po-chip { font-size: .72rem; font-weight: 600; padding: .1rem .5rem; border-radius: 999px; white-space: nowrap; font-variant-numeric: tabular-nums; }
-.po-chip.con { color: var(--con); background: var(--con-bg); }
-.po-chip.atender { color: var(--atender); background: var(--atender-bg); }
-.po-chip.sin { color: var(--muted); background: var(--sin-bg); }
-
-.po-vacio { background: #fff; border: 1px dashed var(--line); border-radius: 14px; padding: 2.75rem 1rem; text-align: center; color: var(--muted); }
-.po-vacio i { display: block; font-size: 1.8rem; color: var(--con); margin-bottom: .4rem; }
-.po-pie { font-size: .8rem; color: var(--muted); margin: 1rem 0 0; }
-
-/* Sin JS se ve todo; con JS, un grupo y una ficha */
-.js .po-grupo:not(.activo), .js .po-ficha:not(.activo) { display: none; }
-.js .po-ficha + .po-ficha { margin-top: 0; }
-
-@media (max-width: 1199.98px) {
-    .po-banda { grid-template-columns: minmax(0, 1fr); }
-    .po-pct { text-align: left; }
-    .po-tablero { grid-template-columns: minmax(0, 1fr); }
-    .po-cola { position: static; }
-    .po-cola ol { max-height: 50vh; }
-}
 @media (max-width: 767.98px) {
-    .po-banda { padding: 1rem; }
-    .po-titulo { font-size: 1.1rem; }
-    .po-titulo .grande { font-size: 1.6rem; }
-    .po-mandos { gap: .4rem; }
-    .po-mando { padding: .65rem .6rem; }
-    .po-mando .num { font-size: 1.6rem; }
-    .po-mando .sub { display: none; }
-    .po-mando[aria-pressed="true"]::after { display: none; }
-    .po-datos { grid-template-columns: minmax(0, 1fr); }
-    .po-datos .dato + .dato { border-left: 0; border-top: 1px solid var(--line); }
-    .po-abrir { width: 100%; justify-content: center; }
-    .po-hermanas a { grid-template-columns: minmax(0, 1fr) auto; }
-    .po-hermanas a .po-cod { grid-column: 1; justify-self: start; }
-    .po-hermanas a .nom { grid-column: 1 / -1; grid-row: 2; white-space: normal; }
-    .po-hermanas a i { display: none; }
+    .lp-tabla .c-cod { display: none; }
+    .lp-cod-m { display: block; font-size: .72rem; color: var(--muted); margin-bottom: .1rem; }
+    .lp-fila.con-precio td:nth-child(2) { box-shadow: inset 3px 0 0 var(--verde); }
+    .lp-tabla td, .lp-tabla thead th { padding-left: .65rem; padding-right: .65rem; }
+    .lp-tabla .c-uso { width: 92px; white-space: normal; }
+    .lp-tabla .c-acc { width: 40px; padding-left: 0; }
+    .lp-tabla .po-emp th { padding: .5rem .65rem; }
+    .po-emp-conteo { margin-left: 0; width: 100%; white-space: normal; }
+    .po-etiqueta.si { font-size: .78rem; }
+    .lp-ayuda { display: none; }
 }
-@media (prefers-reduced-motion: reduce) { .po-mando { transition: none; } }
 </style>
 {% endblock %}
 
 {% block extra_js %}
 <script>
 (function () {
-    const raiz = document.getElementById('po');
-    if (!raiz) return;
-    const tablero = document.getElementById('poTablero');
-    const entrada = document.getElementById('po-q');
-    const mandos = Array.from(raiz.querySelectorAll('.po-mando'));
-    raiz.classList.add('js');
-    let grupo = raiz.dataset.inicial;
-
-    // Sin tildes ni mayúsculas: "ibague" encuentra "Ibagué"
+    'use strict';
+    const raiz = document.getElementById('precios-obras');
+    const q = document.getElementById('po-q');
+    if (!raiz || !q) return;
+    const conteo = document.getElementById('po-conteo');
+    const sinRes = document.getElementById('po-sin-resultados');
     const normal = (s) => (s || '').normalize('NFD').replace(/\p{M}/gu, '').toLowerCase();
-    const items = Array.from(raiz.querySelectorAll('.po-cola li[data-texto]'));
-    items.forEach((li) => { li._texto = normal(li.dataset.texto); });
     const miles = (n) => String(n).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+    const grupos = Array.from(raiz.querySelectorAll('[data-grupo]'));
+    grupos.forEach((g) => {
+        g._texto = normal(g.dataset.texto);
+        g._filas = Array.from(g.querySelectorAll('.lp-fila'));
+        g._filas.forEach((tr) => { tr._texto = normal(tr.dataset.texto); });
+    });
+    const total = grupos.reduce((n, g) => n + g._filas.length, 0);
 
-    function guardar(obraPk) {
+    function filtrar() {
+        const palabras = normal(q.value).split(/\s+/).filter(Boolean);
+        let visibles = 0;
+        grupos.forEach((g) => {
+            let n = 0;
+            g._filas.forEach((tr) => {
+                const texto = g._texto + ' ' + tr._texto;
+                const ver = palabras.every((p) => texto.includes(p));
+                tr.hidden = !ver;
+                n += ver;
+            });
+            g.hidden = n === 0;
+            visibles += n;
+        });
+        conteo.textContent = palabras.length ? `${miles(visibles)} de ${miles(total)} obras` : `${miles(total)} obras`;
+        sinRes.hidden = !(palabras.length && visibles === 0);
+        // La dirección recuerda la búsqueda (volver de una obra deja la lista igual)
         const url = new URL(window.location);
-        url.searchParams.set('estado', grupo);
-        obraPk ? url.searchParams.set('obra', obraPk) : url.searchParams.delete('obra');
-        entrada.value.trim() ? url.searchParams.set('q', entrada.value.trim()) : url.searchParams.delete('q');
-        history.replaceState(null, '', url);   // volver desde una lista de precios deja todo como estaba
+        q.value.trim() ? url.searchParams.set('q', q.value.trim()) : url.searchParams.delete('q');
+        history.replaceState(null, '', url);
     }
-
-    function cola(clave) { return tablero.querySelector('.po-cola[data-grupo="' + clave + '"]'); }
-
-    function elegirObra(btn, mover) {
-        const c = btn.closest('.po-cola');
-        c.querySelectorAll('.po-obra-btn').forEach((b) => b.setAttribute('aria-current', b === btn ? 'true' : 'false'));
-        const ficha = document.getElementById(btn.dataset.det);
-        ficha.parentElement.querySelectorAll('.po-ficha').forEach((f) => f.classList.toggle('activo', f === ficha));
-        guardar(btn.dataset.obra);
-        if (mover && window.matchMedia('(max-width: 1199.98px)').matches) {
-            ficha.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
-        }
-    }
-
-    // Si la obra elegida quedó oculta por la búsqueda, se pasa a la primera visible
-    function asegurarElegida(clave) {
-        const c = cola(clave);
-        const actual = c.querySelector('.po-obra-btn[aria-current="true"]');
-        if (actual && !actual.closest('li').hidden) return;
-        const primera = Array.from(c.querySelectorAll('li[data-texto]')).find((li) => !li.hidden);
-        if (primera) elegirObra(primera.querySelector('.po-obra-btn'), false);
-    }
-
-    function elegirGrupo(clave) {
-        grupo = clave;
-        tablero.dataset.grupo = clave;
-        mandos.forEach((m) => m.setAttribute('aria-pressed', m.dataset.grupo === clave ? 'true' : 'false'));
-        tablero.querySelectorAll('.po-grupo').forEach((g) => g.classList.toggle('activo', g.dataset.grupo === clave));
-        asegurarElegida(clave);
-        const sel = cola(clave).querySelector('.po-obra-btn[aria-current="true"]');
-        guardar(sel ? sel.dataset.obra : '');
-    }
-
-    function buscar() {
-        const palabras = normal(entrada.value).split(/\s+/).filter(Boolean);
-        const porGrupo = {};
-        items.forEach((li) => {
-            const ok = palabras.every((p) => li._texto.includes(p));
-            li.hidden = !ok;
-            const g = li.closest('.po-cola').dataset.grupo;
-            porGrupo[g] = (porGrupo[g] || 0) + (ok ? 1 : 0);
-        });
-        mandos.forEach((m) => {
-            const total = Number(m.querySelector('.num').dataset.total);
-            const n = porGrupo[m.dataset.grupo] || 0;
-            const filtro = m.querySelector('.filtro');
-            filtro.hidden = !palabras.length;
-            filtro.textContent = palabras.length ? miles(n) + ' coinciden con la búsqueda' : '';
-            m.classList.toggle('cero', palabras.length ? n === 0 : total === 0);
-        });
-        tablero.querySelectorAll('.po-cola').forEach((c) => {
-            const vacia = c.querySelector('.po-cola-vacia');
-            const n = porGrupo[c.dataset.grupo] || 0;
-            const cab = c.querySelector('.po-cola-cab .n');
-            if (cab) cab.textContent = miles(n);
-            if (vacia && c.querySelector('ol')) vacia.hidden = n > 0;
-        });
-        // Si el grupo abierto no tiene coincidencias, se abre el primero que sí
-        if (palabras.length && !(porGrupo[grupo] > 0)) {
-            const otro = ['atender', 'con', 'sin'].find((g) => porGrupo[g] > 0);
-            if (otro) { elegirGrupo(otro); return; }
-        }
-        asegurarElegida(grupo);
-        guardar((cola(grupo).querySelector('.po-obra-btn[aria-current="true"]') || {}).dataset?.obra);
-    }
-
-    mandos.forEach((m) => m.addEventListener('click', () => elegirGrupo(m.dataset.grupo)));
-    raiz.querySelectorAll('.po-obra-btn').forEach((b) => b.addEventListener('click', () => elegirObra(b, true)));
-    raiz.querySelectorAll('.po-cola ol').forEach((ol) => ol.addEventListener('keydown', (e) => {
-        if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-        const botones = Array.from(ol.querySelectorAll('li:not([hidden]) .po-obra-btn'));
-        const i = botones.indexOf(document.activeElement);
-        if (i < 0) return;
-        e.preventDefault();
-        const sig = botones[Math.min(botones.length - 1, Math.max(0, i + (e.key === 'ArrowDown' ? 1 : -1)))];
-        sig.focus(); elegirObra(sig, false);
-    }));
-    entrada.addEventListener('input', buscar);
-    entrada.addEventListener('keydown', (e) => { if (e.key === 'Escape') { entrada.value = ''; buscar(); } });
-
-    // Estado inicial: grupo y obra que traía la URL (al volver de una lista de precios)
-    elegirGrupo(grupo);
-    const pk = raiz.dataset.obraInicial;
-    if (pk) {
-        const btn = raiz.querySelector('.po-obra-btn[data-obra="' + pk + '"]');
-        if (btn) { elegirGrupo(btn.closest('.po-cola').dataset.grupo); elegirObra(btn, false); }
-    }
-    if (entrada.value) buscar();
+    q.addEventListener('input', filtrar);
+    q.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') { q.value = ''; filtrar(); } });
+    filtrar();
 })();
 </script>
 {% endblock %}
