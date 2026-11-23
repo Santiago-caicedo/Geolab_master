@@ -1,0 +1,33 @@
+# Carga aparte, Bucaramanga, pedida el 2026-11-23: obras que el laboratorio reporta "sin precios" en el portal.
+# No estaban en bucaramanga.csv (activos de oct-2026), así que el importador no les dio precios.
+# Cada obra toma los precios de SU columna en la hoja LISTA DE PRECIO, tal cual el Excel.
+# Uso: python manage.py importar_catalogo_excel BUC.xlsm --ciudad Bucaramanga \
+#        --activos facturacion/clientes_activos/bucaramanga_2026-11-23.csv --no-sobrescribir --detalle [--dry-run]
+#
+# No se pueden cargar desde el Excel (pendiente con el laboratorio):
+#   7-2  INACAR: el Excel no tiene columna 7-2 ("transporte por obra IVA": ¿qué precio y con IVA?)
+#   13-1 y 12-1: el Excel no tiene esas columnas
+#   0-20 COMFENALCO SANTANDER / UISS MALAGA: el Excel tiene DOS columnas 0-20 con listas distintas
+#        (EV: 15 precios, más baratos; FA: 25 precios, más caros). Quitar el # y poner EV o FA en precios_de.
+#   56-2 MARVAL ya se cargó el 2026-11-18 (113 precios en BUC56-2 PARQUE ORIENTE SOLEIL): revisar en el
+#        servidor si hay otra obra 56-2 (duplicada) que es la que el laboratorio está viendo.
+codigo;empresa;proyecto;empresa_portal;obra_portal;precios_de
+55-2;PROYECTOS INMOBILIARIOS DE SANTANDER S.A.S;;;;
+53-5;URBANIZADORA MARTINEZ ESPARZA SAS;;;;
+53-4;URBANIZADORA MARTINEZ ESPARZA SAS;;;;
+41-2;DINCO DESARROLLOS INMOBILIARIOS Y CONSTRUCCIONES;U.R MALIBU CONDOMINIO T3;;;
+28-3;KOI CONSTRUCTORA S.A.S;;;;
+28-1;KOI CONSTRUCTORA S.A.S;KRONUS;;;
+9-16;;;;;
+9-14;;;;;
+9-13;;;;;
+9-11;;;;;
+9-10;;;;;
+9-9;;;;;
+9-4;;;;;
+9-2;;;;;
+9-1;;BUCARAMANGA PLANTA CONCRETOS CERSAR;;;
+8-1;BP CONSTRUCTORES S.A;FONTANA DE LA SIERRA;;;
+7-16;INACAR S.A.;;;;
+7-15;INACAR S.A.;;;;
+#0-20;COMFENALCO SANTANDER;UISS MALAGA;;;FA
